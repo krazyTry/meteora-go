@@ -7,12 +7,11 @@ import (
 
 	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/programs/token"
-	"github.com/gagliardetto/solana-go/rpc"
-	sendandconfirmtransaction "github.com/gagliardetto/solana-go/rpc/sendAndConfirmTransaction"
 	solanago "github.com/krazyTry/meteora-go/solana"
 )
 
-func dbcWithdrawLeftover(m *DBC,
+func dbcWithdrawLeftover(
+	m *DBC,
 	config solana.PublicKey,
 	dbcPool solana.PublicKey,
 	tokenBaseAccount solana.PublicKey,
@@ -41,7 +40,8 @@ func dbcWithdrawLeftover(m *DBC,
 	)
 }
 
-func (m *DBC) WithdrawLeftoverInstruction(ctx context.Context,
+func (m *DBC) WithdrawLeftoverInstruction(
+	ctx context.Context,
 	payer solana.PublicKey,
 	leftoverReceiver solana.PublicKey,
 	virtualPool *dbc.VirtualPool,
@@ -83,7 +83,8 @@ func (m *DBC) WithdrawLeftoverInstruction(ctx context.Context,
 	return instructions, nil
 }
 
-func (m *DBC) WithdrawLeftover(ctx context.Context,
+func (m *DBC) WithdrawLeftover(
+	ctx context.Context,
 	payer *solana.Wallet,
 	baseMint solana.PublicKey,
 ) (string, error) {
@@ -103,61 +104,30 @@ func (m *DBC) WithdrawLeftover(ctx context.Context,
 		return "", err
 	}
 
-	latestBlockhash, err := solanago.GetLatestBlockhash(ctx, m.rpcClient)
-	if err != nil {
-		return "", err
-	}
-
-	tx, err := solana.NewTransaction(instructions, latestBlockhash, solana.TransactionPayer(payer.PublicKey()))
-	if err != nil {
-		return "", err
-	}
-
-	if _, err = tx.Sign(func(key solana.PublicKey) *solana.PrivateKey {
-		switch {
-		case key.Equals(payer.PublicKey()):
-			return &payer.PrivateKey
-		case key.Equals(m.leftoverReceiver.PublicKey()):
-			return &m.leftoverReceiver.PrivateKey
-		default:
-			return nil
-		}
-	}); err != nil {
-		return "", err
-	}
-
-	if m.bSimulate {
-		if _, err = m.rpcClient.SimulateTransactionWithOpts(
-			ctx,
-			tx,
-			&rpc.SimulateTransactionOpts{
-				SigVerify:  false,
-				Commitment: rpc.CommitmentFinalized,
-			}); err != nil {
-			return "", err
-		}
-		return "-", nil
-	}
-
-	sig, err := m.rpcClient.SendTransactionWithOpts(
-		ctx,
-		tx,
-		rpc.TransactionOpts{
-			SkipPreflight:       false,
-			PreflightCommitment: rpc.CommitmentFinalized,
+	sig, err := solanago.SendTransaction(ctx,
+		m.rpcClient,
+		m.wsClient,
+		instructions,
+		payer.PublicKey(),
+		func(key solana.PublicKey) *solana.PrivateKey {
+			switch {
+			case key.Equals(payer.PublicKey()):
+				return &payer.PrivateKey
+			case key.Equals(m.leftoverReceiver.PublicKey()):
+				return &m.leftoverReceiver.PrivateKey
+			default:
+				return nil
+			}
 		},
 	)
 	if err != nil {
 		return "", err
 	}
-
-	if _, err = sendandconfirmtransaction.WaitForConfirmation(ctx, m.wsClient, sig, nil); err != nil {
-		return "", err
-	}
 	return sig.String(), nil
 }
 
-func dbcWithdrawPartnerSurplus(m *DBC,
+func dbcWithdrawPartnerSurplus(
+	m *DBC,
 	config solana.PublicKey,
 	dbcPool solana.PublicKey,
 	tokenQuoteAccount solana.PublicKey,
@@ -185,7 +155,8 @@ func dbcWithdrawPartnerSurplus(m *DBC,
 	)
 }
 
-func (m *DBC) WithdrawPartnerSurplusInstruction(ctx context.Context,
+func (m *DBC) WithdrawPartnerSurplusInstruction(
+	ctx context.Context,
 	payer solana.PublicKey,
 	partner solana.PublicKey,
 	virtualPool *dbc.VirtualPool,
@@ -235,7 +206,8 @@ func (m *DBC) WithdrawPartnerSurplusInstruction(ctx context.Context,
 	return instructions, nil
 }
 
-func (m *DBC) WithdrawPartnerSurplus(ctx context.Context,
+func (m *DBC) WithdrawPartnerSurplus(
+	ctx context.Context,
 	payer *solana.Wallet,
 	baseMint solana.PublicKey,
 ) (string, error) {
@@ -254,62 +226,30 @@ func (m *DBC) WithdrawPartnerSurplus(ctx context.Context,
 		return "", err
 	}
 
-	latestBlockhash, err := solanago.GetLatestBlockhash(ctx, m.rpcClient)
-	if err != nil {
-		return "", err
-	}
-
-	tx, err := solana.NewTransaction(instructions, latestBlockhash, solana.TransactionPayer(payer.PublicKey()))
-	if err != nil {
-		return "", err
-	}
-
-	if _, err = tx.Sign(func(key solana.PublicKey) *solana.PrivateKey {
-		switch {
-		case key.Equals(payer.PublicKey()):
-			return &payer.PrivateKey
-		case key.Equals(m.feeClaimer.PublicKey()):
-			return &m.feeClaimer.PrivateKey
-		default:
-			return nil
-		}
-	}); err != nil {
-		return "", err
-	}
-
-	if m.bSimulate {
-		if _, err = m.rpcClient.SimulateTransactionWithOpts(
-			ctx,
-			tx,
-			&rpc.SimulateTransactionOpts{
-				SigVerify:  false,
-				Commitment: rpc.CommitmentFinalized,
-			}); err != nil {
-			return "", err
-		}
-		return "-", nil
-	}
-
-	sig, err := m.rpcClient.SendTransactionWithOpts(
-		ctx,
-		tx,
-		rpc.TransactionOpts{
-			SkipPreflight:       false,
-			PreflightCommitment: rpc.CommitmentFinalized,
+	sig, err := solanago.SendTransaction(ctx,
+		m.rpcClient,
+		m.wsClient,
+		instructions,
+		payer.PublicKey(),
+		func(key solana.PublicKey) *solana.PrivateKey {
+			switch {
+			case key.Equals(payer.PublicKey()):
+				return &payer.PrivateKey
+			case key.Equals(m.feeClaimer.PublicKey()):
+				return &m.feeClaimer.PrivateKey
+			default:
+				return nil
+			}
 		},
 	)
 	if err != nil {
 		return "", err
 	}
-
-	if _, err = sendandconfirmtransaction.WaitForConfirmation(ctx, m.wsClient, sig, nil); err != nil {
-		return "", err
-	}
 	return sig.String(), nil
-
 }
 
-func dbcWithdrawCreatorSurplus(m *DBC,
+func dbcWithdrawCreatorSurplus(
+	m *DBC,
 	config solana.PublicKey,
 	dbcPool solana.PublicKey,
 	tokenQuoteAccount solana.PublicKey,
@@ -336,7 +276,8 @@ func dbcWithdrawCreatorSurplus(m *DBC,
 	)
 }
 
-func (m *DBC) WithdrawCreatorSurplusInstruction(ctx context.Context,
+func (m *DBC) WithdrawCreatorSurplusInstruction(
+	ctx context.Context,
 	payer solana.PublicKey,
 	creator solana.PublicKey,
 	virtualPool *dbc.VirtualPool,
@@ -386,7 +327,8 @@ func (m *DBC) WithdrawCreatorSurplusInstruction(ctx context.Context,
 	return instructions, nil
 }
 
-func (m *DBC) WithdrawCreatorSurplus(ctx context.Context,
+func (m *DBC) WithdrawCreatorSurplus(
+	ctx context.Context,
 	payer *solana.Wallet,
 	baseMint solana.PublicKey,
 ) (string, error) {
@@ -406,60 +348,30 @@ func (m *DBC) WithdrawCreatorSurplus(ctx context.Context,
 		return "", err
 	}
 
-	latestBlockhash, err := solanago.GetLatestBlockhash(ctx, m.rpcClient)
-	if err != nil {
-		return "", err
-	}
-
-	tx, err := solana.NewTransaction(instructions, latestBlockhash, solana.TransactionPayer(payer.PublicKey()))
-	if err != nil {
-		return "", err
-	}
-
-	if _, err = tx.Sign(func(key solana.PublicKey) *solana.PrivateKey {
-		switch {
-		case key.Equals(payer.PublicKey()):
-			return &payer.PrivateKey
-		case key.Equals(m.poolCreator.PublicKey()):
-			return &m.poolCreator.PrivateKey
-		default:
-			return nil
-		}
-	}); err != nil {
-		return "", err
-	}
-
-	if m.bSimulate {
-		if _, err = m.rpcClient.SimulateTransactionWithOpts(
-			ctx,
-			tx,
-			&rpc.SimulateTransactionOpts{
-				SigVerify:  false,
-				Commitment: rpc.CommitmentFinalized,
-			}); err != nil {
-			return "", err
-		}
-		return "-", nil
-	}
-	sig, err := m.rpcClient.SendTransactionWithOpts(
-		ctx,
-		tx,
-		rpc.TransactionOpts{
-			SkipPreflight:       false,
-			PreflightCommitment: rpc.CommitmentFinalized,
+	sig, err := solanago.SendTransaction(ctx,
+		m.rpcClient,
+		m.wsClient,
+		instructions,
+		payer.PublicKey(),
+		func(key solana.PublicKey) *solana.PrivateKey {
+			switch {
+			case key.Equals(payer.PublicKey()):
+				return &payer.PrivateKey
+			case key.Equals(m.poolCreator.PublicKey()):
+				return &m.poolCreator.PrivateKey
+			default:
+				return nil
+			}
 		},
 	)
 	if err != nil {
 		return "", err
 	}
-
-	if _, err = sendandconfirmtransaction.WaitForConfirmation(ctx, m.wsClient, sig, nil); err != nil {
-		return "", err
-	}
 	return sig.String(), nil
 }
 
-func withdrawMigrationFee(m *DBC,
+func withdrawMigrationFee(
+	m *DBC,
 	// Params:
 	flag uint8,
 
@@ -494,7 +406,8 @@ func withdrawMigrationFee(m *DBC,
 	)
 }
 
-func (m *DBC) WithdrawMigrationFeeInstruction(ctx context.Context,
+func (m *DBC) WithdrawMigrationFeeInstruction(
+	ctx context.Context,
 	payer solana.PublicKey,
 	flag uint8,
 	account solana.PublicKey,
@@ -546,7 +459,8 @@ func (m *DBC) WithdrawMigrationFeeInstruction(ctx context.Context,
 	return instructions, nil
 }
 
-func (m *DBC) WithdrawPartnerMigrationFee(ctx context.Context,
+func (m *DBC) WithdrawPartnerMigrationFee(
+	ctx context.Context,
 	payer *solana.Wallet,
 	baseMint solana.PublicKey,
 ) (string, error) {
@@ -565,61 +479,30 @@ func (m *DBC) WithdrawPartnerMigrationFee(ctx context.Context,
 		return "", err
 	}
 
-	latestBlockhash, err := solanago.GetLatestBlockhash(ctx, m.rpcClient)
-	if err != nil {
-		return "", err
-	}
-
-	tx, err := solana.NewTransaction(instructions, latestBlockhash, solana.TransactionPayer(payer.PublicKey()))
-	if err != nil {
-		return "", err
-	}
-
-	if _, err = tx.Sign(func(key solana.PublicKey) *solana.PrivateKey {
-		switch {
-		case key.Equals(payer.PublicKey()):
-			return &payer.PrivateKey
-		case key.Equals(m.feeClaimer.PublicKey()):
-			return &m.feeClaimer.PrivateKey
-		default:
-			return nil
-		}
-	}); err != nil {
-		return "", err
-	}
-
-	if m.bSimulate {
-		if _, err = m.rpcClient.SimulateTransactionWithOpts(
-			ctx,
-			tx,
-			&rpc.SimulateTransactionOpts{
-				SigVerify:  false,
-				Commitment: rpc.CommitmentFinalized,
-			}); err != nil {
-			return "", err
-		}
-		return "-", nil
-	}
-
-	sig, err := m.rpcClient.SendTransactionWithOpts(
-		ctx,
-		tx,
-		rpc.TransactionOpts{
-			SkipPreflight:       false,
-			PreflightCommitment: rpc.CommitmentFinalized,
+	sig, err := solanago.SendTransaction(ctx,
+		m.rpcClient,
+		m.wsClient,
+		instructions,
+		payer.PublicKey(),
+		func(key solana.PublicKey) *solana.PrivateKey {
+			switch {
+			case key.Equals(payer.PublicKey()):
+				return &payer.PrivateKey
+			case key.Equals(m.feeClaimer.PublicKey()):
+				return &m.feeClaimer.PrivateKey
+			default:
+				return nil
+			}
 		},
 	)
 	if err != nil {
 		return "", err
 	}
-
-	if _, err = sendandconfirmtransaction.WaitForConfirmation(ctx, m.wsClient, sig, nil); err != nil {
-		return "", err
-	}
 	return sig.String(), nil
 }
 
-func (m *DBC) WithdrawCreatorMigrationFee(ctx context.Context,
+func (m *DBC) WithdrawCreatorMigrationFee(
+	ctx context.Context,
 	payer *solana.Wallet,
 	baseMint solana.PublicKey,
 ) (string, error) {
@@ -637,55 +520,23 @@ func (m *DBC) WithdrawCreatorMigrationFee(ctx context.Context,
 	if err != nil {
 		return "", err
 	}
-
-	latestBlockhash, err := solanago.GetLatestBlockhash(ctx, m.rpcClient)
-	if err != nil {
-		return "", err
-	}
-
-	tx, err := solana.NewTransaction(instructions, latestBlockhash, solana.TransactionPayer(payer.PublicKey()))
-	if err != nil {
-		return "", err
-	}
-
-	if _, err = tx.Sign(func(key solana.PublicKey) *solana.PrivateKey {
-		switch {
-		case key.Equals(payer.PublicKey()):
-			return &payer.PrivateKey
-		case key.Equals(m.poolCreator.PublicKey()):
-			return &m.poolCreator.PrivateKey
-		default:
-			return nil
-		}
-	}); err != nil {
-		return "", err
-	}
-
-	if m.bSimulate {
-		if _, err = m.rpcClient.SimulateTransactionWithOpts(
-			ctx,
-			tx,
-			&rpc.SimulateTransactionOpts{
-				SigVerify:  false,
-				Commitment: rpc.CommitmentFinalized,
-			}); err != nil {
-			return "", err
-		}
-		return "-", nil
-	}
-	sig, err := m.rpcClient.SendTransactionWithOpts(
-		ctx,
-		tx,
-		rpc.TransactionOpts{
-			SkipPreflight:       false,
-			PreflightCommitment: rpc.CommitmentFinalized,
+	sig, err := solanago.SendTransaction(ctx,
+		m.rpcClient,
+		m.wsClient,
+		instructions,
+		payer.PublicKey(),
+		func(key solana.PublicKey) *solana.PrivateKey {
+			switch {
+			case key.Equals(payer.PublicKey()):
+				return &payer.PrivateKey
+			case key.Equals(m.poolCreator.PublicKey()):
+				return &m.poolCreator.PrivateKey
+			default:
+				return nil
+			}
 		},
 	)
 	if err != nil {
-		return "", err
-	}
-
-	if _, err = sendandconfirmtransaction.WaitForConfirmation(ctx, m.wsClient, sig, nil); err != nil {
 		return "", err
 	}
 	return sig.String(), nil

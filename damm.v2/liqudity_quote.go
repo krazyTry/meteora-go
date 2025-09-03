@@ -22,7 +22,8 @@ type DepositQuote struct {
 }
 
 // GetDepositQuote Calculate the deposit quote for the liquidity pool
-func (m *DammV2) GetDepositQuote(ctx context.Context,
+func (m *DammV2) GetDepositQuote(
+	ctx context.Context,
 	baseMint solana.PublicKey,
 	bAddBase bool,
 	amountIn *big.Int,
@@ -118,17 +119,16 @@ func (m *DammV2) GetDepositQuote(ctx context.Context,
 
 // WithdrawQuote
 type WithdrawQuote struct {
-	LiquidityDelta *big.Int
-	OutAmountA     *big.Int
-	OutAmountB     *big.Int
+	OutAmountA *big.Int
+	OutAmountB *big.Int
 }
 
 // getWithdrawQuote
-func (m *DammV2) GetWithdrawQuote(ctx context.Context,
+func (m *DammV2) GetWithdrawQuote(
+	ctx context.Context,
 	baseMint solana.PublicKey,
 	liquidityDelta *big.Int,
-) (*big.Int, *big.Int, error) {
-
+) (*WithdrawQuote, *Pool, error) {
 	virtualPool, err := m.GetPoolByBaseMint(ctx, baseMint)
 	if err != nil {
 		return nil, nil, err
@@ -205,5 +205,8 @@ func (m *DammV2) GetWithdrawQuote(ctx context.Context,
 		}
 	}
 
-	return outAmountA, outAmountB, nil
+	return &WithdrawQuote{
+		OutAmountA: outAmountA,
+		OutAmountB: outAmountB,
+	}, virtualPool, nil
 }

@@ -248,12 +248,6 @@ func bytesToBigIntLE(b []byte) *big.Int {
 
 func CalculateUnClaimFee(poolState *Pool, positionState *Position) (*big.Int, *big.Int) {
 
-	// totalPositionLiquidity := decimal.NewFromBigInt(positionState.UnlockedLiquidity.BigInt(), 0).Add(
-	// 	decimal.NewFromBigInt(positionState.VestedLiquidity.BigInt(), 0).Add(
-	// 		decimal.NewFromBigInt(positionState.PermanentLockedLiquidity.BigInt(), 0),
-	// 	),
-	// )
-
 	totalPositionLiquidity := new(big.Int).Add(positionState.UnlockedLiquidity.BigInt(),
 		new(big.Int).Add(positionState.VestedLiquidity.BigInt(), positionState.PermanentLockedLiquidity.BigInt()))
 
@@ -384,25 +378,17 @@ func GetDynamicFeeParams(baseFeeBps int64, maxPriceChangeBps int) (*DynamicFeePa
 	}
 
 	// priceRatio = maxPriceChangeBps / BASIS_POINT_MAX + 1
-	priceRatio := float64(maxPriceChangeBps)/float64(BASIS_POINT_MAX.Int64()) + 1
-
-	// sqrtPriceRatioQ64 = sqrt(priceRatio) * 2^64
-	sqrtPriceRatio := math.Sqrt(priceRatio)
-
-	sqrtPriceRatioQ64 := new(big.Int).SetUint64(uint64(sqrtPriceRatio * math.Pow(2, 64)))
-
-	// deltaBinId = (sqrtPriceRatioQ64 - 1) / BIN_STEP_BPS_U128_DEFAULT * 2
-	deltaBinId := decimal.NewFromBigInt(sqrtPriceRatioQ64, 0).Sub(decimal.NewFromInt(1)) // new(big.Int).Sub(sqrtPriceRatioQ64, big.NewInt(1))
-	deltaBinId = deltaBinId.Div(decimal.NewFromBigInt(BIN_STEP_BPS_U128_DEFAULT, 0))
-	deltaBinId = deltaBinId.Mul(decimal.NewFromInt(2))
-
-	// maxVolatilityAccumulator = deltaBinId * BASIS_POINT_MAX
-	maxVolatilityAccumulator := deltaBinId.Mul(decimal.NewFromBigInt(BASIS_POINT_MAX, 0)) //new(big.Int).Mul(deltaBinId, BASIS_POINT_MAX)
-
-	// squareVfaBin = (maxVolatilityAccumulator * BIN_STEP_BPS_DEFAULT) ^ 2
-	squareVfaBin := maxVolatilityAccumulator.Mul(decimal.NewFromBigInt(BIN_STEP_BPS_DEFAULT, 0)) //new(big.Int).Mul(maxVolatilityAccumulator, BIN_STEP_BPS_DEFAULT)
-	squareVfaBin = squareVfaBin.Mul(squareVfaBin)
-
+	priceRatio := decimal.NewFromInt(int64(maxPriceChangeBps)).
+		Div(decimal.NewFromInt(BASIS_POINT_MAX.Int64())).
+		Add(decimal.NewFromInt(1))
+	// Q64: sqrt(priceRatio) * 2^64
+	sqrtPriceRatioQ64 := decimalSqrt(priceRatio).Round(19).Mul(decimal.NewFromInt(2).Pow(decimal.NewFromInt(64))).Floor()
+	// 2️⃣ deltaBinId = (sqrtPriceRatioQ64 - ONE_Q64) / BIN_STEP_BPS_U128_DEFAULT * 2
+	deltaBinId := sqrtPriceRatioQ64.Sub(decimal.NewFromBigInt(ONE_Q64, 0)).Div(decimal.NewFromBigInt(BIN_STEP_BPS_U128_DEFAULT.BigInt(), 0)).Truncate(0).Mul(decimal.NewFromInt(2))
+	// 3️⃣ maxVolatilityAccumulator = deltaBinId * BASIS_POINT_MAX
+	maxVolatilityAccumulator := deltaBinId.Mul(decimal.NewFromBigInt(BASIS_POINT_MAX, 0))
+	// 4️⃣ squareVfaBin = (maxVolatilityAccumulator * BIN_STEP_BPS_DEFAULT)^2
+	squareVfaBin := maxVolatilityAccumulator.Mul(decimal.NewFromBigInt(BIN_STEP_BPS_DEFAULT, 0)).Pow(decimal.NewFromInt(2))
 	// baseFeeNumerator
 	baseFeeNumerator := bpsToFeeNumerator(baseFeeBps)
 

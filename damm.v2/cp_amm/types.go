@@ -475,7 +475,7 @@ type Config struct {
 	PoolFees PoolFeesConfig `json:"poolFees"`
 
 	// Activation type
-	ActivationType uint8 `json:"activationType"`
+	ActivationType ActivationType `json:"activationType"`
 
 	// Collect fee mode
 	CollectFeeMode CollectFeeMode `json:"collectFeeMode"`

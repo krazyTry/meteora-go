@@ -5016,7 +5016,7 @@ type VirtualPool struct {
 	PoolType TokenType `json:"poolType"`
 
 	// is migrated
-	IsMigrated uint8 `json:"isMigrated"`
+	IsMigrated IsMigrated `json:"isMigrated"`
 
 	// is partner withdraw surplus
 	IsPartnerWithdrawSurplus uint8 `json:"isPartnerWithdrawSurplus"`

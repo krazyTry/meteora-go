@@ -8,7 +8,8 @@ import (
 	"github.com/gagliardetto/solana-go"
 )
 
-func dbcCreatePartnerMetadata(m *DBC,
+func dbcCreatePartnerMetadata(
+	m *DBC,
 	// Params:
 	name string,
 	website string,
@@ -43,7 +44,8 @@ func dbcCreatePartnerMetadata(m *DBC,
 	)
 }
 
-func (m *DBC) CreatePartnerMetadataInstruction(ctx context.Context,
+func (m *DBC) CreatePartnerMetadataInstruction(
+	ctx context.Context,
 	payer *solana.Wallet,
 	name string,
 	website string,
@@ -66,7 +68,8 @@ func (m *DBC) CreatePartnerMetadataInstruction(ctx context.Context,
 	)
 }
 
-func dbcCreateVirtualPoolMetadata(m *DBC,
+func dbcCreateVirtualPoolMetadata(
+	m *DBC,
 	// Params:
 	name string,
 	website string,
@@ -103,7 +106,8 @@ func dbcCreateVirtualPoolMetadata(m *DBC,
 	)
 }
 
-func (m *DBC) CreateVirtualPoolMetadataInstruction(ctx context.Context,
+func (m *DBC) CreateVirtualPoolMetadataInstruction(
+	ctx context.Context,
 	payer *solana.Wallet,
 	baseMint solana.Wallet,
 	name string,

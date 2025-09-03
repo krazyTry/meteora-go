@@ -11,11 +11,10 @@ import (
 	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/programs/system"
 	token "github.com/gagliardetto/solana-go/programs/token"
-	"github.com/gagliardetto/solana-go/rpc"
-	sendandconfirmtransaction "github.com/gagliardetto/solana-go/rpc/sendAndConfirmTransaction"
 )
 
-func dbcSwap(m *DBC,
+func dbcSwap(
+	m *DBC,
 	config solana.PublicKey,
 	dbcPool solana.PublicKey,
 	baseMint solana.PublicKey,
@@ -65,7 +64,8 @@ func dbcSwap(m *DBC,
 	)
 }
 
-func (m *DBC) SwapInstruction(ctx context.Context,
+func (m *DBC) SwapInstruction(
+	ctx context.Context,
 	payer solana.PublicKey,
 	owner solana.PublicKey,
 	referrer solana.PublicKey,
@@ -217,7 +217,8 @@ func (m *DBC) SwapInstruction(ctx context.Context,
 	return instructions, nil
 }
 
-func (m *DBC) Swap(ctx context.Context,
+func (m *DBC) Swap(
+	ctx context.Context,
 	payer *solana.Wallet,
 	owner *solana.Wallet,
 	referrer *solana.Wallet,
@@ -250,63 +251,32 @@ func (m *DBC) Swap(ctx context.Context,
 		return "", err
 	}
 
-	latestBlockhash, err := solanago.GetLatestBlockhash(ctx, m.rpcClient)
-	if err != nil {
-		return "", err
-	}
-
-	tx, err := solana.NewTransaction(instructions, latestBlockhash, solana.TransactionPayer(payer.PublicKey()))
-	if err != nil {
-		return "", err
-	}
-
-	if _, err = tx.Sign(func(key solana.PublicKey) *solana.PrivateKey {
-		switch {
-		case key.Equals(payer.PublicKey()):
-			return &payer.PrivateKey
-		case key.Equals(owner.PublicKey()):
-			return &owner.PrivateKey
-		case referrer != nil && key.Equals(referrer.PublicKey()):
-			return &referrer.PrivateKey
-		default:
-			return nil
-		}
-	}); err != nil {
-		return "", err
-	}
-
-	if m.bSimulate {
-		if _, err = m.rpcClient.SimulateTransactionWithOpts(
-			ctx,
-			tx,
-			&rpc.SimulateTransactionOpts{
-				SigVerify:  false,
-				Commitment: rpc.CommitmentFinalized,
-			}); err != nil {
-			return "", err
-		}
-		return "-", nil
-	}
-
-	sig, err := m.rpcClient.SendTransactionWithOpts(
-		ctx,
-		tx,
-		rpc.TransactionOpts{
-			SkipPreflight:       false,
-			PreflightCommitment: rpc.CommitmentFinalized,
+	sig, err := solanago.SendTransaction(ctx,
+		m.rpcClient,
+		m.wsClient,
+		instructions,
+		payer.PublicKey(),
+		func(key solana.PublicKey) *solana.PrivateKey {
+			switch {
+			case key.Equals(payer.PublicKey()):
+				return &payer.PrivateKey
+			case key.Equals(owner.PublicKey()):
+				return &owner.PrivateKey
+			case referrer != nil && key.Equals(referrer.PublicKey()):
+				return &referrer.PrivateKey
+			default:
+				return nil
+			}
 		},
 	)
 	if err != nil {
 		return "", err
 	}
-
-	if _, err = sendandconfirmtransaction.WaitForConfirmation(ctx, m.wsClient, sig, nil); err != nil {
-		return "", err
-	}
 	return sig.String(), nil
 }
 
-func (m *DBC) BuyInstruction(ctx context.Context,
+func (m *DBC) BuyInstruction(
+	ctx context.Context,
 	buyer solana.PublicKey,
 	referrer solana.PublicKey,
 	virtualPool *dbc.VirtualPool,
@@ -318,7 +288,8 @@ func (m *DBC) BuyInstruction(ctx context.Context,
 	return m.SwapInstruction(ctx, buyer, buyer, referrer, virtualPool, config, false, amountIn, minimumAmountOut, currentPoint)
 }
 
-func (m *DBC) Buy(ctx context.Context,
+func (m *DBC) Buy(
+	ctx context.Context,
 	buyer *solana.Wallet,
 	referrer *solana.Wallet,
 	virtualPool *dbc.VirtualPool,
@@ -330,7 +301,8 @@ func (m *DBC) Buy(ctx context.Context,
 	return m.Swap(ctx, buyer, buyer, referrer, virtualPool, config, false, amountIn, minimumAmountOut, currentPoint)
 }
 
-func (m *DBC) SellInstruction(ctx context.Context,
+func (m *DBC) SellInstruction(
+	ctx context.Context,
 	seller solana.PublicKey,
 	referrer solana.PublicKey,
 	virtualPool *dbc.VirtualPool,
@@ -342,7 +314,8 @@ func (m *DBC) SellInstruction(ctx context.Context,
 	return m.SwapInstruction(ctx, seller, seller, referrer, virtualPool, config, true, amountIn, minimumAmountOut, currentPoint)
 }
 
-func (m *DBC) Sell(ctx context.Context,
+func (m *DBC) Sell(
+	ctx context.Context,
 	seller *solana.Wallet,
 	referrer *solana.Wallet,
 	virtualPool *dbc.VirtualPool,

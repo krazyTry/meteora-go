@@ -9,6 +9,8 @@ import (
 	"github.com/gagliardetto/solana-go"
 	associatedtokenaccount "github.com/gagliardetto/solana-go/programs/associated-token-account"
 	"github.com/gagliardetto/solana-go/rpc"
+	sendandconfirmtransaction "github.com/gagliardetto/solana-go/rpc/sendAndConfirmTransaction"
+	"github.com/gagliardetto/solana-go/rpc/ws"
 )
 
 func CurrenPoint(ctx context.Context, rpcClient *rpc.Client, activationType uint8) (*big.Int, error) {
@@ -37,15 +39,6 @@ func CurrenPoint(ctx context.Context, rpcClient *rpc.Client, activationType uint
 	return currentPoint, nil
 }
 
-func GetLatestBlockhash(ctx context.Context, rpcClient *rpc.Client) (solana.Hash, error) {
-
-	recent, err := rpcClient.GetLatestBlockhash(ctx, rpc.CommitmentFinalized)
-	if err != nil {
-		return solana.Hash{}, err
-	}
-	return recent.Value.Blockhash, nil
-}
-
 func discriminator(name string) []byte {
 	hash := sha256.Sum256([]byte("account:" + name))
 	var out [8]byte
@@ -53,8 +46,7 @@ func discriminator(name string) []byte {
 	return out[:]
 }
 
-func GenProgramAccountFilter(key string, owner solana.PublicKey, offset uint64) *rpc.GetProgramAccountsOpts {
-
+func GenProgramAccountFilter(key string, filter *Filter) *rpc.GetProgramAccountsOpts {
 	opt := &rpc.GetProgramAccountsOpts{
 		Commitment: rpc.CommitmentFinalized,
 		Encoding:   solana.EncodingBase64,
@@ -67,14 +59,14 @@ func GenProgramAccountFilter(key string, owner solana.PublicKey, offset uint64) 
 			},
 		},
 	}
-	if owner.Equals(solana.PublicKey{}) {
+	if filter == nil {
 		return opt
 	}
 
 	opt.Filters = append(opt.Filters, rpc.RPCFilter{
 		Memcmp: &rpc.RPCFilterMemcmp{
-			Offset: offset,
-			Bytes:  owner[:],
+			Offset: filter.Offset,
+			Bytes:  filter.Owner[:],
 		},
 	})
 	return opt
@@ -147,4 +139,89 @@ func GetMultipleToken(ctx context.Context, rpcClient *rpc.Client, tokens ...sola
 		list[i] = token
 	}
 	return list, nil
+}
+
+func GetLatestBlockhash(ctx context.Context, rpcClient *rpc.Client) (solana.Hash, error) {
+
+	recent, err := rpcClient.GetLatestBlockhash(ctx, rpc.CommitmentFinalized)
+	if err != nil {
+		return solana.Hash{}, err
+	}
+	return recent.Value.Blockhash, nil
+}
+
+func SendTransaction(
+	ctx context.Context,
+	rpcClient *rpc.Client,
+	wsClient *ws.Client,
+	instructions []solana.Instruction,
+	payer solana.PublicKey,
+	sign func(key solana.PublicKey) *solana.PrivateKey,
+) (solana.Signature, error) {
+
+	latestBlockhash, err := GetLatestBlockhash(ctx, rpcClient)
+	if err != nil {
+		return solana.Signature{}, err
+	}
+
+	tx, err := solana.NewTransaction(instructions, latestBlockhash, solana.TransactionPayer(payer))
+	if err != nil {
+		return solana.Signature{}, err
+	}
+
+	if _, err = tx.Sign(sign); err != nil {
+		return solana.Signature{}, err
+	}
+
+	if IsSimulate {
+		if _, err = rpcClient.SimulateTransactionWithOpts(
+			ctx,
+			tx,
+			&rpc.SimulateTransactionOpts{
+				SigVerify:  false,
+				Commitment: rpc.CommitmentFinalized,
+			}); err != nil {
+			return solana.Signature{}, err
+		}
+		return solana.Signature{}, nil
+	}
+
+	sig, err := rpcClient.SendTransactionWithOpts(
+		ctx,
+		tx,
+		rpc.TransactionOpts{
+			SkipPreflight:       false,
+			PreflightCommitment: rpc.CommitmentFinalized,
+		},
+	)
+	if err != nil {
+		return solana.Signature{}, err
+	}
+
+	confirmed, err := sendandconfirmtransaction.WaitForConfirmation(ctx, wsClient, sig, nil)
+	if confirmed {
+		if err != nil {
+			return solana.Signature{}, fmt.Errorf("transaction confirmed but failed: %w", err)
+		}
+		return sig, nil
+	}
+	statusResp, err := rpcClient.GetSignatureStatuses(ctx, true, sig)
+	if err != nil {
+		return solana.Signature{}, fmt.Errorf("rpc GetSignatureStatuses error: %w", err)
+	}
+	status := statusResp.Value[0]
+	if status == nil {
+		return solana.Signature{}, fmt.Errorf("transaction not found (maybe dropped)")
+	}
+	if status.Err != nil {
+		return solana.Signature{}, fmt.Errorf("transaction confirmed but failed: %v", status.Err)
+	}
+	txResp, err := rpcClient.GetTransaction(ctx, sig, &rpc.GetTransactionOpts{Commitment: rpc.CommitmentFinalized})
+	if err != nil {
+		return solana.Signature{}, fmt.Errorf("rpc GetTransaction error: %w", err)
+	}
+	if txResp != nil && txResp.Meta != nil && txResp.Meta.Err != nil {
+		return solana.Signature{}, fmt.Errorf("transaction finalized but failed: %v", txResp.Meta.Err)
+	}
+	return sig, nil
 }

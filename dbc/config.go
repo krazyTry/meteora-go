@@ -6,12 +6,12 @@ import (
 
 	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/rpc"
-	sendandconfirmtransaction "github.com/gagliardetto/solana-go/rpc/sendAndConfirmTransaction"
 	dbc "github.com/krazyTry/meteora-go/dbc/dynamic_bonding_curve"
 	solanago "github.com/krazyTry/meteora-go/solana"
 )
 
-func dbcCreateConfig(m *DBC,
+func dbcCreateConfig(
+	m *DBC,
 	config,
 	feeClaimer,
 	leftoverReceiver,
@@ -67,56 +67,23 @@ func (m *DBC) CreateConfig(
 	if err != nil {
 		return "", err
 	}
-
-	latestBlockhash, err := solanago.GetLatestBlockhash(ctx, m.rpcClient)
-	if err != nil {
-		return "", err
-	}
-
-	tx, err := solana.NewTransaction([]solana.Instruction{createConfigIx}, latestBlockhash, solana.TransactionPayer(payer.PublicKey()))
-	if err != nil {
-		return "", err
-	}
-
-	if _, err = tx.Sign(func(key solana.PublicKey) *solana.PrivateKey {
-		switch {
-		case key.Equals(payer.PublicKey()):
-			return &payer.PrivateKey
-		case key.Equals(m.config.PublicKey()):
-			return &m.config.PrivateKey
-		default:
-			return nil
-		}
-	}); err != nil {
-		return "", err
-	}
-
-	if m.bSimulate {
-		if _, err = m.rpcClient.SimulateTransactionWithOpts(
-			ctx,
-			tx,
-			&rpc.SimulateTransactionOpts{
-				SigVerify:  false,
-				Commitment: rpc.CommitmentFinalized,
-			}); err != nil {
-			return "", err
-		}
-		return "-", nil
-	}
-
-	sig, err := m.rpcClient.SendTransactionWithOpts(
-		ctx,
-		tx,
-		rpc.TransactionOpts{
-			SkipPreflight:       false,
-			PreflightCommitment: rpc.CommitmentFinalized,
+	sig, err := solanago.SendTransaction(ctx,
+		m.rpcClient,
+		m.wsClient,
+		[]solana.Instruction{createConfigIx},
+		payer.PublicKey(),
+		func(key solana.PublicKey) *solana.PrivateKey {
+			switch {
+			case key.Equals(payer.PublicKey()):
+				return &payer.PrivateKey
+			case key.Equals(m.config.PublicKey()):
+				return &m.config.PrivateKey
+			default:
+				return nil
+			}
 		},
 	)
 	if err != nil {
-		return "", err
-	}
-
-	if _, err = sendandconfirmtransaction.WaitForConfirmation(ctx, m.wsClient, sig, nil); err != nil {
 		return "", err
 	}
 	return sig.String(), nil

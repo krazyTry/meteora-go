@@ -10,7 +10,8 @@ import (
 	solanago "github.com/krazyTry/meteora-go/solana"
 )
 
-func (m *DBC) SwapQuote(ctx context.Context,
+func (m *DBC) SwapQuote(
+	ctx context.Context,
 	baseMint solana.PublicKey,
 	swapBaseForQuote bool, // buy(quote=>base) sell(base => quote)
 	amountIn *big.Int,
@@ -27,6 +28,10 @@ func (m *DBC) SwapQuote(ctx context.Context,
 		return nil, nil, nil, nil, err
 	}
 
+	if virtualPool.IsMigrated == dbc.IsMigratedCompleted {
+		return nil, nil, nil, nil, ErrPoolCompleted
+	}
+
 	currentPoint, err := solanago.CurrenPoint(ctx, m.rpcClient, uint8(config.ActivationType))
 	if err != nil {
 		return nil, nil, nil, nil, err
@@ -39,7 +44,8 @@ func (m *DBC) SwapQuote(ctx context.Context,
 	return quote, virtualPool, config, currentPoint, nil
 }
 
-func (m *DBC) BuyQuote(ctx context.Context,
+func (m *DBC) BuyQuote(
+	ctx context.Context,
 	baseMint solana.PublicKey,
 	amountIn *big.Int,
 	slippageBps uint64,
@@ -47,7 +53,8 @@ func (m *DBC) BuyQuote(ctx context.Context,
 	return m.SwapQuote(ctx, baseMint, false, amountIn, slippageBps)
 }
 
-func (m *DBC) SellQuote(ctx context.Context,
+func (m *DBC) SellQuote(
+	ctx context.Context,
 	baseMint solana.PublicKey,
 	amountIn *big.Int,
 	slippageBps uint64,

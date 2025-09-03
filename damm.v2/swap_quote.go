@@ -22,7 +22,8 @@ type GetQuoteResult struct {
 }
 
 // GetQuote
-func (m *DammV2) SwapQuote(ctx context.Context,
+func (m *DammV2) SwapQuote(
+	ctx context.Context,
 	baseMint solana.PublicKey,
 	swapBaseForQuote bool, // buy(quote=>base) sell(base => quote)
 	amountIn *big.Int,
@@ -69,6 +70,7 @@ func (m *DammV2) SwapQuote(ctx context.Context,
 			baseMint,
 			*currentEpoch,
 		)
+
 		if err != nil {
 			return nil, nil, err
 		}
@@ -163,7 +165,8 @@ func (m *DammV2) SwapQuote(ctx context.Context,
 	}, virtualPool, nil
 }
 
-func (m *DammV2) BuyQuote(ctx context.Context,
+func (m *DammV2) BuyQuote(
+	ctx context.Context,
 	baseMint solana.PublicKey,
 	amountIn *big.Int,
 	slippageBps uint64,
@@ -171,7 +174,8 @@ func (m *DammV2) BuyQuote(ctx context.Context,
 	return m.SwapQuote(ctx, baseMint, false, amountIn, slippageBps)
 }
 
-func (m *DammV2) SellQuote(ctx context.Context,
+func (m *DammV2) SellQuote(
+	ctx context.Context,
 	baseMint solana.PublicKey,
 	amountIn *big.Int,
 	slippageBps uint64,

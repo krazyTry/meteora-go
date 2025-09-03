@@ -42,6 +42,17 @@ func mulDiv(x, y, denominator decimal.Decimal, roundUp bool) (decimal.Decimal, e
 	return div, nil
 }
 
+func decimalSqrt(x decimal.Decimal) decimal.Decimal {
+	if x.Sign() < 0 {
+		panic("sqrt on negative decimal")
+	}
+	// f, _ := new(big.Float).SetString(x.String())
+	// s := new(big.Float).Sqrt(f)
+	s := new(big.Float).SetPrec(200).Sqrt(x.BigFloat().SetPrec(200))
+	out, _ := decimal.NewFromString(s.Text('f', -1))
+	return out
+}
+
 func getNextSqrtPrice(amount, sqrtPrice, liquidity decimal.Decimal, aToB bool) decimal.Decimal {
 	if aToB {
 		// product = amount * sqrtPrice

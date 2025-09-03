@@ -9,9 +9,9 @@ import (
 )
 
 // DeriveConfigAddress https://docs.meteora.ag/developer-guide/guides/damm-v2/pool-fee-configs#view-all-public-config-key-addresses-json
-func DeriveConfigAddress(index uint8) (solana.PublicKey, error) {
+func DeriveConfigAddress(index uint64) (solana.PublicKey, error) {
 	indexBytes := make([]byte, 8)
-	binary.LittleEndian.PutUint64(indexBytes, uint64(index))
+	binary.LittleEndian.PutUint64(indexBytes, index)
 
 	seeds := [][]byte{[]byte("config"), indexBytes}
 

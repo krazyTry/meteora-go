@@ -12,10 +12,10 @@ import (
 	"github.com/gagliardetto/solana-go/programs/system"
 	"github.com/gagliardetto/solana-go/programs/token"
 	"github.com/gagliardetto/solana-go/rpc"
-	sendandconfirmtransaction "github.com/gagliardetto/solana-go/rpc/sendAndConfirmTransaction"
 )
 
-func dbcInitializeVirtualPoolWithSplToken(m *DBC,
+func dbcInitializeVirtualPoolWithSplToken(
+	m *DBC,
 	config,
 	poolCreator,
 	dbcPool,
@@ -68,7 +68,8 @@ func dbcInitializeVirtualPoolWithSplToken(m *DBC,
 	)
 }
 
-func dbcInitializeVirtualPoolWithToken2022(m *DBC,
+func dbcInitializeVirtualPoolWithToken2022(
+	m *DBC,
 	config,
 	poolCreator,
 	dbcPool,
@@ -114,7 +115,8 @@ func dbcInitializeVirtualPoolWithToken2022(m *DBC,
 	)
 }
 
-func (m *DBC) CreatePoolInstruction(ctx context.Context,
+func (m *DBC) CreatePoolInstruction(
+	ctx context.Context,
 	config *dbc.PoolConfig,
 	mintWallet solana.PublicKey,
 	payer solana.PublicKey,
@@ -188,7 +190,8 @@ func (m *DBC) CreatePoolInstruction(ctx context.Context,
 	return []solana.Instruction{createPoolIx}, nil
 }
 
-func (m *DBC) CreatePool(ctx context.Context,
+func (m *DBC) CreatePool(
+	ctx context.Context,
 	mintWallet *solana.Wallet,
 	payer *solana.Wallet,
 	name string,
@@ -199,6 +202,7 @@ func (m *DBC) CreatePool(ctx context.Context,
 	if err != nil {
 		return "", err
 	}
+
 	instructions, err := m.CreatePoolInstruction(ctx,
 		config,
 		mintWallet.PublicKey(),
@@ -213,62 +217,32 @@ func (m *DBC) CreatePool(ctx context.Context,
 		return "", err
 	}
 
-	latestBlockhash, err := solanago.GetLatestBlockhash(ctx, m.rpcClient)
-	if err != nil {
-		return "", err
-	}
-
-	tx, err := solana.NewTransaction(instructions, latestBlockhash, solana.TransactionPayer(payer.PublicKey()))
-	if err != nil {
-		return "", err
-	}
-
-	if _, err = tx.Sign(func(key solana.PublicKey) *solana.PrivateKey {
-		switch {
-		case key.Equals(payer.PublicKey()):
-			return &payer.PrivateKey
-		case key.Equals(m.poolCreator.PublicKey()):
-			return &m.poolCreator.PrivateKey
-		case key.Equals(mintWallet.PublicKey()):
-			return &mintWallet.PrivateKey
-		default:
-			return nil
-		}
-	}); err != nil {
-		return "", err
-	}
-
-	if m.bSimulate {
-		if _, err = m.rpcClient.SimulateTransactionWithOpts(
-			ctx,
-			tx,
-			&rpc.SimulateTransactionOpts{
-				SigVerify:  false,
-				Commitment: rpc.CommitmentFinalized,
-			}); err != nil {
-			return "", err
-		}
-		return "-", nil
-	}
-	sig, err := m.rpcClient.SendTransactionWithOpts(
-		ctx,
-		tx,
-		rpc.TransactionOpts{
-			SkipPreflight:       false,
-			PreflightCommitment: rpc.CommitmentFinalized,
+	sig, err := solanago.SendTransaction(ctx,
+		m.rpcClient,
+		m.wsClient,
+		instructions,
+		payer.PublicKey(),
+		func(key solana.PublicKey) *solana.PrivateKey {
+			switch {
+			case key.Equals(payer.PublicKey()):
+				return &payer.PrivateKey
+			case key.Equals(m.poolCreator.PublicKey()):
+				return &m.poolCreator.PrivateKey
+			case key.Equals(mintWallet.PublicKey()):
+				return &mintWallet.PrivateKey
+			default:
+				return nil
+			}
 		},
 	)
 	if err != nil {
 		return "", err
 	}
-
-	if _, err = sendandconfirmtransaction.WaitForConfirmation(ctx, m.wsClient, sig, nil); err != nil {
-		return "", err
-	}
 	return sig.String(), nil
 }
 
-func (m *DBC) CreatePoolWithFirstBuInstruction(ctx context.Context,
+func (m *DBC) CreatePoolWithFirstBuInstruction(
+	ctx context.Context,
 	config *dbc.PoolConfig,
 	mintWallet solana.PublicKey,
 	payer solana.PublicKey,
@@ -439,7 +413,8 @@ func (m *DBC) CreatePoolWithFirstBuInstruction(ctx context.Context,
 	return instructions, nil
 }
 
-func (m *DBC) CreatePoolWithFirstBuy(ctx context.Context,
+func (m *DBC) CreatePoolWithFirstBuy(
+	ctx context.Context,
 	mintWallet *solana.Wallet,
 	payerAndBuyer *solana.Wallet,
 	name string,
@@ -480,63 +455,38 @@ func (m *DBC) CreatePoolWithFirstBuy(ctx context.Context,
 		return "", err
 	}
 
-	latestBlockhash, err := solanago.GetLatestBlockhash(ctx, m.rpcClient)
-	if err != nil {
-		return "", err
-	}
-
-	tx, err := solana.NewTransaction(instructions, latestBlockhash, solana.TransactionPayer(payer.PublicKey()))
-	if err != nil {
-		return "", err
-	}
-
-	if _, err = tx.Sign(func(key solana.PublicKey) *solana.PrivateKey {
-		switch {
-		case key.Equals(payerAndBuyer.PublicKey()):
-			return &payerAndBuyer.PrivateKey
-		case key.Equals(m.poolCreator.PublicKey()):
-			return &m.poolCreator.PrivateKey
-		case key.Equals(mintWallet.PublicKey()):
-			return &mintWallet.PrivateKey
-		default:
-			return nil
-		}
-	}); err != nil {
-		return "", err
-	}
-
-	if m.bSimulate {
-		if _, err = m.rpcClient.SimulateTransactionWithOpts(
-			ctx,
-			tx,
-			&rpc.SimulateTransactionOpts{
-				SigVerify:  false,
-				Commitment: rpc.CommitmentFinalized,
-			}); err != nil {
-			return "", err
-		}
-		return "-", nil
-	}
-	sig, err := m.rpcClient.SendTransactionWithOpts(
-		ctx,
-		tx,
-		rpc.TransactionOpts{
-			SkipPreflight:       false,
-			PreflightCommitment: rpc.CommitmentFinalized,
+	sig, err := solanago.SendTransaction(ctx,
+		m.rpcClient,
+		m.wsClient,
+		instructions,
+		payer.PublicKey(),
+		func(key solana.PublicKey) *solana.PrivateKey {
+			switch {
+			case key.Equals(payerAndBuyer.PublicKey()):
+				return &payerAndBuyer.PrivateKey
+			case key.Equals(m.poolCreator.PublicKey()):
+				return &m.poolCreator.PrivateKey
+			case key.Equals(mintWallet.PublicKey()):
+				return &mintWallet.PrivateKey
+			default:
+				return nil
+			}
 		},
 	)
 	if err != nil {
-		return "", err
-	}
-
-	if _, err = sendandconfirmtransaction.WaitForConfirmation(ctx, m.wsClient, sig, nil); err != nil {
 		return "", err
 	}
 	return sig.String(), nil
 }
 
 func (m *DBC) GetPoolsByConfig(ctx context.Context) ([]*dbc.VirtualPool, error) {
-	opt := solanago.GenProgramAccountFilter(dbc.AccountKeyPoolConfig, m.config.PublicKey(), 72)
+	opt := solanago.GenProgramAccountFilter(
+		dbc.AccountKeyPoolConfig,
+		&solanago.Filter{
+			Owner:  m.config.PublicKey(),
+			Offset: 72,
+		},
+	)
 
 	outs, err := m.rpcClient.GetProgramAccountsWithOpts(ctx, dbc.ProgramID, opt)
 	if err != nil {
@@ -563,8 +513,13 @@ func (m *DBC) GetPoolsByConfig(ctx context.Context) ([]*dbc.VirtualPool, error) 
 }
 
 func (m *DBC) GetPoolsByCreator(ctx context.Context) ([]*dbc.VirtualPool, error) {
-	opt := solanago.GenProgramAccountFilter(dbc.AccountKeyVirtualPool, m.poolCreator.PublicKey(), 104)
-
+	opt := solanago.GenProgramAccountFilter(
+		dbc.AccountKeyVirtualPool,
+		&solanago.Filter{
+			Owner:  m.poolCreator.PublicKey(),
+			Offset: 104,
+		},
+	)
 	outs, err := m.rpcClient.GetProgramAccountsWithOpts(ctx, dbc.ProgramID, opt)
 	if err != nil {
 		if err == rpc.ErrNotFound {
@@ -590,7 +545,13 @@ func (m *DBC) GetPoolsByCreator(ctx context.Context) ([]*dbc.VirtualPool, error)
 }
 
 func (m *DBC) GetPoolByBaseMint(ctx context.Context, baseMint solana.PublicKey) (*dbc.VirtualPool, error) {
-	opt := solanago.GenProgramAccountFilter(dbc.AccountKeyVirtualPool, baseMint, 136)
+	opt := solanago.GenProgramAccountFilter(
+		dbc.AccountKeyVirtualPool,
+		&solanago.Filter{
+			Owner:  baseMint,
+			Offset: 136,
+		},
+	)
 
 	outs, err := m.rpcClient.GetProgramAccountsWithOpts(ctx, dbc.ProgramID, opt)
 	if err != nil {

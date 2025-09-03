@@ -6,13 +6,12 @@ import (
 
 	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/programs/token"
-	"github.com/gagliardetto/solana-go/rpc"
-	sendandconfirmtransaction "github.com/gagliardetto/solana-go/rpc/sendAndConfirmTransaction"
 	dbc "github.com/krazyTry/meteora-go/dbc/dynamic_bonding_curve"
 	solanago "github.com/krazyTry/meteora-go/solana"
 )
 
-func dbcClaimTradingFee(m *DBC,
+func dbcClaimTradingFee(
+	m *DBC,
 	// Params:
 	maxAmountBase uint64,
 	maxAmountQuote uint64,
@@ -56,7 +55,8 @@ func dbcClaimTradingFee(m *DBC,
 	)
 }
 
-func (m *DBC) ClaimPartnerTradingFeeInstruction(ctx context.Context,
+func (m *DBC) ClaimPartnerTradingFeeInstruction(
+	ctx context.Context,
 	payer *solana.Wallet,
 	virtualPool *dbc.VirtualPool,
 	config *dbc.PoolConfig,
@@ -141,7 +141,8 @@ func (m *DBC) ClaimPartnerTradingFeeInstruction(ctx context.Context,
 	return instructions, nil
 }
 
-func (m *DBC) ClaimPartnerTradingFee(ctx context.Context,
+func (m *DBC) ClaimPartnerTradingFee(
+	ctx context.Context,
 	payer *solana.Wallet,
 	baseMint solana.PublicKey,
 	claimBaseForQuote bool,
@@ -167,59 +168,29 @@ func (m *DBC) ClaimPartnerTradingFee(ctx context.Context,
 		return "", err
 	}
 
-	latestBlockhash, err := solanago.GetLatestBlockhash(ctx, m.rpcClient)
-	if err != nil {
-		return "", err
-	}
-
-	tx, err := solana.NewTransaction(instructions, latestBlockhash, solana.TransactionPayer(payer.PublicKey()))
-	if err != nil {
-		return "", err
-	}
-
-	if _, err = tx.Sign(func(key solana.PublicKey) *solana.PrivateKey {
-		switch {
-		case key.Equals(payer.PublicKey()):
-			return &payer.PrivateKey
-		case key.Equals(m.feeClaimer.PublicKey()):
-			return &m.feeClaimer.PrivateKey
-		default:
-			return nil
-		}
-	}); err != nil {
-		return "", err
-	}
-
-	if m.bSimulate {
-		if _, err = m.rpcClient.SimulateTransactionWithOpts(
-			ctx,
-			tx,
-			&rpc.SimulateTransactionOpts{
-				SigVerify:  false,
-				Commitment: rpc.CommitmentFinalized,
-			}); err != nil {
-			return "", err
-		}
-		return "-", nil
-	}
-	sig, err := m.rpcClient.SendTransactionWithOpts(
-		ctx,
-		tx,
-		rpc.TransactionOpts{
-			SkipPreflight:       false,
-			PreflightCommitment: rpc.CommitmentFinalized,
+	sig, err := solanago.SendTransaction(ctx,
+		m.rpcClient,
+		m.wsClient,
+		instructions,
+		payer.PublicKey(),
+		func(key solana.PublicKey) *solana.PrivateKey {
+			switch {
+			case key.Equals(payer.PublicKey()):
+				return &payer.PrivateKey
+			case key.Equals(m.feeClaimer.PublicKey()):
+				return &m.feeClaimer.PrivateKey
+			default:
+				return nil
+			}
 		},
 	)
 	if err != nil {
 		return "", err
 	}
-
-	if _, err = sendandconfirmtransaction.WaitForConfirmation(ctx, m.wsClient, sig, nil); err != nil {
-		return "", err
-	}
 	return sig.String(), nil
 }
-func claimCreatorTradingFee(m *DBC,
+func claimCreatorTradingFee(
+	m *DBC,
 	// Params:
 	maxAmountBase uint64,
 	maxAmountQuote uint64,
@@ -263,7 +234,8 @@ func claimCreatorTradingFee(m *DBC,
 	)
 }
 
-func (m *DBC) ClaimCreatorTradingFeeInstruction(ctx context.Context,
+func (m *DBC) ClaimCreatorTradingFeeInstruction(
+	ctx context.Context,
 	payer *solana.Wallet,
 	virtualPool *dbc.VirtualPool,
 	config *dbc.PoolConfig,
@@ -347,7 +319,8 @@ func (m *DBC) ClaimCreatorTradingFeeInstruction(ctx context.Context,
 	return instructions, nil
 }
 
-func (m *DBC) ClaimCreatorTradingFee(ctx context.Context,
+func (m *DBC) ClaimCreatorTradingFee(
+	ctx context.Context,
 	payer *solana.Wallet,
 	baseMint solana.PublicKey,
 	claimBaseForQuote bool,
@@ -373,53 +346,23 @@ func (m *DBC) ClaimCreatorTradingFee(ctx context.Context,
 		return "", err
 	}
 
-	latestBlockhash, err := solanago.GetLatestBlockhash(ctx, m.rpcClient)
-	if err != nil {
-		return "", err
-	}
-
-	tx, err := solana.NewTransaction(instructions, latestBlockhash, solana.TransactionPayer(payer.PublicKey()))
-	if err != nil {
-		return "", err
-	}
-
-	if _, err = tx.Sign(func(key solana.PublicKey) *solana.PrivateKey {
-		switch {
-		case key.Equals(payer.PublicKey()):
-			return &payer.PrivateKey
-		case key.Equals(m.poolCreator.PublicKey()):
-			return &m.poolCreator.PrivateKey
-		default:
-			return nil
-		}
-	}); err != nil {
-		return "", err
-	}
-
-	if m.bSimulate {
-		if _, err = m.rpcClient.SimulateTransactionWithOpts(
-			ctx,
-			tx,
-			&rpc.SimulateTransactionOpts{
-				SigVerify:  false,
-				Commitment: rpc.CommitmentFinalized,
-			}); err != nil {
-			return "", err
-		}
-		return "-", nil
-	}
-	sig, err := m.rpcClient.SendTransactionWithOpts(
-		ctx,
-		tx,
-		rpc.TransactionOpts{
-			SkipPreflight:       false,
-			PreflightCommitment: rpc.CommitmentFinalized,
+	sig, err := solanago.SendTransaction(ctx,
+		m.rpcClient,
+		m.wsClient,
+		instructions,
+		payer.PublicKey(),
+		func(key solana.PublicKey) *solana.PrivateKey {
+			switch {
+			case key.Equals(payer.PublicKey()):
+				return &payer.PrivateKey
+			case key.Equals(m.poolCreator.PublicKey()):
+				return &m.poolCreator.PrivateKey
+			default:
+				return nil
+			}
 		},
 	)
 	if err != nil {
-		return "", err
-	}
-	if _, err = sendandconfirmtransaction.WaitForConfirmation(ctx, m.wsClient, sig, nil); err != nil {
 		return "", err
 	}
 	return sig.String(), nil

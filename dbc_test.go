@@ -17,8 +17,7 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-func TestDBC(t *testing.T) {
-
+func TestDbc(t *testing.T) {
 	// init
 	rpcClient, wsClient, pctx, cancel, err := testInit()
 	if err != nil {
@@ -598,9 +597,9 @@ func TestDBC(t *testing.T) {
 		fmt.Println("dbc closing work completed 66%")
 	}
 
-	meteoraDammV2, err := dammV2.NewDammV2(wsClient, rpcClient, poolCreator, dammV2.WithDBCConfig(config))
+	meteoraDammV2, err := dammV2.NewDammV2(wsClient, rpcClient, poolCreator)
 	if err != nil {
-		t.Fatal("NewMeteoraCpAmm() fail", err)
+		t.Fatal("NewDammV2() fail", err)
 	}
 
 	testCpAmmPoolCheck(t, ctx, meteoraDammV2, baseMint)
@@ -730,7 +729,7 @@ func TestDBC(t *testing.T) {
 			ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
 			defer cancel1()
 
-			userPositions, err := meteoraDammV2.GetUserPositionByBaseMint(ctx1, cpamm, poolCreator.PublicKey())
+			userPositions, err := meteoraDammV2.GetUserPositionByUserAndPoolPDA(ctx1, cpamm.Address, poolCreator.PublicKey())
 			if err != nil {
 				t.Fatal("GetUserPositionByBaseMint() fail", err)
 			}
@@ -758,11 +757,10 @@ func TestDBC(t *testing.T) {
 					fmt.Println("claim fee creator")
 					ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
 					defer cancel1()
-					sig, err := meteoraDammV2.ClaimPositionFee(ctx1, payer, poolCreator, userPositions[0], cpamm)
+					sig, err := meteoraDammV2.ClaimPositionFee(ctx1, payer, poolCreator, baseMint)
 					if err != nil {
 						t.Fatal("ClaimPositionFee() fail", err)
 					}
-
 					fmt.Println("claim fee completed sig:", sig)
 				}
 
@@ -799,7 +797,7 @@ func TestDBC(t *testing.T) {
 			ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
 			defer cancel1()
 
-			userPositions, err := meteoraDammV2.GetUserPositionByBaseMint(ctx1, cpamm, poolPartner.PublicKey())
+			userPositions, err := meteoraDammV2.GetUserPositionByUserAndPoolPDA(ctx1, cpamm.Address, poolPartner.PublicKey())
 			if err != nil {
 				t.Fatal("GetUserPositionByBaseMint() fail", err)
 			}
@@ -825,7 +823,7 @@ func TestDBC(t *testing.T) {
 					fmt.Println("claim fee partner")
 					ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
 					defer cancel1()
-					sig, err := meteoraDammV2.ClaimPositionFee(ctx1, payer, poolPartner, userPositions[0], cpamm)
+					sig, err := meteoraDammV2.ClaimPositionFee(ctx1, payer, poolPartner, baseMint)
 					if err != nil {
 						t.Fatal("ClaimPositionFee() fail", err)
 					}
@@ -841,6 +839,7 @@ func TestDBC(t *testing.T) {
 					}
 					balance = lamports
 				}
+
 				{
 					fmt.Println("try to transfer sol to owner")
 					ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)

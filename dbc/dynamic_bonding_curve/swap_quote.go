@@ -212,6 +212,7 @@ func SwapQuote(
 	hasReferral bool,
 	currentPoint *big.Int,
 ) (*QuoteResult, error) {
+
 	if amountIn.Cmp(big.NewInt(0)) == 0 {
 		return nil, errors.New("amount is zero")
 	}

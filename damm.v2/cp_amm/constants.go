@@ -3,7 +3,11 @@
 
 package cp_amm
 
-import "math/big"
+import (
+	"math/big"
+
+	"github.com/krazyTry/meteora-go/u128"
+)
 
 var (
 	AccountKeyClaimFeeOperator = "ClaimFeeOperator"
@@ -18,6 +22,9 @@ var (
 	SCALE_OFFSET uint = 64
 
 	ONE = big.NewInt(1 << SCALE_OFFSET)
+
+	RESOLUTION = int32(64)
+	ONE_Q64    = new(big.Int).Lsh(big.NewInt(1), uint(RESOLUTION))
 
 	LIQUIDITY_SCALE uint = 128
 
@@ -39,7 +46,7 @@ var (
 
 	BIN_STEP_BPS_DEFAULT = big.NewInt(1)
 	// bin_step << 64 / BASIS_POINT_MAX
-	BIN_STEP_BPS_U128_DEFAULT = big.NewInt(1844674407370955)
+	BIN_STEP_BPS_U128_DEFAULT = u128.GenUint128FromString("1844674407370955")
 
 	MIN_SQRT_PRICE    = new(big.Int).SetUint64(4295048016)
 	MAX_SQRT_PRICE, _ = new(big.Int).SetString("79226673521066979257578248091", 10)

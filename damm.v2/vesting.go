@@ -28,7 +28,13 @@ func cpAmmRefreshVesting(
 }
 
 func (m *DammV2) GetVestingsByPosition(ctx context.Context, position solana.PublicKey) ([]*cp_amm.Vesting, error) {
-	opt := solanago.GenProgramAccountFilter(cp_amm.AccountKeyVesting, position, 8)
+	opt := solanago.GenProgramAccountFilter(
+		cp_amm.AccountKeyVesting,
+		&solanago.Filter{
+			Owner:  position,
+			Offset: 8,
+		},
+	)
 
 	outs, err := m.rpcClient.GetProgramAccountsWithOpts(ctx, cp_amm.ProgramID, opt)
 	if err != nil {

@@ -144,3 +144,10 @@ const (
 	MigrationProgressLockedVesting
 	MigrationProgressCreatedPool
 )
+
+type IsMigrated uint8
+
+const (
+	IsMigratedProcess IsMigrated = iota
+	IsMigratedCompleted
+)

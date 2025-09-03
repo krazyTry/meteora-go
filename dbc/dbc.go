@@ -1,7 +1,7 @@
 package dbc
 
 import (
-	"fmt"
+	"errors"
 
 	dbc "github.com/krazyTry/meteora-go/dbc/dynamic_bonding_curve"
 
@@ -11,13 +11,13 @@ import (
 )
 
 var (
-	errDammV2MetadataExist = fmt.Errorf("MigrationDammV2CreateMetadata exist")
-	errDammV2LockerExist   = fmt.Errorf("CreateLocker exist")
+	ErrPoolCompleted = errors.New("virtual pool is completed")
+
+	ErrDammV2LockerNotRequired = errors.New("locker not required")
+	ErrMigrationProgressState  = errors.New("virtual pool state error")
 )
 
 type DBC struct {
-	bSimulate bool
-
 	wsClient         *ws.Client
 	rpcClient        *rpc.Client
 	config           *solana.Wallet

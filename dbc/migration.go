@@ -13,11 +13,10 @@ import (
 
 	"github.com/gagliardetto/solana-go"
 	computebudget "github.com/gagliardetto/solana-go/programs/compute-budget"
-	"github.com/gagliardetto/solana-go/rpc"
-	sendandconfirmtransaction "github.com/gagliardetto/solana-go/rpc/sendAndConfirmTransaction"
 )
 
-func dbcCreateLocker(m *DBC,
+func dbcCreateLocker(
+	m *DBC,
 	dbcPool solana.PublicKey,
 	config solana.PublicKey,
 	baseVault solana.PublicKey,
@@ -60,12 +59,12 @@ func (m *DBC) CreateLockerInstruction(
 	config *dbc.PoolConfig,
 ) ([]solana.Instruction, error) {
 
-	if config.LockedVestingConfig.AmountPerPeriod <= 0 {
-		return nil, errDammV2LockerExist
-	}
-
-	if virtualPool.MigrationProgress == dbc.MigrationProgressPreBondingCurve {
-		return nil, fmt.Errorf("MigrationProgress = PreBondingCurve")
+	switch virtualPool.MigrationProgress {
+	case dbc.MigrationProgressLockedVesting:
+		return nil, ErrDammV2LockerNotRequired
+	case dbc.MigrationProgressPostBondingCurve:
+	default:
+		return nil, ErrMigrationProgressState
 	}
 
 	quoteMint := config.QuoteMint      // solana.WrappedSol
@@ -87,14 +86,14 @@ func (m *DBC) CreateLockerInstruction(
 		return nil, err
 	}
 
-	exists, err := solanago.GetAccountInfo(ctx, m.rpcClient, escrow)
-	if err != nil && err != rpc.ErrNotFound {
-		return nil, err
-	}
+	// exists, err := solanago.GetAccountInfo(ctx, m.rpcClient, escrow)
+	// if err != nil && err != rpc.ErrNotFound {
+	// 	return nil, err
+	// }
 
-	if exists != nil {
-		return nil, errDammV2LockerExist
-	}
+	// if exists != nil {
+	// 	return nil, ErrDammV2LockerExist
+	// }
 
 	var instructions []solana.Instruction
 	tokenEscrowAccount, err := solanago.PrepareTokenATA(ctx, m.rpcClient, escrow, baseMint, payer, &instructions)
@@ -123,6 +122,7 @@ func (m *DBC) CreateLockerInstruction(
 
 	return instructions, nil
 }
+
 func (m *DBC) CreateLocker(
 	ctx context.Context,
 	payer *solana.Wallet,
@@ -133,11 +133,6 @@ func (m *DBC) CreateLocker(
 		return "", err
 	}
 
-	if virtualPool.MigrationProgress != dbc.MigrationProgressLockedVesting {
-		return "", fmt.Errorf("virtualPool.MigrationProgress != dbc.MigrationProgressLockedVesting")
-	}
-
-	// poolState.quoteReserve >= poolConfig.migrationQuoteThreshold
 	config, err := m.GetConfig(ctx, virtualPool.Config)
 	if err != nil {
 		return "", err
@@ -145,64 +140,34 @@ func (m *DBC) CreateLocker(
 
 	instructions, err := m.CreateLockerInstruction(ctx, payer.PublicKey(), virtualPool, config)
 	if err != nil {
-		if err == errDammV2LockerExist {
-			return "*************", nil
+		if err == ErrDammV2LockerNotRequired {
+			return "***************************************************************************************", nil
 		}
 		return "", err
 	}
 
-	latestBlockhash, err := solanago.GetLatestBlockhash(ctx, m.rpcClient)
-	if err != nil {
-		return "", err
-	}
-
-	tx, err := solana.NewTransaction(instructions, latestBlockhash, solana.TransactionPayer(payer.PublicKey()))
-	if err != nil {
-		return "", err
-	}
-
-	if _, err = tx.Sign(func(key solana.PublicKey) *solana.PrivateKey {
-		switch {
-		case key.Equals(payer.PublicKey()):
-			return &payer.PrivateKey
-		default:
-			return nil
-		}
-	}); err != nil {
-		return "", err
-	}
-
-	if m.bSimulate {
-		if _, err = m.rpcClient.SimulateTransactionWithOpts(
-			ctx,
-			tx,
-			&rpc.SimulateTransactionOpts{
-				SigVerify:  false,
-				Commitment: rpc.CommitmentFinalized,
-			}); err != nil {
-			return "", err
-		}
-		return "-", nil
-	}
-	sig, err := m.rpcClient.SendTransactionWithOpts(
-		ctx,
-		tx,
-		rpc.TransactionOpts{
-			SkipPreflight:       false,
-			PreflightCommitment: rpc.CommitmentFinalized,
+	sig, err := solanago.SendTransaction(ctx,
+		m.rpcClient,
+		m.wsClient,
+		instructions,
+		payer.PublicKey(),
+		func(key solana.PublicKey) *solana.PrivateKey {
+			switch {
+			case key.Equals(payer.PublicKey()):
+				return &payer.PrivateKey
+			default:
+				return nil
+			}
 		},
 	)
 	if err != nil {
 		return "", err
 	}
-
-	if _, err = sendandconfirmtransaction.WaitForConfirmation(ctx, m.wsClient, sig, nil); err != nil {
-		return "", err
-	}
 	return sig.String(), nil
 }
 
-func dbcMigrationDammV2CreateMetadata(m *DBC,
+func dbcMigrationDammV2CreateMetadata(
+	m *DBC,
 	dbcPool solana.PublicKey,
 	config solana.PublicKey,
 	migrationMetadata solana.PublicKey,
@@ -229,6 +194,12 @@ func (m *DBC) MigrationDammV2CreateMetadataInstruction(
 	virtualPool *dbc.VirtualPool,
 	config *dbc.PoolConfig,
 ) ([]solana.Instruction, error) {
+	switch virtualPool.MigrationProgress {
+	case dbc.MigrationProgressCreatedPool:
+		return nil, ErrMigrationProgressState
+	default:
+	}
+
 	quoteMint := config.QuoteMint    // solana.WrappedSol
 	baseMint := virtualPool.BaseMint // baseMint
 
@@ -242,14 +213,14 @@ func (m *DBC) MigrationDammV2CreateMetadataInstruction(
 		return nil, err
 	}
 
-	exists, err := solanago.GetAccountInfo(ctx, m.rpcClient, migrationMetadata)
-	if err != nil && err != rpc.ErrNotFound {
-		return nil, err
-	}
+	// exists, err := solanago.GetAccountInfo(ctx, m.rpcClient, migrationMetadata)
+	// if err != nil && err != rpc.ErrNotFound {
+	// 	return nil, err
+	// }
 
-	if exists != nil {
-		return nil, errDammV2MetadataExist
-	}
+	// if exists != nil {
+	// 	return nil, ErrDammV2MetadataExist
+	// }
 
 	var instructions []solana.Instruction
 
@@ -288,64 +259,31 @@ func (m *DBC) MigrationDammV2CreateMetadata(
 
 	instructions, err := m.MigrationDammV2CreateMetadataInstruction(ctx, payer.PublicKey(), virtualPool, config)
 	if err != nil {
-		if err == errDammV2MetadataExist {
-			return "*************", nil
-		}
 		return "", err
 	}
 
-	latestBlockhash, err := solanago.GetLatestBlockhash(ctx, m.rpcClient)
-	if err != nil {
-		return "", err
-	}
-
-	tx, err := solana.NewTransaction(instructions, latestBlockhash, solana.TransactionPayer(payer.PublicKey()))
-	if err != nil {
-		return "", err
-	}
-
-	if _, err = tx.Sign(func(key solana.PublicKey) *solana.PrivateKey {
-		switch {
-		case key.Equals(payer.PublicKey()):
-			return &payer.PrivateKey
-		default:
-			return nil
-		}
-	}); err != nil {
-		return "", err
-	}
-
-	if m.bSimulate {
-		if _, err = m.rpcClient.SimulateTransactionWithOpts(
-			ctx,
-			tx,
-			&rpc.SimulateTransactionOpts{
-				SigVerify:  false,
-				Commitment: rpc.CommitmentFinalized,
-			}); err != nil {
-			return "", err
-		}
-		return "-", nil
-	}
-	sig, err := m.rpcClient.SendTransactionWithOpts(
-		ctx,
-		tx,
-		rpc.TransactionOpts{
-			SkipPreflight:       false,
-			PreflightCommitment: rpc.CommitmentFinalized,
+	sig, err := solanago.SendTransaction(ctx,
+		m.rpcClient,
+		m.wsClient,
+		instructions,
+		payer.PublicKey(),
+		func(key solana.PublicKey) *solana.PrivateKey {
+			switch {
+			case key.Equals(payer.PublicKey()):
+				return &payer.PrivateKey
+			default:
+				return nil
+			}
 		},
 	)
 	if err != nil {
 		return "", err
 	}
-
-	if _, err = sendandconfirmtransaction.WaitForConfirmation(ctx, m.wsClient, sig, nil); err != nil {
-		return "", err
-	}
 	return sig.String(), nil
 }
 
-func dbcMigrationDammV2(m *DBC,
+func dbcMigrationDammV2(
+	m *DBC,
 	dbcPool solana.PublicKey,
 	migrationMetadata solana.PublicKey,
 	config solana.PublicKey,
@@ -413,6 +351,12 @@ func (m *DBC) MigrationDammV2Instruction(
 	partnerPositionNft *solana.Wallet,
 	creatorPositionNft *solana.Wallet,
 ) ([]solana.Instruction, error) {
+
+	switch virtualPool.MigrationProgress {
+	case dbc.MigrationProgressLockedVesting:
+	default:
+		return nil, ErrMigrationProgressState
+	}
 
 	quoteMint := config.QuoteMint        // solana.WrappedSol
 	baseMint := virtualPool.BaseMint     // baseMint
@@ -534,60 +478,27 @@ func (m *DBC) MigrationDammV2(
 		return "", nil, nil, err
 	}
 
-	latestBlockhash, err := solanago.GetLatestBlockhash(ctx, m.rpcClient)
-	if err != nil {
-		return "", nil, nil, err
-	}
-
-	instructions = append([]solana.Instruction{computebudget.NewSetComputeUnitLimitInstruction(500_000).Build()}, instructions...)
-
-	tx, err := solana.NewTransaction(instructions, latestBlockhash, solana.TransactionPayer(payer.PublicKey()))
-	if err != nil {
-		return "", nil, nil, err
-	}
-
-	if _, err = tx.Sign(func(key solana.PublicKey) *solana.PrivateKey {
-		switch {
-		case key.Equals(payer.PublicKey()):
-			return &payer.PrivateKey
-		case key.Equals(partnerPositionNft.PublicKey()):
-			return &partnerPositionNft.PrivateKey
-		case key.Equals(creatorPositionNft.PublicKey()):
-			return &creatorPositionNft.PrivateKey
-		default:
-			return nil
-		}
-	}); err != nil {
-		return "", nil, nil, err
-	}
-
-	if m.bSimulate {
-		if _, err = m.rpcClient.SimulateTransactionWithOpts(
-			ctx,
-			tx,
-			&rpc.SimulateTransactionOpts{
-				SigVerify:  false,
-				Commitment: rpc.CommitmentFinalized,
-			}); err != nil {
-			return "", nil, nil, err
-		}
-		return "-", nil, nil, nil
-	}
-
-	sig, err := m.rpcClient.SendTransactionWithOpts(
-		ctx,
-		tx,
-		rpc.TransactionOpts{
-			SkipPreflight:       false,
-			PreflightCommitment: rpc.CommitmentFinalized,
+	sig, err := solanago.SendTransaction(ctx,
+		m.rpcClient,
+		m.wsClient,
+		append([]solana.Instruction{computebudget.NewSetComputeUnitLimitInstruction(500_000).Build()}, instructions...),
+		payer.PublicKey(),
+		func(key solana.PublicKey) *solana.PrivateKey {
+			switch {
+			case key.Equals(payer.PublicKey()):
+				return &payer.PrivateKey
+			case key.Equals(partnerPositionNft.PublicKey()):
+				return &partnerPositionNft.PrivateKey
+			case key.Equals(creatorPositionNft.PublicKey()):
+				return &creatorPositionNft.PrivateKey
+			default:
+				return nil
+			}
 		},
 	)
 	if err != nil {
 		return "", nil, nil, err
 	}
 
-	if _, err = sendandconfirmtransaction.WaitForConfirmation(ctx, m.wsClient, sig, nil); err != nil {
-		return "", nil, nil, err
-	}
 	return sig.String(), partnerPositionNft, creatorPositionNft, nil
 }

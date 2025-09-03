@@ -10,6 +10,7 @@ import (
 	"github.com/gagliardetto/solana-go/rpc"
 	sendandconfirmtransaction "github.com/gagliardetto/solana-go/rpc/sendAndConfirmTransaction"
 	"github.com/gagliardetto/solana-go/rpc/ws"
+	solanago "github.com/krazyTry/meteora-go/solana"
 	"github.com/tidwall/gjson"
 )
 
@@ -105,12 +106,12 @@ func testTransferSOL(ctx context.Context,
 		to,
 	).Build()
 
-	recent, err := rpcClient.GetLatestBlockhash(ctx, rpc.CommitmentFinalized)
+	blockhash, err := solanago.GetLatestBlockhash(ctx, rpcClient)
 	if err != nil {
 		return "", err
 	}
 
-	tx, err := solana.NewTransaction([]solana.Instruction{transferix}, recent.Value.Blockhash, solana.TransactionPayer(from.PublicKey()))
+	tx, err := solana.NewTransaction([]solana.Instruction{transferix}, blockhash, solana.TransactionPayer(from.PublicKey()))
 	if err != nil {
 		return "", err
 	}

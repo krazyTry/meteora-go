@@ -9,13 +9,10 @@ import (
 
 	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/rpc"
-	sendandconfirmtransaction "github.com/gagliardetto/solana-go/rpc/sendAndConfirmTransaction"
 )
 
-type CpAmmStaticConfigParameters = cp_amm.StaticConfigParameters
-type CpAmmDynamicConfigParameters = cp_amm.DynamicConfigParameters
-
-func cpAmmCreateConfig(m *DammV2,
+func cpAmmCreateConfig(
+	m *DammV2,
 	// Params:
 	idx uint64,
 	configParameters *cp_amm.StaticConfigParameters,
@@ -40,42 +37,44 @@ func cpAmmCreateConfig(m *DammV2,
 	)
 }
 
-// CreateStaticConfig admin is the paying account and also an important parameter that needs to be provided when closing the config.
-func (m *DammV2) CreateStaticConfig(ctx context.Context, publicConfigIDX uint64, config *CpAmmStaticConfigParameters, adminWallet *solana.Wallet) (string, error) {
-	configIx, err := cpAmmCreateConfig(m, publicConfigIDX, config, m.config.PublicKey(), adminWallet.PublicKey())
+// CreateStaticConfig
+func (m *DammV2) CreateStaticConfig(
+	ctx context.Context,
+	payer *solana.Wallet,
+	configIDX uint64,
+	config *cp_amm.StaticConfigParameters,
+) (string, solana.PublicKey, error) {
+	configPDA, err := cp_amm.DeriveConfigAddress(configIDX)
 	if err != nil {
-		return "", err
+		return "", solana.PublicKey{}, err
 	}
-	latestBlockhash, err := solanago.GetLatestBlockhash(ctx, m.rpcClient)
+	admin := solana.MustPublicKeyFromBase58("5unTfT2kssBuNvHPY6LbJfJpLqEcdMxGYLWHwShaeTLi")
+	configIx, err := cpAmmCreateConfig(m, configIDX, config, configPDA, admin)
 	if err != nil {
-		return "", err
+		return "", solana.PublicKey{}, err
 	}
-
-	tx, err := solana.NewTransaction([]solana.Instruction{configIx}, latestBlockhash, solana.TransactionPayer(adminWallet.PublicKey()))
+	sig, err := solanago.SendTransaction(ctx,
+		m.rpcClient,
+		m.wsClient,
+		[]solana.Instruction{configIx},
+		payer.PublicKey(),
+		func(key solana.PublicKey) *solana.PrivateKey {
+			switch {
+			case key.Equals(payer.PublicKey()):
+				return &payer.PrivateKey
+			default:
+				return nil
+			}
+		},
+	)
 	if err != nil {
-		return "", err
+		return "", solana.PublicKey{}, err
 	}
-
-	if _, err = tx.Sign(func(key solana.PublicKey) *solana.PrivateKey {
-		switch {
-		case key.Equals(adminWallet.PublicKey()):
-			return &adminWallet.PrivateKey
-		case key.Equals(m.config.PublicKey()):
-			return &m.config.PrivateKey
-		default:
-			return nil
-		}
-	}); err != nil {
-		return "", err
-	}
-
-	if _, err = sendandconfirmtransaction.SendAndConfirmTransaction(ctx, m.rpcClient, m.wsClient, tx); err != nil {
-		return "", err
-	}
-	return tx.Signatures[0].String(), nil
+	return sig.String(), configPDA, nil
 }
 
-func cpAmmCreateDynamicConfig(m *DammV2,
+func cpAmmCreateDynamicConfig(
+	m *DammV2,
 	// Params:
 	idx uint64,
 	configParameters *cp_amm.DynamicConfigParameters,
@@ -100,43 +99,44 @@ func cpAmmCreateDynamicConfig(m *DammV2,
 	)
 }
 
-// CreateDynamicConfig admin is the paying account and also an important parameter that needs to be provided when closing the config.
-func (m *DammV2) CreateDynamicConfig(ctx context.Context, publicConfigIDX uint64, config *CpAmmDynamicConfigParameters, adminWallet *solana.Wallet) (string, error) {
-	configIx, err := cpAmmCreateDynamicConfig(m, publicConfigIDX, config, m.config.PublicKey(), adminWallet.PublicKey())
+// CreateDynamicConfig
+func (m *DammV2) CreateDynamicConfig(
+	ctx context.Context,
+	payer *solana.Wallet,
+	configIDX uint64,
+	config *cp_amm.DynamicConfigParameters,
+) (string, solana.PublicKey, error) {
+	configPDA, err := cp_amm.DeriveConfigAddress(configIDX)
 	if err != nil {
-		return "", err
+		return "", solana.PublicKey{}, err
 	}
-
-	latestBlockhash, err := solanago.GetLatestBlockhash(ctx, m.rpcClient)
+	admin := solana.MustPublicKeyFromBase58("5unTfT2kssBuNvHPY6LbJfJpLqEcdMxGYLWHwShaeTLi")
+	configIx, err := cpAmmCreateDynamicConfig(m, configIDX, config, configPDA, admin)
 	if err != nil {
-		return "", err
+		return "", solana.PublicKey{}, err
 	}
-
-	tx, err := solana.NewTransaction([]solana.Instruction{configIx}, latestBlockhash, solana.TransactionPayer(adminWallet.PublicKey()))
+	sig, err := solanago.SendTransaction(ctx,
+		m.rpcClient,
+		m.wsClient,
+		[]solana.Instruction{configIx},
+		payer.PublicKey(),
+		func(key solana.PublicKey) *solana.PrivateKey {
+			switch {
+			case key.Equals(payer.PublicKey()):
+				return &payer.PrivateKey
+			default:
+				return nil
+			}
+		},
+	)
 	if err != nil {
-		return "", err
+		return "", solana.PublicKey{}, err
 	}
-
-	if _, err = tx.Sign(func(key solana.PublicKey) *solana.PrivateKey {
-		switch {
-		case key.Equals(adminWallet.PublicKey()):
-			return &adminWallet.PrivateKey
-		case key.Equals(m.config.PublicKey()):
-			return &m.config.PrivateKey
-		default:
-			return nil
-		}
-	}); err != nil {
-		return "", err
-	}
-
-	if _, err = sendandconfirmtransaction.SendAndConfirmTransaction(ctx, m.rpcClient, m.wsClient, tx); err != nil {
-		return "", err
-	}
-	return tx.Signatures[0].String(), nil
+	return sig.String(), configPDA, nil
 }
 
-func cpAmmCloseConfig(m *DammV2,
+func cpAmmCloseConfig(
+	m *DammV2,
 	config solana.PublicKey,
 	admin solana.PublicKey,
 	rentReceiver solana.PublicKey,
@@ -154,38 +154,38 @@ func cpAmmCloseConfig(m *DammV2,
 }
 
 // CloseConfig admin is the paying account and also an important parameter that needs to be provided when closing the config.
-func (m *DammV2) CloseConfig(ctx context.Context, adminWallet *solana.Wallet) (string, error) {
-	configIx, err := cpAmmCloseConfig(m, m.config.PublicKey(), adminWallet.PublicKey(), adminWallet.PublicKey())
+func (m *DammV2) CloseConfig(
+	ctx context.Context,
+	payer *solana.Wallet,
+	configIDX uint64,
+) (string, error) {
+	configPDA, err := cp_amm.DeriveConfigAddress(configIDX)
 	if err != nil {
 		return "", err
 	}
-	latestBlockhash, err := solanago.GetLatestBlockhash(ctx, m.rpcClient)
+	admin := solana.MustPublicKeyFromBase58("5unTfT2kssBuNvHPY6LbJfJpLqEcdMxGYLWHwShaeTLi")
+	configIx, err := cpAmmCloseConfig(m, configPDA, admin, payer.PublicKey())
 	if err != nil {
 		return "", err
 	}
-
-	tx, err := solana.NewTransaction([]solana.Instruction{configIx}, latestBlockhash, solana.TransactionPayer(adminWallet.PublicKey()))
+	sig, err := solanago.SendTransaction(ctx,
+		m.rpcClient,
+		m.wsClient,
+		[]solana.Instruction{configIx},
+		payer.PublicKey(),
+		func(key solana.PublicKey) *solana.PrivateKey {
+			switch {
+			case key.Equals(payer.PublicKey()):
+				return &payer.PrivateKey
+			default:
+				return nil
+			}
+		},
+	)
 	if err != nil {
 		return "", err
 	}
-
-	if _, err = tx.Sign(func(key solana.PublicKey) *solana.PrivateKey {
-		switch {
-		case key.Equals(adminWallet.PublicKey()):
-			return &adminWallet.PrivateKey
-		case key.Equals(m.config.PublicKey()):
-			return &m.config.PrivateKey
-		default:
-			return nil
-		}
-	}); err != nil {
-		return "", err
-	}
-
-	if _, err = sendandconfirmtransaction.SendAndConfirmTransaction(ctx, m.rpcClient, m.wsClient, tx); err != nil {
-		return "", err
-	}
-	return tx.Signatures[0].String(), nil
+	return sig.String(), nil
 }
 
 func (m *DammV2) GetConfig(ctx context.Context, config solana.PublicKey) (*cp_amm.Config, error) {

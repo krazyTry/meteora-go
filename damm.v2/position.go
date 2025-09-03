@@ -13,10 +13,10 @@ import (
 
 	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/rpc"
-	sendandconfirmtransaction "github.com/gagliardetto/solana-go/rpc/sendAndConfirmTransaction"
 )
 
-func cpAmmCreatePosition(m *DammV2,
+func cpAmmCreatePosition(
+	m *DammV2,
 	owner solana.PublicKey,
 	positionNft solana.PublicKey,
 	positionNftAccount solana.PublicKey,
@@ -46,41 +46,29 @@ func cpAmmCreatePosition(m *DammV2,
 	)
 }
 
-func (m *DammV2) CreatePositionInstruction(ctx context.Context,
+func (m *DammV2) CreatePositionInstruction(
+	ctx context.Context,
 	payer *solana.Wallet,
 	owner *solana.Wallet,
-	baseMint solana.PublicKey,
+	ownerPositionNft *solana.Wallet,
+	virtualPool *Pool,
 ) ([]solana.Instruction, error) {
-	virtualPool, err := m.GetPoolByBaseMint(ctx, baseMint)
+	position, err := cp_amm.DerivePositionAddress(ownerPositionNft.PublicKey())
 	if err != nil {
 		return nil, err
 	}
 
-	baseMint = virtualPool.TokenAMint
-	quoteMint := virtualPool.TokenBMint
-
-	cpammPool, err := m.deriveCpAmmPoolPDA(quoteMint, baseMint)
+	positionNftAccount, err := cp_amm.DerivePositionNftAccount(ownerPositionNft.PublicKey())
 	if err != nil {
 		return nil, err
 	}
 
-	positionNft := solana.NewWallet()
-
-	position, err := cp_amm.DerivePositionAddress(positionNft.PublicKey())
-	if err != nil {
-		return nil, err
-	}
-
-	positionNftAccount, err := cp_amm.DerivePositionNftAccount(positionNft.PublicKey())
-	if err != nil {
-		return nil, err
-	}
-
-	createIx, err := cpAmmCreatePosition(m,
+	createIx, err := cpAmmCreatePosition(
+		m,
 		owner.PublicKey(),
-		positionNft.PublicKey(),
+		ownerPositionNft.PublicKey(),
 		positionNftAccount,
-		cpammPool,
+		virtualPool.Address,
 		position,
 		payer.PublicKey(),
 		cp_amm.GetTokenProgram(virtualPool.TokenAFlag),
@@ -91,73 +79,53 @@ func (m *DammV2) CreatePositionInstruction(ctx context.Context,
 	return []solana.Instruction{createIx}, nil
 }
 
-func (m *DammV2) CreatePosition(ctx context.Context,
+func (m *DammV2) CreatePosition(
+	ctx context.Context,
 	payer *solana.Wallet,
 	owner *solana.Wallet,
 	baseMint solana.PublicKey,
 ) (string, error) {
+
+	virtualPool, err := m.GetPoolByBaseMint(ctx, baseMint)
+	if err != nil {
+		return "", err
+	}
+
+	positionNft := solana.NewWallet()
+
 	instructions, err := m.CreatePositionInstruction(ctx,
 		payer,
 		owner,
-		baseMint,
+		positionNft,
+		virtualPool,
 	)
+
 	if err != nil {
 		return "", err
 	}
 
-	latestBlockhash, err := solanago.GetLatestBlockhash(ctx, m.rpcClient)
-	if err != nil {
-		return "", err
-	}
-
-	tx, err := solana.NewTransaction(instructions, latestBlockhash, solana.TransactionPayer(payer.PublicKey()))
-	if err != nil {
-		return "", err
-	}
-
-	if _, err = tx.Sign(func(key solana.PublicKey) *solana.PrivateKey {
-		switch {
-		case key.Equals(payer.PublicKey()):
-			return &payer.PrivateKey
-		default:
-			return nil
-		}
-	}); err != nil {
-		return "", err
-	}
-
-	if m.bSimulate {
-		if _, err = m.rpcClient.SimulateTransactionWithOpts(
-			ctx,
-			tx,
-			&rpc.SimulateTransactionOpts{
-				SigVerify:  false,
-				Commitment: rpc.CommitmentFinalized,
-			}); err != nil {
-			return "", err
-		}
-		return "-", nil
-	}
-
-	sig, err := m.rpcClient.SendTransactionWithOpts(
-		ctx,
-		tx,
-		rpc.TransactionOpts{
-			SkipPreflight:       false,
-			PreflightCommitment: rpc.CommitmentFinalized,
+	sig, err := solanago.SendTransaction(ctx,
+		m.rpcClient,
+		m.wsClient,
+		instructions,
+		payer.PublicKey(),
+		func(key solana.PublicKey) *solana.PrivateKey {
+			switch {
+			case key.Equals(payer.PublicKey()):
+				return &payer.PrivateKey
+			default:
+				return nil
+			}
 		},
 	)
 	if err != nil {
 		return "", err
 	}
-
-	if _, err = sendandconfirmtransaction.WaitForConfirmation(ctx, m.wsClient, sig, nil); err != nil {
-		return "", err
-	}
 	return sig.String(), nil
 }
 
-func cpAmmClosePosition(m *DammV2,
+func cpAmmClosePosition(
+	m *DammV2,
 	positionNft solana.PublicKey,
 	positionNftAccount solana.PublicKey,
 	cpammPool solana.PublicKey,
@@ -184,41 +152,18 @@ func cpAmmClosePosition(m *DammV2,
 	)
 }
 
-func (m *DammV2) ClosePositionInstruction(ctx context.Context,
+func (m *DammV2) ClosePositionInstruction(
+	ctx context.Context,
 	payer *solana.Wallet,
 	owner *solana.Wallet,
-	baseMint solana.PublicKey,
+	ownerPosition *UserPosition,
+	virtualPool *Pool,
 ) ([]solana.Instruction, error) {
-	virtualPool, err := m.GetPoolByBaseMint(ctx, baseMint)
-	if err != nil {
-		return nil, err
-	}
-
-	baseMint = virtualPool.TokenAMint
-	quoteMint := virtualPool.TokenBMint
-
-	cpammPool, err := m.deriveCpAmmPoolPDA(quoteMint, baseMint)
-	if err != nil {
-		return nil, err
-	}
-
-	var userPosition *UserPosition
-	userPositions, err := m.GetUserPositionByBaseMint(ctx, virtualPool, owner.PublicKey())
-	if err != nil {
-		return nil, err
-	}
-
-	if len(userPositions) == 0 {
-		return nil, fmt.Errorf("no matching user_position")
-	}
-
-	userPosition = userPositions[0]
-
 	closeIx, err := cpAmmClosePosition(m,
-		userPosition.PositionState.NftMint,
-		userPosition.PositionNftAccount,
-		cpammPool,
-		userPosition.Position,
+		ownerPosition.PositionState.NftMint,
+		ownerPosition.PositionNftAccount,
+		virtualPool.Address,
+		ownerPosition.Position,
 		payer.PublicKey(),
 		owner.PublicKey(),
 		cp_amm.GetTokenProgram(virtualPool.TokenAFlag),
@@ -230,74 +175,60 @@ func (m *DammV2) ClosePositionInstruction(ctx context.Context,
 	return []solana.Instruction{closeIx}, nil
 }
 
-func (m *DammV2) ClosePosition(ctx context.Context,
+func (m *DammV2) ClosePosition(
+	ctx context.Context,
 	payer *solana.Wallet,
 	owner *solana.Wallet,
 	baseMint solana.PublicKey,
 ) (string, error) {
+	virtualPool, err := m.GetPoolByBaseMint(ctx, baseMint)
+	if err != nil {
+		return "", err
+	}
+	var userPosition *UserPosition
+	userPositions, err := m.GetUserPositionByUserAndPoolPDA(ctx, virtualPool.Address, owner.PublicKey())
+	if err != nil {
+		return "", err
+	}
+
+	if len(userPositions) == 0 {
+		return "", fmt.Errorf("no matching user_position")
+	}
+	userPosition = userPositions[0]
 
 	instructions, err := m.ClosePositionInstruction(ctx,
 		payer,
 		owner,
-		baseMint,
+		userPosition,
+		virtualPool,
 	)
+
 	if err != nil {
 		return "", err
 	}
 
-	latestBlockhash, err := solanago.GetLatestBlockhash(ctx, m.rpcClient)
-	if err != nil {
-		return "", err
-	}
-
-	tx, err := solana.NewTransaction(instructions, latestBlockhash, solana.TransactionPayer(payer.PublicKey()))
-	if err != nil {
-		return "", err
-	}
-
-	if _, err = tx.Sign(func(key solana.PublicKey) *solana.PrivateKey {
-		switch {
-		case key.Equals(payer.PublicKey()):
-			return &payer.PrivateKey
-		default:
-			return nil
-		}
-	}); err != nil {
-		return "", err
-	}
-
-	if m.bSimulate {
-		if _, err = m.rpcClient.SimulateTransactionWithOpts(
-			ctx,
-			tx,
-			&rpc.SimulateTransactionOpts{
-				SigVerify:  false,
-				Commitment: rpc.CommitmentFinalized,
-			}); err != nil {
-			return "", err
-		}
-		return "-", nil
-	}
-
-	sig, err := m.rpcClient.SendTransactionWithOpts(
-		ctx,
-		tx,
-		rpc.TransactionOpts{
-			SkipPreflight:       false,
-			PreflightCommitment: rpc.CommitmentFinalized,
+	sig, err := solanago.SendTransaction(ctx,
+		m.rpcClient,
+		m.wsClient,
+		instructions,
+		payer.PublicKey(),
+		func(key solana.PublicKey) *solana.PrivateKey {
+			switch {
+			case key.Equals(payer.PublicKey()):
+				return &payer.PrivateKey
+			default:
+				return nil
+			}
 		},
 	)
 	if err != nil {
 		return "", err
 	}
-
-	if _, err = sendandconfirmtransaction.WaitForConfirmation(ctx, m.wsClient, sig, nil); err != nil {
-		return "", err
-	}
 	return sig.String(), nil
 }
 
-func cpAmmLockPosition(m *DammV2,
+func cpAmmLockPosition(
+	m *DammV2,
 	// Params:
 	cliffPoint *uint64,
 	periodFrequency uint64,
@@ -343,10 +274,12 @@ func cpAmmLockPosition(m *DammV2,
 	)
 }
 
-func (m *DammV2) LockPositionInstruction(ctx context.Context,
+func (m *DammV2) LockPositionInstruction(
+	ctx context.Context,
 	payer *solana.Wallet,
 	owner *solana.Wallet,
-	baseMint solana.PublicKey,
+	ownerPosition *UserPosition,
+	virtualPool *Pool,
 	cliffPoint *uint64,
 	periodFrequency uint64,
 	cliffUnlockLiquidity *big.Int,
@@ -354,28 +287,8 @@ func (m *DammV2) LockPositionInstruction(ctx context.Context,
 	numberOfPeriod uint16,
 	vesting solana.PublicKey,
 ) ([]solana.Instruction, error) {
-	virtualPool, err := m.GetPoolByBaseMint(ctx, baseMint)
-	if err != nil {
-		return nil, err
-	}
 
-	baseMint = virtualPool.TokenAMint
-	quoteMint := virtualPool.TokenBMint
-
-	cpammPool, err := m.deriveCpAmmPoolPDA(quoteMint, baseMint)
-	if err != nil {
-		return nil, err
-	}
-	var userPosition *UserPosition
-	userPositions, err := m.GetUserPositionByBaseMint(ctx, virtualPool, owner.PublicKey())
-	if err != nil {
-		return nil, err
-	}
-	if len(userPositions) == 0 {
-		return nil, fmt.Errorf("no matching user_position")
-	}
-
-	userPosition = userPositions[0]
+	cpammPool := virtualPool.Address
 
 	lockIx, err := cpAmmLockPosition(m,
 		cliffPoint,
@@ -384,19 +297,21 @@ func (m *DammV2) LockPositionInstruction(ctx context.Context,
 		liquidityPerPeriod,
 		numberOfPeriod,
 		cpammPool,
-		userPosition.Position,
+		ownerPosition.Position,
 		vesting,
-		userPosition.PositionNftAccount,
+		ownerPosition.PositionNftAccount,
 		owner.PublicKey(),
 		payer.PublicKey(),
 	)
+
 	if err != nil {
 		return nil, err
 	}
 	return []solana.Instruction{lockIx}, nil
 }
 
-func (m *DammV2) LockPosition(ctx context.Context,
+func (m *DammV2) LockPosition(
+	ctx context.Context,
 	payer *solana.Wallet,
 	owner *solana.Wallet,
 	baseMint solana.PublicKey,
@@ -407,10 +322,28 @@ func (m *DammV2) LockPosition(ctx context.Context,
 	numberOfPeriod uint16,
 	vesting solana.PublicKey,
 ) (string, error) {
+
+	virtualPool, err := m.GetPoolByBaseMint(ctx, baseMint)
+	if err != nil {
+		return "", err
+	}
+
+	var userPosition *UserPosition
+	userPositions, err := m.GetUserPositionByUserAndPoolPDA(ctx, virtualPool.Address, owner.PublicKey())
+	if err != nil {
+		return "", err
+	}
+
+	if len(userPositions) == 0 {
+		return "", fmt.Errorf("no matching user_position")
+	}
+
+	userPosition = userPositions[0]
 	instructions, err := m.LockPositionInstruction(ctx,
 		payer,
 		owner,
-		baseMint,
+		userPosition,
+		virtualPool,
 		cliffPoint,
 		periodFrequency,
 		cliffUnlockLiquidity,
@@ -421,60 +354,28 @@ func (m *DammV2) LockPosition(ctx context.Context,
 	if err != nil {
 		return "", err
 	}
-
-	latestBlockhash, err := solanago.GetLatestBlockhash(ctx, m.rpcClient)
-	if err != nil {
-		return "", err
-	}
-
-	tx, err := solana.NewTransaction(instructions, latestBlockhash, solana.TransactionPayer(payer.PublicKey()))
-	if err != nil {
-		return "", err
-	}
-
-	if _, err = tx.Sign(func(key solana.PublicKey) *solana.PrivateKey {
-		switch {
-		case key.Equals(payer.PublicKey()):
-			return &payer.PrivateKey
-		default:
-			return nil
-		}
-	}); err != nil {
-		return "", err
-	}
-
-	if m.bSimulate {
-		if _, err = m.rpcClient.SimulateTransactionWithOpts(
-			ctx,
-			tx,
-			&rpc.SimulateTransactionOpts{
-				SigVerify:  false,
-				Commitment: rpc.CommitmentFinalized,
-			}); err != nil {
-			return "", err
-		}
-		return "-", nil
-	}
-
-	sig, err := m.rpcClient.SendTransactionWithOpts(
-		ctx,
-		tx,
-		rpc.TransactionOpts{
-			SkipPreflight:       false,
-			PreflightCommitment: rpc.CommitmentFinalized,
+	sig, err := solanago.SendTransaction(ctx,
+		m.rpcClient,
+		m.wsClient,
+		instructions,
+		payer.PublicKey(),
+		func(key solana.PublicKey) *solana.PrivateKey {
+			switch {
+			case key.Equals(payer.PublicKey()):
+				return &payer.PrivateKey
+			default:
+				return nil
+			}
 		},
 	)
 	if err != nil {
 		return "", err
 	}
-
-	if _, err = sendandconfirmtransaction.WaitForConfirmation(ctx, m.wsClient, sig, nil); err != nil {
-		return "", err
-	}
 	return sig.String(), nil
 }
 
-func cpAmmPermanentLockPosition(m *DammV2,
+func cpAmmPermanentLockPosition(
+	m *DammV2,
 	// Params:
 	permanentLockLiquidity *big.Int,
 
@@ -501,38 +402,18 @@ func cpAmmPermanentLockPosition(m *DammV2,
 	)
 }
 
-func (m *DammV2) PermanentLockPositionInstruction(ctx context.Context,
+func (m *DammV2) PermanentLockPositionInstruction(
+	ctx context.Context,
 	owner *solana.Wallet,
-	baseMint solana.PublicKey,
+	ownerPosition *UserPosition,
+	virtualPool *Pool,
 	permanentLockLiquidity *big.Int,
 ) ([]solana.Instruction, error) {
-	virtualPool, err := m.GetPoolByBaseMint(ctx, baseMint)
-	if err != nil {
-		return nil, err
-	}
-
-	baseMint = virtualPool.TokenAMint
-	quoteMint := virtualPool.TokenBMint
-
-	cpammPool, err := m.deriveCpAmmPoolPDA(quoteMint, baseMint)
-	if err != nil {
-		return nil, err
-	}
-	var userPosition *UserPosition
-	userPositions, err := m.GetUserPositionByBaseMint(ctx, virtualPool, owner.PublicKey())
-	if err != nil {
-		return nil, err
-	}
-	if len(userPositions) == 0 {
-		return nil, fmt.Errorf("no matching user_position")
-	}
-
-	userPosition = userPositions[0]
 	lockIx, err := cpAmmPermanentLockPosition(m,
 		permanentLockLiquidity,
-		cpammPool,
-		userPosition.Position,
-		userPosition.PositionNftAccount,
+		virtualPool.Address,
+		ownerPosition.Position,
+		ownerPosition.PositionNftAccount,
 		owner.PublicKey(),
 	)
 	if err != nil {
@@ -541,73 +422,57 @@ func (m *DammV2) PermanentLockPositionInstruction(ctx context.Context,
 	return []solana.Instruction{lockIx}, nil
 }
 
-func (m *DammV2) PermanentLockPosition(ctx context.Context,
+func (m *DammV2) PermanentLockPosition(
+	ctx context.Context,
 	owner *solana.Wallet,
 	baseMint solana.PublicKey,
 	permanentLockLiquidity *big.Int,
 ) (string, error) {
+	virtualPool, err := m.GetPoolByBaseMint(ctx, baseMint)
+	if err != nil {
+		return "", err
+	}
+	var userPosition *UserPosition
+	userPositions, err := m.GetUserPositionByUserAndPoolPDA(ctx, virtualPool.Address, owner.PublicKey())
+	if err != nil {
+		return "", err
+	}
+	if len(userPositions) == 0 {
+		return "", fmt.Errorf("no matching user_position")
+	}
+	userPosition = userPositions[0]
+
 	instructions, err := m.PermanentLockPositionInstruction(ctx,
 		owner,
-		baseMint,
+		userPosition,
+		virtualPool,
 		permanentLockLiquidity,
 	)
 	if err != nil {
 		return "", err
 	}
-
-	latestBlockhash, err := solanago.GetLatestBlockhash(ctx, m.rpcClient)
-	if err != nil {
-		return "", err
-	}
-
-	tx, err := solana.NewTransaction(instructions, latestBlockhash, solana.TransactionPayer(owner.PublicKey()))
-	if err != nil {
-		return "", err
-	}
-
-	if _, err = tx.Sign(func(key solana.PublicKey) *solana.PrivateKey {
-		switch {
-		case key.Equals(owner.PublicKey()):
-			return &owner.PrivateKey
-		default:
-			return nil
-		}
-	}); err != nil {
-		return "", err
-	}
-
-	if m.bSimulate {
-		if _, err = m.rpcClient.SimulateTransactionWithOpts(
-			ctx,
-			tx,
-			&rpc.SimulateTransactionOpts{
-				SigVerify:  false,
-				Commitment: rpc.CommitmentFinalized,
-			}); err != nil {
-			return "", err
-		}
-		return "-", nil
-	}
-
-	sig, err := m.rpcClient.SendTransactionWithOpts(
-		ctx,
-		tx,
-		rpc.TransactionOpts{
-			SkipPreflight:       false,
-			PreflightCommitment: rpc.CommitmentFinalized,
+	sig, err := solanago.SendTransaction(ctx,
+		m.rpcClient,
+		m.wsClient,
+		instructions,
+		owner.PublicKey(),
+		func(key solana.PublicKey) *solana.PrivateKey {
+			switch {
+			case key.Equals(owner.PublicKey()):
+				return &owner.PrivateKey
+			default:
+				return nil
+			}
 		},
 	)
 	if err != nil {
 		return "", err
 	}
-
-	if _, err = sendandconfirmtransaction.WaitForConfirmation(ctx, m.wsClient, sig, nil); err != nil {
-		return "", err
-	}
 	return sig.String(), nil
 }
 
-func cpAmmSplitPosition(m *DammV2,
+func cpAmmSplitPosition(
+	m *DammV2,
 	unlockedLiquidityPercentage uint8,
 	permanentLockedLiquidityPercentage uint8,
 	feeAPercentage uint8,
@@ -653,10 +518,13 @@ func cpAmmSplitPosition(m *DammV2,
 	)
 }
 
-func (m *DammV2) SplitPositionInstruction(ctx context.Context,
-	baseMint solana.PublicKey,
+func (m *DammV2) SplitPositionInstruction(
+	ctx context.Context,
 	owner *solana.Wallet,
+	ownerPosition *UserPosition,
 	newOwner *solana.Wallet,
+	newOwnerPositionNft *solana.Wallet,
+	virtualPool *Pool,
 	unlockedLiquidityPercentage uint8,
 	permanentLockedLiquidityPercentage uint8,
 	feeAPercentage uint8,
@@ -664,37 +532,13 @@ func (m *DammV2) SplitPositionInstruction(ctx context.Context,
 	reward0Percentage uint8,
 	reward1Percentage uint8,
 ) ([]solana.Instruction, error) {
-	virtualPool, err := m.GetPoolByBaseMint(ctx, baseMint)
+
+	position, err := cp_amm.DerivePositionAddress(newOwnerPositionNft.PublicKey())
 	if err != nil {
 		return nil, err
 	}
 
-	baseMint = virtualPool.TokenAMint
-	quoteMint := virtualPool.TokenBMint
-
-	cpammPool, err := m.deriveCpAmmPoolPDA(quoteMint, baseMint)
-	if err != nil {
-		return nil, err
-	}
-	var userPosition *UserPosition
-	userPositions, err := m.GetUserPositionByBaseMint(ctx, virtualPool, owner.PublicKey())
-	if err != nil {
-		return nil, err
-	}
-	if len(userPositions) == 0 {
-		return nil, fmt.Errorf("no matching user_position")
-	}
-
-	userPosition = userPositions[0]
-
-	positionNft := solana.NewWallet()
-
-	position, err := cp_amm.DerivePositionAddress(positionNft.PublicKey())
-	if err != nil {
-		return nil, err
-	}
-
-	positionNftAccount, err := cp_amm.DerivePositionNftAccount(positionNft.PublicKey())
+	positionNftAccount, err := cp_amm.DerivePositionNftAccount(newOwnerPositionNft.PublicKey())
 	if err != nil {
 		return nil, err
 	}
@@ -705,9 +549,9 @@ func (m *DammV2) SplitPositionInstruction(ctx context.Context,
 		feeBPercentage,
 		reward0Percentage,
 		reward1Percentage,
-		cpammPool,
-		userPosition.Position,
-		userPosition.PositionNftAccount,
+		virtualPool.Address,
+		ownerPosition.Position,
+		ownerPosition.PositionNftAccount,
 		position,
 		positionNftAccount,
 		owner.PublicKey(),
@@ -719,7 +563,8 @@ func (m *DammV2) SplitPositionInstruction(ctx context.Context,
 	return []solana.Instruction{splitIx}, nil
 }
 
-func (m *DammV2) SplitPosition(ctx context.Context,
+func (m *DammV2) SplitPosition(
+	ctx context.Context,
 	baseMint solana.PublicKey,
 	owner *solana.Wallet,
 	newOwner *solana.Wallet,
@@ -730,11 +575,31 @@ func (m *DammV2) SplitPosition(ctx context.Context,
 	reward0Percentage uint8,
 	reward1Percentage uint8,
 ) (string, error) {
+	virtualPool, err := m.GetPoolByBaseMint(ctx, baseMint)
+	if err != nil {
+		return "", err
+	}
+
+	var userPosition *UserPosition
+	userPositions, err := m.GetUserPositionByUserAndPoolPDA(ctx, virtualPool.Address, owner.PublicKey())
+	if err != nil {
+		return "", err
+	}
+
+	if len(userPositions) == 0 {
+		return "", fmt.Errorf("no matching user_position")
+	}
+
+	userPosition = userPositions[0]
+
+	positionNft := solana.NewWallet()
 
 	instructions, err := m.SplitPositionInstruction(ctx,
-		baseMint,
 		owner,
+		userPosition,
 		newOwner,
+		positionNft,
+		virtualPool,
 		unlockedLiquidityPercentage,
 		permanentLockedLiquidityPercentage,
 		feeAPercentage,
@@ -745,60 +610,31 @@ func (m *DammV2) SplitPosition(ctx context.Context,
 	if err != nil {
 		return "", nil
 	}
-
-	latestBlockhash, err := solanago.GetLatestBlockhash(ctx, m.rpcClient)
-	if err != nil {
-		return "", err
-	}
-
-	tx, err := solana.NewTransaction(instructions, latestBlockhash, solana.TransactionPayer(owner.PublicKey()))
-	if err != nil {
-		return "", err
-	}
-
-	if _, err = tx.Sign(func(key solana.PublicKey) *solana.PrivateKey {
-		switch {
-		case key.Equals(owner.PublicKey()):
-			return &owner.PrivateKey
-		default:
-			return nil
-		}
-	}); err != nil {
-		return "", err
-	}
-
-	if m.bSimulate {
-		if _, err = m.rpcClient.SimulateTransactionWithOpts(
-			ctx,
-			tx,
-			&rpc.SimulateTransactionOpts{
-				SigVerify:  false,
-				Commitment: rpc.CommitmentFinalized,
-			}); err != nil {
-			return "", err
-		}
-		return "-", nil
-	}
-
-	sig, err := m.rpcClient.SendTransactionWithOpts(
-		ctx,
-		tx,
-		rpc.TransactionOpts{
-			SkipPreflight:       false,
-			PreflightCommitment: rpc.CommitmentFinalized,
+	sig, err := solanago.SendTransaction(ctx,
+		m.rpcClient,
+		m.wsClient,
+		instructions,
+		owner.PublicKey(),
+		func(key solana.PublicKey) *solana.PrivateKey {
+			switch {
+			case key.Equals(owner.PublicKey()):
+				return &owner.PrivateKey
+			case key.Equals(newOwner.PublicKey()):
+				return &newOwner.PrivateKey
+			case key.Equals(positionNft.PublicKey()):
+				return &positionNft.PrivateKey
+			default:
+				return nil
+			}
 		},
 	)
 	if err != nil {
 		return "", err
 	}
-
-	if _, err = sendandconfirmtransaction.WaitForConfirmation(ctx, m.wsClient, sig, nil); err != nil {
-		return "", err
-	}
 	return sig.String(), nil
 }
 
-func (m *DammV2) getPositionNftAccountsByUser(ctx context.Context, user solana.PublicKey) ([]*solanago.Account, map[solana.PublicKey]*solanago.Account, error) {
+func (m *DammV2) getPositionNftAccountsByUser(ctx context.Context, user solana.PublicKey) (map[solana.PublicKey]*solanago.Account, error) {
 	out, err := m.rpcClient.GetTokenAccountsByOwner(
 		ctx,
 		user,
@@ -811,35 +647,32 @@ func (m *DammV2) getPositionNftAccountsByUser(ctx context.Context, user solana.P
 		},
 	)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-
-	var list []*solanago.Account
 
 	data := make(map[solana.PublicKey]*solanago.Account)
 
 	for _, keyedAcc := range out.Value {
 		tokenAccount, err := new(solanago.AccountLayout).Decode(keyedAcc.Account.Data.GetBinary())
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		tokenAccount.Address = keyedAcc.Pubkey
 
 		if tokenAccount.Amount == 1 {
-			list = append(list, tokenAccount)
-
 			position, err := cp_amm.DerivePositionAddress(tokenAccount.Mint)
 			if err != nil {
-				return nil, nil, err
+				return nil, err
 			}
 			data[position] = tokenAccount
 		}
 	}
-	return list, data, nil
+	return data, nil
 }
 
-func (m *DammV2) GetUserPositionByBaseMint(ctx context.Context, cpammPool *Pool, user solana.PublicKey) ([]*UserPosition, error) {
-	_, userPositionNftAccounts, err := m.getPositionNftAccountsByUser(ctx, user)
+func (m *DammV2) GetUserPositionByUserAndPoolPDA(ctx context.Context, poolPDA solana.PublicKey, user solana.PublicKey) ([]*UserPosition, error) {
+	// func (m *DammV2) GetUserPositionByBaseMint(ctx context.Context, cpammPool *Pool, user solana.PublicKey) ([]*UserPosition, error) {
+	userPositionNftAccounts, err := m.getPositionNftAccountsByUser(ctx, user)
 	if err != nil {
 		return nil, err
 	}
@@ -848,7 +681,7 @@ func (m *DammV2) GetUserPositionByBaseMint(ctx context.Context, cpammPool *Pool,
 		return nil, nil
 	}
 
-	positions, err := m.GetPositionsByPoolPDA(ctx, cpammPool.Address)
+	positions, err := m.GetPositionsByPoolPDA(ctx, poolPDA)
 	if err != nil {
 		return nil, err
 	}
@@ -898,16 +731,16 @@ func (m *DammV2) fetchMultiplePositions(ctx context.Context, addresses []solana.
 }
 
 func (m *DammV2) GetUserPositionsByUser(ctx context.Context, user solana.PublicKey) ([]*UserPosition, error) {
-	_, userPositionAccounts, err := m.getPositionNftAccountsByUser(ctx, user)
+	userPositionNftAccounts, err := m.getPositionNftAccountsByUser(ctx, user)
 	if err != nil {
 		return nil, err
 	}
 
-	if len(userPositionAccounts) == 0 {
+	if len(userPositionNftAccounts) == 0 {
 		return nil, nil
 	}
 
-	positionAddresses := slices.Collect(maps.Keys(userPositionAccounts))
+	positionAddresses := slices.Collect(maps.Keys(userPositionNftAccounts))
 
 	positionStates, err := m.fetchMultiplePositions(ctx, positionAddresses)
 	if err != nil {
@@ -915,7 +748,7 @@ func (m *DammV2) GetUserPositionsByUser(ctx context.Context, user solana.PublicK
 	}
 
 	var positionResult []*UserPosition
-	for _, account := range userPositionAccounts {
+	for _, account := range userPositionNftAccounts {
 		state, ok := positionStates[account.Mint]
 		if !ok {
 			continue
@@ -932,22 +765,17 @@ func (m *DammV2) GetUserPositionsByUser(ctx context.Context, user solana.PublicK
 			PositionState:      state,
 		})
 	}
-
-	// sort.Slice(positionResult, func(i, j int) bool {
-	// 	a := positionResult[i].PositionState
-	// 	b := positionResult[j].PositionState
-
-	// 	totalLiquidityA := new(big.Int).Add(new(big.Int).Add(a.VestedLiquidity.BigInt(), a.PermanentLockedLiquidity.BigInt()), a.UnlockedLiquidity.BigInt())
-	// 	totalLiquidityB := new(big.Int).Add(new(big.Int).Add(b.VestedLiquidity.BigInt(), b.PermanentLockedLiquidity.BigInt()), b.UnlockedLiquidity.BigInt())
-
-	// 	return totalLiquidityB.Cmp(totalLiquidityA) < 0
-	// })
-
 	return positionResult, nil
 }
 
 func (m *DammV2) GetPositionsByPoolPDA(ctx context.Context, poolPDA solana.PublicKey) ([]*Position, error) {
-	opt := solanago.GenProgramAccountFilter(cp_amm.AccountKeyPosition, poolPDA, 8)
+	opt := solanago.GenProgramAccountFilter(
+		cp_amm.AccountKeyPosition,
+		&solanago.Filter{
+			Owner:  poolPDA,
+			Offset: 8,
+		},
+	)
 
 	outs, err := m.rpcClient.GetProgramAccountsWithOpts(ctx, cp_amm.ProgramID, opt)
 	if err != nil {
