@@ -47,11 +47,11 @@ func GetDepositQuote(
 	)
 
 	if bAddBase {
-		liquidityDelta = GetLiquidityDeltaFromAmountB(decimal.NewFromBigInt(actualAmountIn, 0), decimal.NewFromBigInt(virtualPool.SqrtMinPrice.BigInt(), 0), decimal.NewFromBigInt(virtualPool.SqrtPrice.BigInt(), 0))
-		amountOut = GetAmountAFromLiquidityDelta(liquidityDelta.BigInt(), virtualPool.SqrtPrice.BigInt(), virtualPool.SqrtMaxPrice.BigInt(), true)
-	} else {
 		liquidityDelta = GetLiquidityDeltaFromAmountA(decimal.NewFromBigInt(actualAmountIn, 0), decimal.NewFromBigInt(virtualPool.SqrtPrice.BigInt(), 0), decimal.NewFromBigInt(virtualPool.SqrtMaxPrice.BigInt(), 0))
 		amountOut = GetAmountBFromLiquidityDelta(liquidityDelta.BigInt(), virtualPool.SqrtPrice.BigInt(), virtualPool.SqrtMinPrice.BigInt(), true)
+	} else {
+		liquidityDelta = GetLiquidityDeltaFromAmountB(decimal.NewFromBigInt(actualAmountIn, 0), decimal.NewFromBigInt(virtualPool.SqrtMinPrice.BigInt(), 0), decimal.NewFromBigInt(virtualPool.SqrtPrice.BigInt(), 0))
+		amountOut = GetAmountAFromLiquidityDelta(liquidityDelta.BigInt(), virtualPool.SqrtPrice.BigInt(), virtualPool.SqrtMaxPrice.BigInt(), true)
 	}
 
 	return liquidityDelta.BigInt(), amountOut, nil

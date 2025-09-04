@@ -20,3 +20,8 @@ type UserPosition struct {
 	PositionState      *cp_amm.Position
 	PositionNftAccount solana.PublicKey
 }
+
+type Vesting struct {
+	Vesting      solana.PublicKey
+	VestingState *cp_amm.Vesting
+}

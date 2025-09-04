@@ -27,7 +27,7 @@ func cpAmmRefreshVesting(
 	)
 }
 
-func (m *DammV2) GetVestingsByPosition(ctx context.Context, position solana.PublicKey) ([]*cp_amm.Vesting, error) {
+func (m *DammV2) GetVestingsByPosition(ctx context.Context, position solana.PublicKey) ([]*Vesting, error) {
 	opt := solanago.GenProgramAccountFilter(
 		cp_amm.AccountKeyVesting,
 		&solanago.Filter{
@@ -44,18 +44,21 @@ func (m *DammV2) GetVestingsByPosition(ctx context.Context, position solana.Publ
 		return nil, err
 	}
 
-	var list []*cp_amm.Vesting
+	var list []*Vesting
 	for _, out := range outs {
 		obj, err := cp_amm.ParseAnyAccount(out.Account.Data.GetBinary())
 		if err != nil {
 			return nil, err
 		}
-		position, ok := obj.(*cp_amm.Vesting)
+		vesting, ok := obj.(*cp_amm.Vesting)
 		if !ok {
 			return nil, fmt.Errorf("obj.(*cp_amm.Vesting) fail")
 		}
 
-		list = append(list, position)
+		list = append(list, &Vesting{
+			Vesting:      out.Pubkey,
+			VestingState: vesting,
+		})
 	}
 
 	return list, nil

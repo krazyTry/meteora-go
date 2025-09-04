@@ -23,12 +23,12 @@ func cpAmmCreatePosition(
 	cpammPool solana.PublicKey,
 	position solana.PublicKey,
 	payer solana.PublicKey,
-	tokenProgram solana.PublicKey,
 ) (solana.Instruction, error) {
 
 	poolAuthority := m.poolAuthority
 	eventAuthority := m.eventAuthority
 	systemProgram := solana.SystemProgramID
+	tokenProgram := solana.Token2022ProgramID
 	program := cp_amm.ProgramID
 
 	return cp_amm.NewCreatePositionInstruction(
@@ -71,7 +71,6 @@ func (m *DammV2) CreatePositionInstruction(
 		virtualPool.Address,
 		position,
 		payer.PublicKey(),
-		cp_amm.GetTokenProgram(virtualPool.TokenAFlag),
 	)
 	if err != nil {
 		return nil, err
@@ -84,11 +83,11 @@ func (m *DammV2) CreatePosition(
 	payer *solana.Wallet,
 	owner *solana.Wallet,
 	baseMint solana.PublicKey,
-) (string, error) {
+) (string, *solana.Wallet, error) {
 
 	virtualPool, err := m.GetPoolByBaseMint(ctx, baseMint)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	positionNft := solana.NewWallet()
@@ -101,7 +100,7 @@ func (m *DammV2) CreatePosition(
 	)
 
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	sig, err := solanago.SendTransaction(ctx,
@@ -113,15 +112,17 @@ func (m *DammV2) CreatePosition(
 			switch {
 			case key.Equals(payer.PublicKey()):
 				return &payer.PrivateKey
+			case key.Equals(positionNft.PublicKey()):
+				return &positionNft.PrivateKey
 			default:
 				return nil
 			}
 		},
 	)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
-	return sig.String(), nil
+	return sig.String(), positionNft, nil
 }
 
 func cpAmmClosePosition(
@@ -132,11 +133,11 @@ func cpAmmClosePosition(
 	position solana.PublicKey,
 	rentReceiver solana.PublicKey,
 	owner solana.PublicKey,
-	tokenProgram solana.PublicKey,
 ) (solana.Instruction, error) {
 	poolAuthority := m.poolAuthority
 	eventAuthority := m.eventAuthority
 	program := cp_amm.ProgramID
+	tokenProgram := solana.Token2022ProgramID
 
 	return cp_amm.NewClosePositionInstruction(
 		positionNft,
@@ -166,7 +167,6 @@ func (m *DammV2) ClosePositionInstruction(
 		ownerPosition.Position,
 		payer.PublicKey(),
 		owner.PublicKey(),
-		cp_amm.GetTokenProgram(virtualPool.TokenAFlag),
 	)
 
 	if err != nil {
@@ -216,6 +216,8 @@ func (m *DammV2) ClosePosition(
 			switch {
 			case key.Equals(payer.PublicKey()):
 				return &payer.PrivateKey
+			case key.Equals(owner.PublicKey()):
+				return &owner.PrivateKey
 			default:
 				return nil
 			}
@@ -285,10 +287,8 @@ func (m *DammV2) LockPositionInstruction(
 	cliffUnlockLiquidity *big.Int,
 	liquidityPerPeriod *big.Int,
 	numberOfPeriod uint16,
-	vesting solana.PublicKey,
+	vesting *solana.Wallet,
 ) ([]solana.Instruction, error) {
-
-	cpammPool := virtualPool.Address
 
 	lockIx, err := cpAmmLockPosition(m,
 		cliffPoint,
@@ -296,9 +296,9 @@ func (m *DammV2) LockPositionInstruction(
 		cliffUnlockLiquidity,
 		liquidityPerPeriod,
 		numberOfPeriod,
-		cpammPool,
+		virtualPool.Address,
 		ownerPosition.Position,
-		vesting,
+		vesting.PublicKey(),
 		ownerPosition.PositionNftAccount,
 		owner.PublicKey(),
 		payer.PublicKey(),
@@ -320,7 +320,7 @@ func (m *DammV2) LockPosition(
 	cliffUnlockLiquidity *big.Int,
 	liquidityPerPeriod *big.Int,
 	numberOfPeriod uint16,
-	vesting solana.PublicKey,
+	vesting *solana.Wallet,
 ) (string, error) {
 
 	virtualPool, err := m.GetPoolByBaseMint(ctx, baseMint)
@@ -363,6 +363,10 @@ func (m *DammV2) LockPosition(
 			switch {
 			case key.Equals(payer.PublicKey()):
 				return &payer.PrivateKey
+			case key.Equals(vesting.PublicKey()):
+				return &vesting.PrivateKey
+			case key.Equals(owner.PublicKey()):
+				return &owner.PrivateKey
 			default:
 				return nil
 			}
@@ -492,18 +496,16 @@ func cpAmmSplitPosition(
 	eventAuthority := m.eventAuthority
 	program := cp_amm.ProgramID
 
-	param := cp_amm.SplitPositionParameters{
-		UnlockedLiquidityPercentage:        unlockedLiquidityPercentage,
-		PermanentLockedLiquidityPercentage: permanentLockedLiquidityPercentage,
-		FeeAPercentage:                     feeAPercentage,
-		FeeBPercentage:                     feeBPercentage,
-		Reward0Percentage:                  reward0Percentage,
-		Reward1Percentage:                  reward1Percentage,
-	}
-
 	return cp_amm.NewSplitPositionInstruction(
 		// Params:
-		param,
+		cp_amm.SplitPositionParameters{
+			UnlockedLiquidityPercentage:        unlockedLiquidityPercentage,
+			PermanentLockedLiquidityPercentage: permanentLockedLiquidityPercentage,
+			FeeAPercentage:                     feeAPercentage,
+			FeeBPercentage:                     feeBPercentage,
+			Reward0Percentage:                  reward0Percentage,
+			Reward1Percentage:                  reward1Percentage,
+		},
 
 		// Accounts:
 		cpammPool,
@@ -565,9 +567,11 @@ func (m *DammV2) SplitPositionInstruction(
 
 func (m *DammV2) SplitPosition(
 	ctx context.Context,
-	baseMint solana.PublicKey,
+	payer *solana.Wallet,
 	owner *solana.Wallet,
 	newOwner *solana.Wallet,
+	newOwnerPositionNft *solana.Wallet,
+	baseMint solana.PublicKey,
 	unlockedLiquidityPercentage uint8,
 	permanentLockedLiquidityPercentage uint8,
 	feeAPercentage uint8,
@@ -592,13 +596,11 @@ func (m *DammV2) SplitPosition(
 
 	userPosition = userPositions[0]
 
-	positionNft := solana.NewWallet()
-
 	instructions, err := m.SplitPositionInstruction(ctx,
 		owner,
 		userPosition,
 		newOwner,
-		positionNft,
+		newOwnerPositionNft,
 		virtualPool,
 		unlockedLiquidityPercentage,
 		permanentLockedLiquidityPercentage,
@@ -614,15 +616,15 @@ func (m *DammV2) SplitPosition(
 		m.rpcClient,
 		m.wsClient,
 		instructions,
-		owner.PublicKey(),
+		payer.PublicKey(),
 		func(key solana.PublicKey) *solana.PrivateKey {
 			switch {
+			case key.Equals(payer.PublicKey()):
+				return &payer.PrivateKey
 			case key.Equals(owner.PublicKey()):
 				return &owner.PrivateKey
 			case key.Equals(newOwner.PublicKey()):
 				return &newOwner.PrivateKey
-			case key.Equals(positionNft.PublicKey()):
-				return &positionNft.PrivateKey
 			default:
 				return nil
 			}
@@ -803,4 +805,27 @@ func (m *DammV2) GetPositionsByPoolPDA(ctx context.Context, poolPDA solana.Publi
 	}
 
 	return list, nil
+}
+
+func canUnlockPosition(
+	positionState *cp_amm.Position,
+	vestings []*Vesting,
+	currentPoint *big.Int,
+) error {
+	if len(vestings) == 0 {
+		return nil
+	}
+
+	if positionState.PermanentLockedLiquidity.BigInt().Cmp(big.NewInt(0)) > 0 {
+		return fmt.Errorf("Position is permanently locked")
+	}
+
+	for _, v := range vestings {
+		vesting := v.VestingState
+		if !cp_amm.IsVestingComplete(new(big.Int).SetUint64(vesting.CliffPoint), new(big.Int).SetUint64(vesting.PeriodFrequency), vesting.NumberOfPeriod, currentPoint) {
+			return fmt.Errorf("Position has incomplete vesting schedule")
+		}
+
+	}
+	return nil
 }

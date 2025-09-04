@@ -533,7 +533,7 @@ func BuildCurveWithLiquidityWeights(param BuildCurveWithLiquidityWeightsParam) (
 		sumFactor = sumFactor.Add(weight).Truncate(38)
 	}
 	// l1 = (Swap_Amount + Base_Amount) / sumFactor
-	// l1 := truncateSig(totalSwapAndMigrationAmount.Div(sumFactor.RoundUp(36)).Truncate(0), 20)
+	// l1 := truncateSig(totalSwapAndMigrationAmount.Div(sumFactor.RoundUp(36)).Floor(), 20)
 	l1 := totalSwapAndMigrationAmount.Div(sumFactor.RoundUp(36))
 
 	curve := make([]LiquidityDistributionParameters, 0, 16)

@@ -13,13 +13,66 @@ import (
 )
 
 // pow(base, exponent)
-func pow(base decimal.Decimal, exp decimal.Decimal) decimal.Decimal {
-	n := exp.IntPart()
-	result := decimal.NewFromInt(1)
-	var i int64
-	for ; i < n; i++ {
-		result = result.Mul(base)
+func pow(base, exp decimal.Decimal) decimal.Decimal {
+	invert := exp.Sign() < 0
+
+	// exp == 0 => return ONE
+	if exp.Sign() == 0 {
+		return decimal.NewFromBigInt(ONE, 0)
 	}
+
+	// 取绝对值
+	if invert {
+		exp = exp.Abs() // new(big.Int).Abs(exp)
+	}
+
+	// 如果过大 => 返回 0
+	if exp.Cmp(decimal.NewFromBigInt(MAX_EXPONENTIAL, 0)) > 0 {
+		return decimal.Zero //big.NewInt(0)
+	}
+
+	squaredBase := base                     // new(big.Int).Set(base)
+	result := decimal.NewFromBigInt(ONE, 0) // new(big.Int).Set(ONE)
+
+	// 如果 base >= ONE
+	if squaredBase.Cmp(result) >= 0 {
+		squaredBase = decimal.NewFromBigInt(MAX, 0).Div(squaredBase) //new(big.Int).Div(MAX, squaredBase)
+		invert = !invert
+	}
+
+	// 相当于循环 unrolled (展开)
+	bitChecks := []int64{
+		0x1, 0x2, 0x4, 0x8,
+		0x10, 0x20, 0x40, 0x80,
+		0x100, 0x200, 0x400, 0x800,
+		0x1000, 0x2000, 0x4000, 0x8000,
+		0x10000, 0x20000, 0x40000,
+	}
+
+	for _, mask := range bitChecks {
+		// if exp & mask != 0
+		if new(big.Int).And(exp.BigInt(), big.NewInt(mask)).Sign() != 0 {
+			// 	tmp := new(big.Int).Mul(result, squaredBase)
+			// 	result.Rsh(tmp, SCALE_OFFSET)
+			result = decimal.NewFromBigInt(new(big.Int).Rsh(result.Mul(squaredBase).BigInt(), SCALE_OFFSET), 0)
+		}
+
+		// squaredBase = (squaredBase * squaredBase) >> SCALE_OFFSET
+		// tmp := new(big.Int).Mul(squaredBase, squaredBase)
+		// squaredBase.Rsh(tmp, SCALE_OFFSET)
+		squaredBase = decimal.NewFromBigInt(new(big.Int).Rsh(squaredBase.Mul(squaredBase).BigInt(), SCALE_OFFSET), 0)
+	}
+
+	// 如果结果为 0
+	if result.Sign() == 0 {
+		return decimal.Zero // big.NewInt(0)
+	}
+
+	// 如果 invert == true
+	if invert {
+		result = decimal.NewFromBigInt(MAX, 0).Div(result) // new(big.Int).Div(MAX, result)
+	}
+
 	return result
 }
 
@@ -54,6 +107,7 @@ func decimalSqrt(x decimal.Decimal) decimal.Decimal {
 }
 
 func getNextSqrtPrice(amount, sqrtPrice, liquidity decimal.Decimal, aToB bool) decimal.Decimal {
+	var result decimal.Decimal
 	if aToB {
 		// product = amount * sqrtPrice
 		product := amount.Mul(sqrtPrice)
@@ -65,13 +119,14 @@ func getNextSqrtPrice(amount, sqrtPrice, liquidity decimal.Decimal, aToB bool) d
 		numerator := liquidity.Mul(sqrtPrice)
 
 		// (numerator + denominator - 1) / denominator
-		return numerator.Add(denominator.Sub(decimal.NewFromInt(1))).Div(denominator).Ceil()
+		result = numerator.Add(denominator.Sub(decimal.NewFromInt(1))).Div(denominator)
 	} else {
 		// quotient = (amount << (SCALE_OFFSET * 2)) / liquidity
-		quotient := decimal.NewFromBigInt(new(big.Int).Lsh(amount.BigInt(), SCALE_OFFSET*2), 0)
-		quotient = quotient.Div(liquidity)
-		return sqrtPrice.Add(quotient)
+		quotient := decimal.NewFromBigInt(new(big.Int).Lsh(amount.BigInt(), SCALE_OFFSET*2), 0).Div(liquidity)
+
+		result = sqrtPrice.Add(quotient)
 	}
+	return result
 }
 
 // GetLiquidityDeltaFromAmountA Δa = L * (√P_upper - √P_lower) / (√P_upper * √P_lower)

@@ -129,9 +129,9 @@ func getDeltaAmountQuoteUnsigned(lowerSqrtPrice, upperSqrtPrice, liquidity decim
 	if roundUp {
 		// numerator = prod + denominator - 1 (ceiling division)
 		numerator := prod.Add(denominator).Sub(decimal.NewFromInt(1))
-		return numerator.DivRound(denominator, 48).Truncate(0)
+		return numerator.DivRound(denominator, 48).Floor()
 	} else {
-		return prod.DivRound(denominator, 48).Truncate(0)
+		return prod.DivRound(denominator, 48).Floor()
 	}
 }
 
@@ -158,7 +158,7 @@ func getNextSqrtPriceFromAmountQuoteRoundingDown(sqrtPrice, liquidity, amount de
 
 	shifted := amount.Mul(decimal.NewFromInt(2).Pow(decimal.NewFromInt(int64(RESOLUTION * 2))))
 
-	quotient := shifted.Div(liquidity).Truncate(0)
+	quotient := shifted.Div(liquidity).Floor()
 
 	// nextSqrtPrice = sqrtPrice + quotient
 	return sqrtPrice.Add(quotient)
@@ -478,7 +478,7 @@ func getDynamicFeeParams(baseFeeBps, maxPriceChangeBps int64) *DynamicFeeParamet
 	// Q64: sqrt(priceRatio) * 2^64
 	sqrtPriceRatioQ64 := decimalSqrt(priceRatio).Round(19).Mul(decimal.NewFromInt(2).Pow(decimal.NewFromInt(64))).Floor()
 	// 2️⃣ deltaBinId = (sqrtPriceRatioQ64 - ONE_Q64) / BIN_STEP_BPS_U128_DEFAULT * 2
-	deltaBinId := sqrtPriceRatioQ64.Sub(decimal.NewFromBigInt(ONE_Q64, 0)).Div(decimal.NewFromBigInt(BIN_STEP_BPS_U128_DEFAULT.BigInt(), 0)).Truncate(0).Mul(decimal.NewFromInt(2))
+	deltaBinId := sqrtPriceRatioQ64.Sub(decimal.NewFromBigInt(ONE_Q64, 0)).Div(decimal.NewFromBigInt(BIN_STEP_BPS_U128_DEFAULT.BigInt(), 0)).Floor().Mul(decimal.NewFromInt(2))
 	// 3️⃣ maxVolatilityAccumulator = deltaBinId * BASIS_POINT_MAX
 	maxVolatilityAccumulator := deltaBinId.Mul(decimal.NewFromBigInt(BASIS_POINT_MAX, 0))
 	// 4️⃣ squareVfaBin = (maxVolatilityAccumulator * BIN_STEP_BPS_DEFAULT)^2
@@ -493,7 +493,7 @@ func getDynamicFeeParams(baseFeeBps, maxPriceChangeBps int64) *DynamicFeeParamet
 	vFee := maxDynamicFeeNumerator.Mul(decimal.NewFromInt(100_000_000_000)).Sub(decimal.NewFromInt(99_999_999_999))
 
 	// variableFeeControl = vFee / squareVfaBin
-	variableFeeControl := vFee.Div(squareVfaBin).Truncate(0)
+	variableFeeControl := vFee.Div(squareVfaBin).Floor()
 
 	return &DynamicFeeParameters{
 		BinStep:                  uint16(BIN_STEP_BPS_DEFAULT.Int64()),
@@ -541,16 +541,16 @@ func getTwoCurve(
 	c2 := truncateSig(migrationQuoteThreshold.Mul(truncateSig(decimal.NewFromInt(2).Pow(decimal.NewFromInt(128)), 20)), 20)
 
 	// l0 = (c1*b2 - c2*b1) / (a1*b2 - a2*b1)
-	numeratorL0 := truncateSig(c1.Mul(b2).Sub(c2.Mul(b1)).Truncate(0), 20)
+	numeratorL0 := truncateSig(c1.Mul(b2).Sub(c2.Mul(b1)).Floor(), 20)
 
 	denominatorL0 := a1.Mul(b2).Sub(a2.Mul(b1)).Round(18)
 
-	l0 := truncateSig(numeratorL0.Div(denominatorL0).Truncate(0), 20)
+	l0 := truncateSig(numeratorL0.Div(denominatorL0).Floor(), 20)
 
 	// l1 = (c1*a2 - c2*a1) / (b1*a2 - b2*a1)
-	numeratorL1 := truncateSig(c1.Mul(a2).Sub(c2.Mul(a1)).Truncate(0), 21)
+	numeratorL1 := truncateSig(c1.Mul(a2).Sub(c2.Mul(a1)).Floor(), 21)
 	denominatorL1 := b1.Mul(a2).Sub(b2.Mul(a1)).Round(18)
-	l1 := truncateSig(numeratorL1.Div(denominatorL1).Truncate(0), 20)
+	l1 := truncateSig(numeratorL1.Div(denominatorL1).Floor(), 20)
 
 	if l0.IsNegative() || l1.IsNegative() {
 		return TwoCurveResult{

@@ -18,7 +18,6 @@ type DepositQuote struct {
 	ConsumedInputAmount *big.Int // Original input amount
 	LiquidityDelta      *big.Int // Liquidity to be added to the pool
 	OutputAmount        *big.Int // Calculated amount of the other token
-	MinOutAmount        *big.Int
 }
 
 // GetDepositQuote Calculate the deposit quote for the liquidity pool
@@ -27,7 +26,6 @@ func (m *DammV2) GetDepositQuote(
 	baseMint solana.PublicKey,
 	bAddBase bool,
 	amountIn *big.Int,
-	slippageBps uint64,
 ) (*DepositQuote, *Pool, error) {
 
 	virtualPool, err := m.GetPoolByBaseMint(ctx, baseMint)
@@ -106,21 +104,19 @@ func (m *DammV2) GetDepositQuote(
 			return nil, nil, err
 		}
 	}
-	minOutAmount := cp_amm.GetMinAmountWithSlippage(actualAmountOut, slippageBps)
 
 	return &DepositQuote{
 		ActualInputAmount:   actualAmountIn,
 		ConsumedInputAmount: amountIn,
 		LiquidityDelta:      liquidityDelta,
 		OutputAmount:        actualAmountOut,
-		MinOutAmount:        minOutAmount,
 	}, virtualPool, nil
 }
 
 // WithdrawQuote
 type WithdrawQuote struct {
-	OutAmountA *big.Int
-	OutAmountB *big.Int
+	OutBaseAmount  *big.Int
+	OutQuoteAmount *big.Int
 }
 
 // getWithdrawQuote
@@ -206,7 +202,7 @@ func (m *DammV2) GetWithdrawQuote(
 	}
 
 	return &WithdrawQuote{
-		OutAmountA: outAmountA,
-		OutAmountB: outAmountB,
+		OutBaseAmount:  outAmountA,
+		OutQuoteAmount: outAmountB,
 	}, virtualPool, nil
 }

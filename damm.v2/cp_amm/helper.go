@@ -138,32 +138,6 @@ func IsVestingComplete(cliffPoint, periodFrequency *big.Int, numberOfPeriods uin
 	return currentPoint.Cmp(endPoint) >= 0
 }
 
-// IsPermanentLockedPosition
-func IsPermanentLockedPosition(positionState Position) bool {
-	return positionState.PermanentLockedLiquidity.BigInt().Cmp(big.NewInt(0)) > 0
-}
-
-// CanUnlockPosition
-func CanUnlockPosition(
-	positionState Position,
-	vestings []Vesting,
-	currentPoint *big.Int,
-) (bool, string) {
-	if len(vestings) > 0 {
-		if IsPermanentLockedPosition(positionState) {
-			return false, "Position is permanently locked"
-
-		}
-
-		for _, vesting := range vestings {
-			if !IsVestingComplete(new(big.Int).SetUint64(vesting.CliffPoint), new(big.Int).SetUint64(vesting.PeriodFrequency), vesting.NumberOfPeriod, currentPoint) {
-				return false, "Position has incomplete vesting schedule"
-			}
-		}
-	}
-	return true, ""
-}
-
 // initialPoolTokenAmount = tokenAmount * 10^decimals
 func GetInitialPoolTokenAmount(amount *big.Int, decimals uint8) *big.Int {
 

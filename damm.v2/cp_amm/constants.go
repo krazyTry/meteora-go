@@ -21,7 +21,7 @@ var (
 var (
 	SCALE_OFFSET uint = 64
 
-	ONE = big.NewInt(1 << SCALE_OFFSET)
+	ONE = new(big.Int).Lsh(big.NewInt(1), uint(SCALE_OFFSET))
 
 	RESOLUTION = int32(64)
 	ONE_Q64    = new(big.Int).Lsh(big.NewInt(1), uint(RESOLUTION))
@@ -52,6 +52,10 @@ var (
 	MAX_SQRT_PRICE, _ = new(big.Int).SetString("79226673521066979257578248091", 10)
 
 	MAX_PRICE_CHANGE_BPS_DEFAULT = 1500 // 15%
+
+	MAX_EXPONENTIAL = new(big.Int).SetUint64(0x80000)
+
+	MAX = new(big.Int).Sub(new(big.Int).Exp(big.NewInt(2), big.NewInt(128), nil), big.NewInt(1)) // 2^128 - 1
 )
 
 type TokenType uint8
