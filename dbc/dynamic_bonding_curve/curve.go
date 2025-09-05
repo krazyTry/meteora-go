@@ -136,8 +136,7 @@ func getDeltaAmountQuoteUnsigned(lowerSqrtPrice, upperSqrtPrice, liquidity decim
 }
 
 func getNextSqrtPriceFromAmountBaseRoundingUp(sqrtPrice, liquidity, amount decimal.Decimal) (decimal.Decimal, error) {
-	zero := decimal.NewFromInt(0)
-	if amount.Equal(zero) {
+	if amount.IsZero() {
 		return sqrtPrice, nil
 	}
 
@@ -299,9 +298,9 @@ func getInitialLiquidityFromDeltaQuote(quoteAmount, sqrtMinPrice, sqrtPrice deci
 // getTotalVestingAmount
 func getTotalVestingAmount(lockedVesting *LockedVesting) decimal.Decimal {
 	// totalVestingAmount = cliffUnlockAmount + amountPerPeriod * numberOfPeriod
-	amountPerPeriod := decimal.NewFromInt(int64(lockedVesting.AmountPerPeriod))
-	numberOfPeriod := decimal.NewFromInt(int64(lockedVesting.NumberOfPeriod))
-	cliffUnlockAmount := decimal.NewFromInt(int64(lockedVesting.CliffUnlockAmount))
+	amountPerPeriod := decimal.NewFromUint64(lockedVesting.AmountPerPeriod)
+	numberOfPeriod := decimal.NewFromUint64(lockedVesting.NumberOfPeriod)
+	cliffUnlockAmount := decimal.NewFromUint64(lockedVesting.CliffUnlockAmount)
 
 	totalVesting := amountPerPeriod.Mul(numberOfPeriod).Add(cliffUnlockAmount)
 	return totalVesting
@@ -324,7 +323,7 @@ func getFirstCurve(
 	migrationSqrtPrice, migrationBaseAmount, swapAmount, migrationQuoteThreshold decimal.Decimal,
 	migrationFeePercent uint8,
 ) (*FirstCurveResult, error) {
-	migrationFeePercentDecimal := decimal.NewFromInt(int64(migrationFeePercent))
+	migrationFeePercentDecimal := decimal.NewFromUint64(uint64(migrationFeePercent))
 
 	// denominator = swapAmount * (1 - migrationFeePercent/100)
 	denominator := swapAmount.Mul(decimal.NewFromInt(100).Sub(migrationFeePercentDecimal)).Div(decimal.NewFromInt(100))
@@ -471,7 +470,7 @@ func getDynamicFeeParams(baseFeeBps, maxPriceChangeBps int64) *DynamicFeeParamet
 		))
 	}
 
-	priceRatio := decimal.NewFromInt(int64(maxPriceChangeBps)).
+	priceRatio := decimal.NewFromInt(maxPriceChangeBps).
 		Div(decimal.NewFromInt(BASIS_POINT_MAX.Int64())).
 		Add(decimal.NewFromInt(1))
 
@@ -555,7 +554,7 @@ func getTwoCurve(
 	if l0.IsNegative() || l1.IsNegative() {
 		return TwoCurveResult{
 			IsOk:           false,
-			SqrtStartPrice: decimal.NewFromInt(0),
+			SqrtStartPrice: decimal.Zero,
 			Curve:          []LiquidityDistributionParameters{},
 		}
 	}
@@ -640,7 +639,7 @@ func getMigrationQuoteAmountFromMigrationQuoteThreshold(
 	migrationFeePercent uint8,
 ) decimal.Decimal {
 	migrationQuoteAmount := migrationQuoteThreshold.
-		Mul(decimal.NewFromInt(100).Sub(decimal.NewFromInt(int64(migrationFeePercent)))).
+		Mul(decimal.NewFromInt(100).Sub(decimal.NewFromUint64(uint64(migrationFeePercent)))).
 		Div(decimal.NewFromInt(100))
 	return migrationQuoteAmount
 }
@@ -651,7 +650,7 @@ func getMigrationQuoteThresholdFromMigrationQuoteAmount(
 ) decimal.Decimal {
 	migrationQuoteThreshold := migrationQuoteAmount.
 		Mul(decimal.NewFromInt(100)).
-		Div(decimal.NewFromInt(100).Sub(decimal.NewFromInt(int64(migrationFeePercent))))
+		Div(decimal.NewFromInt(100).Sub(decimal.NewFromUint64(uint64(migrationFeePercent))))
 
 	return migrationQuoteThreshold
 }
@@ -773,7 +772,7 @@ func getFeeSchedulerParams(
 
 	var reductionFactor decimal.Decimal
 	if baseFeeMode == BaseFeeModeFeeSchedulerLinear {
-		reductionFactor = maxBaseFeeNumerator.Sub(minBaseFeeNumerator).Div(decimal.NewFromInt(int64(numberOfPeriod)))
+		reductionFactor = maxBaseFeeNumerator.Sub(minBaseFeeNumerator).Div(decimal.NewFromUint64(uint64(numberOfPeriod)))
 	} else {
 		// FeeSchedulerExponential
 		ratio := minBaseFeeNumerator.InexactFloat64() / maxBaseFeeNumerator.InexactFloat64()

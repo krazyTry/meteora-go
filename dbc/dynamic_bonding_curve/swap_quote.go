@@ -2,7 +2,6 @@ package dynamic_bonding_curve
 
 import (
 	"errors"
-	"math/big"
 
 	"github.com/krazyTry/meteora-go/u128"
 
@@ -10,12 +9,12 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-func GetSwapAmountFromQuoteToBase(curve []LiquidityDistributionConfig, sqrtStartPrice binary.Uint128, amountIn decimal.Decimal) (decimal.Decimal, binary.Uint128, error) {
+func getSwapAmountFromQuoteToBase(curve []LiquidityDistributionConfig, sqrtStartPrice binary.Uint128, amountIn decimal.Decimal) (decimal.Decimal, binary.Uint128, error) {
 	if amountIn.IsZero() {
-		return decimal.NewFromInt(0), sqrtStartPrice, nil
+		return decimal.Zero, sqrtStartPrice, nil
 	}
 
-	totalOutput := decimal.NewFromInt(0)
+	totalOutput := decimal.Zero
 	sqrtPrice := decimal.NewFromBigInt(sqrtStartPrice.BigInt(), 0)
 	amountLeft := amountIn
 
@@ -43,7 +42,7 @@ func GetSwapAmountFromQuoteToBase(curve []LiquidityDistributionConfig, sqrtStart
 				}
 				totalOutput = totalOutput.Add(outputAmount)
 				sqrtPrice = nextSqrtPrice
-				amountLeft = decimal.NewFromInt(0)
+				amountLeft = decimal.Zero
 
 				break
 			} else {
@@ -67,13 +66,13 @@ func GetSwapAmountFromQuoteToBase(curve []LiquidityDistributionConfig, sqrtStart
 	return totalOutput, u128.GenUint128FromString(sqrtPrice.String()), nil
 }
 
-func GetSwapAmountFromBaseToQuote(curve []LiquidityDistributionConfig, sqrtStartPrice binary.Uint128, amountIn decimal.Decimal) (decimal.Decimal, binary.Uint128, error) {
+func getSwapAmountFromBaseToQuote(curve []LiquidityDistributionConfig, sqrtStartPrice binary.Uint128, amountIn decimal.Decimal) (decimal.Decimal, binary.Uint128, error) {
 
 	if amountIn.IsZero() {
-		return decimal.NewFromInt(0), sqrtStartPrice, nil
+		return decimal.Zero, sqrtStartPrice, nil
 	}
 
-	totalOutput := decimal.NewFromInt(0)
+	totalOutput := decimal.Zero
 	sqrtPrice := decimal.NewFromBigInt(sqrtStartPrice.BigInt(), 0)
 	amountLeft := amountIn
 
@@ -111,7 +110,7 @@ func GetSwapAmountFromBaseToQuote(curve []LiquidityDistributionConfig, sqrtStart
 				outputAmount := getDeltaAmountQuoteUnsigned(nextSqrt, sqrtPrice, currentLiquidity, true)
 				totalOutput = totalOutput.Add(outputAmount)
 				sqrtPrice = nextSqrt
-				amountLeft = decimal.NewFromInt(0)
+				amountLeft = decimal.Zero
 				break
 
 			} else {
@@ -126,7 +125,7 @@ func GetSwapAmountFromBaseToQuote(curve []LiquidityDistributionConfig, sqrtStart
 		}
 	}
 
-	zero := decimal.NewFromInt(0)
+	zero := decimal.Zero
 
 	if amountLeft.Cmp(zero) > 0 && decimal.NewFromBigInt(curve[0].Liquidity.BigInt(), 0).Cmp(zero) > 0 {
 
@@ -144,19 +143,19 @@ func GetSwapAmountFromBaseToQuote(curve []LiquidityDistributionConfig, sqrtStart
 	return totalOutput, u128.GenUint128FromString(sqrtPrice.String()), nil
 }
 
-func GetSwapAmountFromQuote(config *PoolConfig, amountIn *big.Int, slippageBps uint64) (*big.Int, error) {
+func GetSwapAmountFromQuote(configState *PoolConfig, amountIn decimal.Decimal, slippageBps uint64) (decimal.Decimal, error) {
 
-	inAmount := decimal.NewFromBigInt(amountIn, 0)
+	inAmount := amountIn
 
 	tradeDirection := TradeDirectionQuoteToBase // buying base with quote
 
 	hasReferral := false
 
 	// get fee mode
-	feeMode := getFeeMode(config.CollectFeeMode, tradeDirection, hasReferral)
+	feeMode := getFeeMode(configState.CollectFeeMode, tradeDirection, hasReferral)
 
 	// baseFeeNumerator = CliffFeeNumerator
-	baseFeeNumerator := decimal.NewFromInt(int64(config.PoolFees.BaseFee.CliffFeeNumerator))
+	baseFeeNumerator := decimal.NewFromUint64(uint64(configState.PoolFees.BaseFee.CliffFeeNumerator))
 
 	// tradeFeeNumerator = min(baseFeeNumerator, MAX_FEE_NUMERATOR)
 	tradeFeeNumerator := decimal.Min(baseFeeNumerator, decimal.NewFromBigInt(MAX_FEE_NUMERATOR, 0))
@@ -173,9 +172,9 @@ func GetSwapAmountFromQuote(config *PoolConfig, amountIn *big.Int, slippageBps u
 	}
 
 	// calculate swap amount
-	amountOut, _, err := GetSwapAmountFromQuoteToBase(config.Curve[:], config.SqrtStartPrice, inAmount)
+	amountOut, _, err := getSwapAmountFromQuoteToBase(configState.Curve[:], configState.SqrtStartPrice, inAmount)
 	if err != nil {
-		return nil, err
+		return decimal.Decimal{}, err
 	}
 
 	if !feeMode.FeesOnInput {
@@ -190,7 +189,7 @@ func GetSwapAmountFromQuote(config *PoolConfig, amountIn *big.Int, slippageBps u
 	if slippageBps > 0 {
 
 		// slippageFactor = 10000 - slippageBps
-		slippageFactor := decimal.NewFromInt(10000).Sub(decimal.NewFromInt(int64(slippageBps)))
+		slippageFactor := decimal.NewFromInt(10000).Sub(decimal.NewFromUint64(uint64(slippageBps)))
 		// denominator = 10000
 		denominator := decimal.NewFromInt(10000)
 		// minAmountOut = amountOut * slippageFactor / denominator
@@ -200,20 +199,20 @@ func GetSwapAmountFromQuote(config *PoolConfig, amountIn *big.Int, slippageBps u
 
 	}
 
-	return amountOut.BigInt(), nil
+	return amountOut, nil
 }
 
 func SwapQuote(
-	virtualPool *VirtualPool,
+	poolState *VirtualPool,
 	config *PoolConfig,
 	swapBaseForQuote bool,
-	amountIn *big.Int,
-	slippageBps uint64,
+	amountIn decimal.Decimal,
+	slippageBps decimal.Decimal,
 	hasReferral bool,
-	currentPoint *big.Int,
+	currentPoint decimal.Decimal,
 ) (*QuoteResult, error) {
 
-	if amountIn.Cmp(big.NewInt(0)) == 0 {
+	if amountIn.IsZero() {
 		return nil, errors.New("amount is zero")
 	}
 
@@ -226,17 +225,17 @@ func SwapQuote(
 
 	feeMode := getFeeMode(config.CollectFeeMode, tradeDirection, hasReferral)
 
-	result, err := getSwapResult(virtualPool, config, decimal.NewFromBigInt(amountIn, 0), feeMode, tradeDirection, decimal.NewFromBigInt(currentPoint, 0))
+	result, err := getSwapResult(poolState, config, amountIn, feeMode, tradeDirection, currentPoint)
 	if err != nil {
 		return nil, err
 	}
 
-	if slippageBps == 0 {
+	if slippageBps.IsZero() {
 		result.MinimumAmountOut = result.AmountOut
 		return result, nil
 	}
 
-	slippageFactor := decimal.NewFromInt(10000).Sub(decimal.NewFromInt(int64(slippageBps)))
+	slippageFactor := decimal.NewFromInt(10000).Sub(slippageBps)
 	// denominator = 10000
 	denominator := decimal.NewFromInt(10000)
 

@@ -365,7 +365,7 @@ func BuildCurveWithTwoSegments(param BuildCurveWithTwoSegmentsParam) (*ConfigPar
 	midSqrtPrice3 := midSqrtPriceDecimal3.Floor()
 
 	midPrices := []decimal.Decimal{midSqrtPrice1, midSqrtPrice2, midSqrtPrice3}
-	sqrtStartPrice := decimal.NewFromInt(0)
+	sqrtStartPrice := decimal.Zero
 	var curve []LiquidityDistributionParameters
 
 	for _, mid := range midPrices {

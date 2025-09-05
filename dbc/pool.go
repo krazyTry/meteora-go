@@ -7,6 +7,7 @@ import (
 
 	dbc "github.com/krazyTry/meteora-go/dbc/dynamic_bonding_curve"
 	solanago "github.com/krazyTry/meteora-go/solana"
+	"github.com/shopspring/decimal"
 
 	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/programs/system"
@@ -14,175 +15,90 @@ import (
 	"github.com/gagliardetto/solana-go/rpc"
 )
 
-func dbcInitializeVirtualPoolWithSplToken(
-	m *DBC,
-	config,
-	poolCreator,
-	dbcPool,
-	baseMint,
-	baseVault,
-	quoteMint,
-	quoteVault,
-	tokenBaseProgram solana.PublicKey,
-	tokenQuoteProgram solana.PublicKey,
-	payer solana.PublicKey,
-	params *dbc.InitializePoolParameters,
-) (solana.Instruction, error) {
-
-	poolAuthority := m.poolAuthority
-	eventAuthority := m.eventAuthority
-
-	program := dbc.ProgramID
-	systemProgram := solana.SystemProgramID
-	mintMetadata, err := dbc.DeriveMintMetadataPDA(baseMint)
-	if err != nil {
-		return nil, err
-	}
-	metadataProgram := solana.TokenMetadataProgramID
-
-	// tokenQuoteProgram := solana.TokenProgramID
-	// tokenProgram := solana.TokenProgramID
-
-	if params == nil {
-		return nil, fmt.Errorf("params is nil")
-	}
-
-	return dbc.NewInitializeVirtualPoolWithSplTokenInstruction(
-		*params,
-		config,
-		poolAuthority,
-		poolCreator,
-		baseMint,
-		quoteMint,
-		dbcPool,
-		baseVault,
-		quoteVault,
-		mintMetadata,
-		metadataProgram,
-		payer,
-		tokenQuoteProgram,
-		tokenBaseProgram,
-		systemProgram,
-		eventAuthority,
-		program,
-	)
-}
-
-func dbcInitializeVirtualPoolWithToken2022(
-	m *DBC,
-	config,
-	poolCreator,
-	dbcPool,
-	baseMint,
-	baseVault,
-	quoteMint,
-	quoteVault,
-	tokenBaseProgram solana.PublicKey,
-	tokenQuoteProgram solana.PublicKey,
-	payer solana.PublicKey,
-	params *dbc.InitializePoolParameters,
-) (solana.Instruction, error) {
-
-	poolAuthority := m.poolAuthority
-	eventAuthority := m.eventAuthority
-
-	program := dbc.ProgramID
-	systemProgram := solana.SystemProgramID
-
-	// tokenQuoteProgram := solana.TokenProgramID
-	// tokenProgram := solana.Token2022ProgramID
-
-	if params == nil {
-		return nil, fmt.Errorf("params is nil")
-	}
-
-	return dbc.NewInitializeVirtualPoolWithToken2022Instruction(
-		*params,
-		config,
-		poolAuthority,
-		poolCreator,
-		baseMint,
-		quoteMint,
-		dbcPool,
-		baseVault,
-		quoteVault,
-		payer,
-		tokenQuoteProgram,
-		tokenBaseProgram,
-		systemProgram,
-		eventAuthority,
-		program,
-	)
-}
-
-func (m *DBC) CreatePoolInstruction(
+func CreatePoolInstruction(
 	ctx context.Context,
-	config *dbc.PoolConfig,
-	mintWallet solana.PublicKey,
 	payer solana.PublicKey,
-	creator solana.PublicKey,
+	poolCreator solana.PublicKey,
+	config solana.PublicKey,
+	configState *dbc.PoolConfig,
+	baseMint solana.PublicKey,
+	quoteMint solana.PublicKey,
+	tokenBaseProgram solana.PublicKey,
+	tokenQuoteProgram solana.PublicKey,
 	name string,
 	symbol string,
 	uri string,
 ) ([]solana.Instruction, error) {
 
-	baseMint := mintWallet
-	quoteMint := solana.WrappedSol
-
-	tokenBaseProgram := dbc.GetTokenProgram(config.TokenType)
-	tokenQuoteProgram := solana.TokenProgramID
-
-	pool, err := dbc.DeriveDbcPoolPDA(quoteMint, baseMint, m.config.PublicKey())
-	if err != nil {
-		return nil, err
-	}
-	baseVault, err := dbc.DeriveTokenVaultPDA(pool, baseMint)
-	if err != nil {
-		return nil, err
-	}
-	quoteVault, err := dbc.DeriveTokenVaultPDA(pool, quoteMint)
+	poolAddress, err := dbc.DeriveDbcPoolPDA(quoteMint, baseMint, config)
 	if err != nil {
 		return nil, err
 	}
 
-	params := &dbc.InitializePoolParameters{
-		Name:   name,
-		Symbol: symbol,
-		Uri:    uri,
+	baseVault, err := dbc.DeriveTokenVaultPDA(poolAddress, baseMint)
+	if err != nil {
+		return nil, err
+	}
+	quoteVault, err := dbc.DeriveTokenVaultPDA(poolAddress, quoteMint)
+	if err != nil {
+		return nil, err
 	}
 
 	var createPoolIx solana.Instruction
 
-	switch config.TokenType {
+	switch configState.TokenType {
 	case 0:
-		if createPoolIx, err = dbcInitializeVirtualPoolWithSplToken(m,
-			m.config.PublicKey(),
-			creator,
-			pool,
+		mintMetadata, err := dbc.DeriveMintMetadataPDA(baseMint)
+		if err != nil {
+			return nil, err
+		}
+
+		if createPoolIx, err = dbc.NewInitializeVirtualPoolWithSplTokenInstruction(
+			dbc.InitializePoolParameters{
+				Name:   name,
+				Symbol: symbol,
+				Uri:    uri,
+			},
+			config,
+			poolAuthority,
+			poolCreator,
 			baseMint,
-			baseVault,
 			quoteMint,
+			poolAddress,
+			baseVault,
 			quoteVault,
-			tokenBaseProgram,
-			tokenQuoteProgram,
+			mintMetadata,
+			solana.TokenMetadataProgramID,
 			payer,
-			params,
+			tokenQuoteProgram,
+			tokenBaseProgram,
+			solana.SystemProgramID,
+			eventAuthority,
+			dbc.ProgramID,
 		); err != nil {
 			return nil, err
 		}
 	case 1:
-		if createPoolIx, err = dbcInitializeVirtualPoolWithToken2022(m,
-			m.config.PublicKey(),
-			creator,
-			pool,
+		if createPoolIx, err = dbc.NewInitializeVirtualPoolWithToken2022Instruction(
+			dbc.InitializePoolParameters{
+				Name:   name,
+				Symbol: symbol,
+				Uri:    uri,
+			},
+			config,
+			poolAuthority,
+			poolCreator,
 			baseMint,
-			baseVault,
 			quoteMint,
+			poolAddress,
+			baseVault,
 			quoteVault,
-			tokenBaseProgram,
-			tokenQuoteProgram,
 			payer,
-			params,
+			tokenQuoteProgram,
+			tokenBaseProgram,
+			solana.SystemProgramID,
+			eventAuthority,
+			dbc.ProgramID,
 		); err != nil {
 			return nil, err
 		}
@@ -192,22 +108,27 @@ func (m *DBC) CreatePoolInstruction(
 
 func (m *DBC) CreatePool(
 	ctx context.Context,
-	mintWallet *solana.Wallet,
 	payer *solana.Wallet,
+	baseMint *solana.Wallet,
 	name string,
 	symbol string,
 	uri string,
 ) (string, error) {
-	config, err := m.GetConfig(ctx, m.config.PublicKey())
+	configState, err := m.GetConfig(ctx, m.config.PublicKey())
 	if err != nil {
 		return "", err
 	}
 
-	instructions, err := m.CreatePoolInstruction(ctx,
-		config,
-		mintWallet.PublicKey(),
+	instructions, err := CreatePoolInstruction(
+		ctx,
 		payer.PublicKey(),
 		m.poolCreator.PublicKey(),
+		m.config.PublicKey(),
+		configState,
+		baseMint.PublicKey(),
+		solana.WrappedSol,
+		dbc.GetTokenProgram(configState.TokenType),
+		solana.TokenProgramID,
 		name,
 		symbol,
 		uri,
@@ -228,8 +149,8 @@ func (m *DBC) CreatePool(
 				return &payer.PrivateKey
 			case key.Equals(m.poolCreator.PublicKey()):
 				return &m.poolCreator.PrivateKey
-			case key.Equals(mintWallet.PublicKey()):
-				return &mintWallet.PrivateKey
+			case key.Equals(baseMint.PublicKey()):
+				return &baseMint.PrivateKey
 			default:
 				return nil
 			}
@@ -241,11 +162,17 @@ func (m *DBC) CreatePool(
 	return sig.String(), nil
 }
 
-func (m *DBC) CreatePoolWithFirstBuInstruction(
+func CreatePoolWithFirstBuInstruction(
 	ctx context.Context,
-	config *dbc.PoolConfig,
-	mintWallet solana.PublicKey,
+	rpcClient *rpc.Client,
 	payer solana.PublicKey,
+	poolCreator solana.PublicKey,
+	config solana.PublicKey,
+	configState *dbc.PoolConfig,
+	baseMint solana.PublicKey,
+	quoteMint solana.PublicKey,
+	tokenBaseProgram solana.PublicKey,
+	tokenQuoteProgram solana.PublicKey,
 	creator solana.PublicKey,
 	name string,
 	symbol string,
@@ -255,87 +182,97 @@ func (m *DBC) CreatePoolWithFirstBuInstruction(
 	slippageBps uint64, //  250 = 2.5%
 ) ([]solana.Instruction, error) {
 
-	baseMint := mintWallet
-	quoteMint := solana.WrappedSol
-
-	tokenBaseProgram := dbc.GetTokenProgram(config.TokenType)
-	tokenQuoteProgram := solana.TokenProgramID
-
-	minOut, err := dbc.GetSwapAmountFromQuote(config, amountIn, slippageBps)
+	minOut, err := dbc.GetSwapAmountFromQuote(configState, decimal.NewFromBigInt(amountIn, 0), slippageBps)
 	if err != nil {
 		return nil, err
 	}
 
-	pool, err := dbc.DeriveDbcPoolPDA(quoteMint, baseMint, m.config.PublicKey())
+	poolAddress, err := dbc.DeriveDbcPoolPDA(quoteMint, baseMint, config)
 	if err != nil {
 		return nil, err
 	}
 
-	baseVault, err := dbc.DeriveTokenVaultPDA(pool, baseMint)
+	baseVault, err := dbc.DeriveTokenVaultPDA(poolAddress, baseMint)
 	if err != nil {
 		return nil, err
 	}
 
-	quoteVault, err := dbc.DeriveTokenVaultPDA(pool, quoteMint)
+	quoteVault, err := dbc.DeriveTokenVaultPDA(poolAddress, quoteMint)
 	if err != nil {
 		return nil, err
-	}
-
-	params := &dbc.InitializePoolParameters{
-		Name:   name,
-		Symbol: symbol,
-		Uri:    uri,
 	}
 
 	var instructions []solana.Instruction
 
 	var createPoolIx solana.Instruction
-	switch config.TokenType {
-	case dbc.TokenTypeSPL:
+	switch configState.TokenType {
+	case 0:
 
-		if createPoolIx, err = dbcInitializeVirtualPoolWithSplToken(m,
-			m.config.PublicKey(),
-			creator,
-			pool,
-			baseMint,
-			baseVault,
-			quoteMint,
-			quoteVault,
-			tokenBaseProgram,
-			tokenQuoteProgram,
-			payer,
-			params,
-		); err != nil {
+		mintMetadata, err := dbc.DeriveMintMetadataPDA(baseMint)
+		if err != nil {
 			return nil, err
 		}
 
-	case dbc.TokenTypeToken2022:
-
-		if createPoolIx, err = dbcInitializeVirtualPoolWithToken2022(m,
-			m.config.PublicKey(),
-			creator,
-			pool,
+		if createPoolIx, err = dbc.NewInitializeVirtualPoolWithSplTokenInstruction(
+			dbc.InitializePoolParameters{
+				Name:   name,
+				Symbol: symbol,
+				Uri:    uri,
+			},
+			config,
+			poolAuthority,
+			poolCreator,
 			baseMint,
-			baseVault,
 			quoteMint,
+			poolAddress,
+			baseVault,
 			quoteVault,
-			tokenBaseProgram,
-			tokenQuoteProgram,
+			mintMetadata,
+			solana.TokenMetadataProgramID,
 			payer,
-			params,
+			tokenQuoteProgram,
+			tokenBaseProgram,
+			solana.SystemProgramID,
+			eventAuthority,
+			dbc.ProgramID,
 		); err != nil {
 			return nil, err
 		}
+	case 1:
 
+		if createPoolIx, err = dbc.NewInitializeVirtualPoolWithToken2022Instruction(
+			dbc.InitializePoolParameters{
+				Name:   name,
+				Symbol: symbol,
+				Uri:    uri,
+			},
+			config,
+			poolAuthority,
+			poolCreator,
+			baseMint,
+			quoteMint,
+			poolAddress,
+			baseVault,
+			quoteVault,
+			payer,
+			tokenQuoteProgram,
+			tokenBaseProgram,
+			solana.SystemProgramID,
+			eventAuthority,
+			dbc.ProgramID,
+		); err != nil {
+			return nil, err
+		}
 	}
+
 	instructions = append(instructions, createPoolIx)
 
-	userInputTokenAccount, err := solanago.PrepareTokenATA(ctx, m.rpcClient, buyer, quoteMint, payer, &instructions)
+	userInputTokenAccount, err := solanago.PrepareTokenATA(ctx, rpcClient, buyer, quoteMint, payer, &instructions)
 	if err != nil {
 		return nil, err
 	}
 
-	userOutputTokenAccount, err := solanago.PrepareTokenATA(ctx, m.rpcClient, buyer, baseMint, payer, &instructions)
+	userOutputTokenAccount, err := solanago.PrepareTokenATA(ctx, rpcClient, buyer, baseMint, payer, &instructions)
 	if err != nil {
 		return nil, err
 	}
@@ -356,17 +293,17 @@ func (m *DBC) CreatePoolWithFirstBuInstruction(
 
 	instructions = append(instructions, syncNativeIx)
 
-	currentPoint, err := solanago.CurrenPoint(ctx, m.rpcClient, uint8(config.ActivationType))
+	currentPoint, err := solanago.CurrenPoint(ctx, rpcClient, uint8(configState.ActivationType))
 	if err != nil {
 		return nil, err
 	}
 
 	isRateLimiterApplied := dbc.CheckRateLimiterApplied(
-		config.PoolFees.BaseFee.BaseFeeMode,
+		configState.PoolFees.BaseFee.BaseFeeMode,
 		false,
-		currentPoint,
-		new(big.Int).SetUint64(0),
-		new(big.Int).SetUint64(config.PoolFees.BaseFee.SecondFactor),
+		decimal.NewFromBigInt(currentPoint, 0),
+		decimal.Zero,
+		decimal.NewFromUint64(configState.PoolFees.BaseFee.SecondFactor),
 	)
 
 	var remainingAccounts []*solana.AccountMeta
@@ -376,24 +313,30 @@ func (m *DBC) CreatePoolWithFirstBuInstruction(
 		}
 	}
 
-	swapIx, err := dbcSwap(m,
-		m.config.PublicKey(),
-		pool,
-		baseMint,
-		quoteMint,
-		baseVault,
-		quoteVault,
-		payer,
-		solana.PublicKey{},
+	params := dbc.SwapParameters{
+		AmountIn:         amountIn.Uint64(),
+		MinimumAmountOut: minOut.BigInt().Uint64(),
+	}
+
+	swapIx, err := dbc.NewSwapInstruction(
+		params,
+		poolAuthority,
+		config,
+		poolAddress,
 		userInputTokenAccount,
 		userOutputTokenAccount,
+		baseVault,
+		quoteVault,
+		baseMint,
+		quoteMint,
+		payer,
 		tokenBaseProgram,
 		tokenQuoteProgram,
-		amountIn.Uint64(),
-		minOut.Uint64(),
+		solana.PublicKey{},
+		eventAuthority,
+		dbc.ProgramID,
 		remainingAccounts,
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -415,7 +358,7 @@ func (m *DBC) CreatePoolWithFirstBuInstruction(
 
 func (m *DBC) CreatePoolWithFirstBuy(
 	ctx context.Context,
-	mintWallet *solana.Wallet,
+	baseMint *solana.Wallet,
 	payerAndBuyer *solana.Wallet,
 	name string,
 	symbol string,
@@ -434,15 +377,22 @@ func (m *DBC) CreatePoolWithFirstBuy(
 	payer := payerAndBuyer
 	buyer := payerAndBuyer
 
-	config, err := m.GetConfig(ctx, m.config.PublicKey())
+	configState, err := m.GetConfig(ctx, m.config.PublicKey())
 	if err != nil {
 		return "", err
 	}
 
-	instructions, err := m.CreatePoolWithFirstBuInstruction(ctx,
-		config,
-		mintWallet.PublicKey(),
+	instructions, err := CreatePoolWithFirstBuInstruction(
+		ctx,
+		m.rpcClient,
 		payer.PublicKey(),
+		m.poolCreator.PublicKey(),
+		m.config.PublicKey(),
+		configState,
+		baseMint.PublicKey(),
+		solana.WrappedSol,
+		dbc.GetTokenProgram(configState.TokenType),
+		solana.TokenProgramID,
 		m.poolCreator.PublicKey(),
 		name,
 		symbol,
@@ -466,8 +416,8 @@ func (m *DBC) CreatePoolWithFirstBuy(
 				return &payerAndBuyer.PrivateKey
 			case key.Equals(m.poolCreator.PublicKey()):
 				return &m.poolCreator.PrivateKey
-			case key.Equals(mintWallet.PublicKey()):
-				return &mintWallet.PrivateKey
+			case key.Equals(baseMint.PublicKey()):
+				return &baseMint.PrivateKey
 			default:
 				return nil
 			}
@@ -480,15 +430,17 @@ func (m *DBC) CreatePoolWithFirstBuy(
 }
 
 func (m *DBC) GetPoolsByConfig(ctx context.Context) ([]*dbc.VirtualPool, error) {
-	opt := solanago.GenProgramAccountFilter(
-		dbc.AccountKeyPoolConfig,
-		&solanago.Filter{
-			Owner:  m.config.PublicKey(),
-			Offset: 72,
-		},
-	)
+	return GetPoolsByConfig(ctx, m.rpcClient, m.config.PublicKey())
+}
 
-	outs, err := m.rpcClient.GetProgramAccountsWithOpts(ctx, dbc.ProgramID, opt)
+func GetPoolsByConfig(
+	ctx context.Context,
+	rpcClient *rpc.Client,
+	config solana.PublicKey,
+) ([]*dbc.VirtualPool, error) {
+	opt := solanago.GenProgramAccountFilter(dbc.AccountKeyPoolConfig, &solanago.Filter{Owner: config, Offset: 72})
+
+	outs, err := rpcClient.GetProgramAccountsWithOpts(ctx, dbc.ProgramID, opt)
 	if err != nil {
 		if err == rpc.ErrNotFound {
 			return nil, nil
@@ -512,15 +464,19 @@ func (m *DBC) GetPoolsByConfig(ctx context.Context) ([]*dbc.VirtualPool, error) 
 	return list, nil
 }
 
-func (m *DBC) GetPoolsByCreator(ctx context.Context) ([]*dbc.VirtualPool, error) {
-	opt := solanago.GenProgramAccountFilter(
-		dbc.AccountKeyVirtualPool,
-		&solanago.Filter{
-			Owner:  m.poolCreator.PublicKey(),
-			Offset: 104,
-		},
-	)
-	outs, err := m.rpcClient.GetProgramAccountsWithOpts(ctx, dbc.ProgramID, opt)
+func (m *DBC) GetPoolsByCreator(
+	ctx context.Context,
+) ([]*dbc.VirtualPool, error) {
+	return GetPoolsByCreator(ctx, m.rpcClient, m.poolCreator.PublicKey())
+}
+
+func GetPoolsByCreator(
+	ctx context.Context,
+	rpcClient *rpc.Client,
+	poolCreator solana.PublicKey,
+) ([]*dbc.VirtualPool, error) {
+	opt := solanago.GenProgramAccountFilter(dbc.AccountKeyVirtualPool, &solanago.Filter{Owner: poolCreator, Offset: 104})
+	outs, err := rpcClient.GetProgramAccountsWithOpts(ctx, dbc.ProgramID, opt)
 	if err != nil {
 		if err == rpc.ErrNotFound {
 			return nil, nil
@@ -544,16 +500,21 @@ func (m *DBC) GetPoolsByCreator(ctx context.Context) ([]*dbc.VirtualPool, error)
 	return list, nil
 }
 
-func (m *DBC) GetPoolByBaseMint(ctx context.Context, baseMint solana.PublicKey) (*dbc.VirtualPool, error) {
-	opt := solanago.GenProgramAccountFilter(
-		dbc.AccountKeyVirtualPool,
-		&solanago.Filter{
-			Owner:  baseMint,
-			Offset: 136,
-		},
-	)
+func (m *DBC) GetPoolByBaseMint(
+	ctx context.Context,
+	baseMint solana.PublicKey,
+) (*Pool, error) {
+	return GetPoolByBaseMint(ctx, m.rpcClient, baseMint)
+}
 
-	outs, err := m.rpcClient.GetProgramAccountsWithOpts(ctx, dbc.ProgramID, opt)
+func GetPoolByBaseMint(
+	ctx context.Context,
+	rpcClient *rpc.Client,
+	baseMint solana.PublicKey,
+) (*Pool, error) {
+	opt := solanago.GenProgramAccountFilter(dbc.AccountKeyVirtualPool, &solanago.Filter{Owner: baseMint, Offset: 136})
+
+	outs, err := rpcClient.GetProgramAccountsWithOpts(ctx, dbc.ProgramID, opt)
 	if err != nil {
 		if err == rpc.ErrNotFound {
 			return nil, nil
@@ -571,10 +532,10 @@ func (m *DBC) GetPoolByBaseMint(ctx context.Context, baseMint solana.PublicKey) 
 		return nil, err
 	}
 
-	cfg, ok := obj.(*dbc.VirtualPool)
+	pool, ok := obj.(*dbc.VirtualPool)
 	if !ok {
 		return nil, fmt.Errorf("obj.(*dbc.PoolConfig) fail")
 	}
 
-	return cfg, nil
+	return &Pool{pool, out.Pubkey}, nil
 }

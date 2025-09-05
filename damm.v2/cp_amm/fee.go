@@ -73,36 +73,33 @@ type DynamicFeeParams struct {
 
 // GetFeeNumerator
 func GetFeeNumerator(
-	currentPoint *big.Int,
-	activationPoint *big.Int,
-	numberOfPeriod int64,
-	periodFrequency *big.Int,
+	currentPoint decimal.Decimal,
+	activationPoint decimal.Decimal,
+	numberOfPeriod decimal.Decimal,
+	periodFrequency decimal.Decimal,
 	feeSchedulerMode FeeSchedulerMode,
-	cliffFeeNumerator *big.Int,
-	reductionFactor *big.Int,
+	cliffFeeNumerator decimal.Decimal,
+	reductionFactor decimal.Decimal,
 	dynamicFeeParams *DynamicFeeParams,
-) *big.Int {
-	periodF := decimal.NewFromBigInt(periodFrequency, 0)
-	currentP := decimal.NewFromBigInt(currentPoint, 0)
-	activationP := decimal.NewFromBigInt(activationPoint, 0)
+) decimal.Decimal {
 
-	if periodF.IsZero() || currentP.Cmp(activationP) < 0 {
-		return new(big.Int).Set(cliffFeeNumerator)
+	if periodFrequency.IsZero() || currentPoint.Cmp(activationPoint) < 0 {
+		return cliffFeeNumerator
 	}
 
 	// period = min(numberOfPeriod, (currentPoint - activationPoint)/periodFrequency)
 
-	diff := currentP.Sub(activationP)
-	period := diff.Div(periodF).Floor() // new(big.Int).Div(diff, periodFrequency)
+	diff := currentPoint.Sub(activationPoint)
+	period := diff.Div(periodFrequency).Floor() // new(big.Int).Div(diff, periodFrequency)
 
-	maxPeriod := decimal.NewFromInt(numberOfPeriod)
+	maxPeriod := numberOfPeriod
 
 	if period.Cmp(maxPeriod) > 0 {
 		period = maxPeriod
 	}
 
 	// feeNumerator = getBaseFeeNumerator(...)
-	feeNumerator := getBaseFeeNumerator(feeSchedulerMode, decimal.NewFromBigInt(cliffFeeNumerator, 0), period, decimal.NewFromBigInt(reductionFactor, 0))
+	feeNumerator := getBaseFeeNumerator(feeSchedulerMode, cliffFeeNumerator, period, reductionFactor)
 
 	if dynamicFeeParams != nil {
 		dynamicFeeNumerator := getDynamicFeeNumerator(
@@ -117,7 +114,7 @@ func GetFeeNumerator(
 		feeNumerator = decimal.NewFromBigInt(MAX_FEE_NUMERATOR, 0)
 	}
 
-	return feeNumerator.BigInt()
+	return feeNumerator
 }
 
 // FeeMode
@@ -139,70 +136,68 @@ func GetFeeMode(collectFeeMode CollectFeeMode, btoA bool) FeeMode {
 
 // GetSwapAmount
 func GetSwapAmount(
-	inAmount, sqrtPrice, liquidity, tradeFeeNumerator *big.Int,
+	actualInAmount, sqrtPrice, liquidity, tradeFeeNumerator decimal.Decimal,
 	swapBaseForQuote bool,
 	collectFeeMode CollectFeeMode,
-) (*big.Int, *big.Int, *big.Int, error) {
+) (decimal.Decimal, decimal.Decimal, decimal.Decimal, error) {
 
 	feeMode := GetFeeMode(collectFeeMode, !swapBaseForQuote)
-	actualInAmount := decimal.NewFromBigInt(inAmount, 0) //new(big.Int).Set(inAmount)
+	// actualInAmount := decimal.NewFromBigInt(inAmount, 0) //new(big.Int).Set(inAmount)
 	totalFee := decimal.Zero
 
 	if feeMode.FeeOnInput {
-		fee, err := mulDiv(actualInAmount, decimal.NewFromBigInt(tradeFeeNumerator, 0), decimal.NewFromBigInt(FEE_DENOMINATOR, 0), true)
+		fee, err := mulDiv(actualInAmount, tradeFeeNumerator, decimal.NewFromBigInt(FEE_DENOMINATOR, 0), true)
 		if err != nil {
-			return nil, nil, nil, err
+			return decimal.Decimal{}, decimal.Decimal{}, decimal.Decimal{}, err
 		}
 		totalFee = fee
 		actualInAmount = actualInAmount.Sub(totalFee)
 
 	}
 
-	nextSqrtPrice := getNextSqrtPrice(actualInAmount, decimal.NewFromBigInt(sqrtPrice, 0), decimal.NewFromBigInt(liquidity, 0), swapBaseForQuote)
+	nextSqrtPrice := getNextSqrtPrice(actualInAmount, sqrtPrice, liquidity, swapBaseForQuote)
 
-	var outAmount *big.Int
+	var outAmount decimal.Decimal
 	if swapBaseForQuote {
-		outAmount = GetAmountBFromLiquidityDelta(liquidity, sqrtPrice, nextSqrtPrice.BigInt(), false)
+		outAmount = GetAmountBFromLiquidityDelta(liquidity, sqrtPrice, nextSqrtPrice, false)
 	} else {
-		outAmount = GetAmountAFromLiquidityDelta(liquidity, sqrtPrice, nextSqrtPrice.BigInt(), false)
+		outAmount = GetAmountAFromLiquidityDelta(liquidity, sqrtPrice, nextSqrtPrice, false)
 	}
 
-	var amountOut *big.Int
+	var amountOut decimal.Decimal
 	if feeMode.FeeOnInput {
 		amountOut = outAmount
 	} else {
-		fee, err := mulDiv(decimal.NewFromBigInt(outAmount, 0), decimal.NewFromBigInt(tradeFeeNumerator, 0), decimal.NewFromBigInt(FEE_DENOMINATOR, 0), true)
+		fee, err := mulDiv(outAmount, tradeFeeNumerator, decimal.NewFromBigInt(FEE_DENOMINATOR, 0), true)
 		if err != nil {
-			return nil, nil, nil, err
+			return decimal.Decimal{}, decimal.Decimal{}, decimal.Decimal{}, err
 		}
 		totalFee = fee
-		amountOut = new(big.Int).Sub(outAmount, totalFee.BigInt())
+		amountOut = outAmount.Sub(totalFee) //new(big.Int).Sub(outAmount, totalFee.BigInt())
 	}
-	return amountOut, totalFee.BigInt(), nextSqrtPrice.BigInt(), nil
+	return amountOut, totalFee, nextSqrtPrice, nil
 
 }
 
 // GetPriceImpact
 // abs(execution_price - spot_price) / spot_price * 100%
 func GetPriceImpact(
-	amountIn, amountOut, currentSqrtPrice *big.Int,
+	amountIn, amountOut, currentSqrtPrice decimal.Decimal,
 	aToB bool,
 	tokenADecimal, tokenBDecimal uint8,
-) (*big.Float, error) {
-	amountInF := decimal.NewFromBigInt(amountIn, 0)
-	amountOutF := decimal.NewFromBigInt(amountOut, 0)
+) (decimal.Decimal, error) {
 
-	if amountInF.IsZero() {
-		return big.NewFloat(0), nil
+	if amountIn.IsZero() {
+		return decimal.Zero, nil
 	}
-	if amountOutF.IsZero() {
-		return nil, errors.New("amountOut must be greater than 0")
+	if amountOut.IsZero() {
+		return decimal.Decimal{}, errors.New("amountOut must be greater than 0")
 	}
 
-	spotPrice := getPriceFromSqrtPrice(decimal.NewFromBigInt(currentSqrtPrice, 0), tokenADecimal, tokenBDecimal)
+	spotPrice := getPriceFromSqrtPrice(currentSqrtPrice, tokenADecimal, tokenBDecimal)
 
 	// 1.0526315900277009477
-	executionPrice := amountInF.DivRound(amountOutF, 19) // new(big.Float).Quo(amountInF, amountOutF)
+	executionPrice := amountIn.DivRound(amountOut, 19) // new(big.Float).Quo(amountInF, amountOutF)
 
 	expDiff := int32(tokenBDecimal) - int32(tokenADecimal)
 	if !aToB {
@@ -223,7 +218,7 @@ func GetPriceImpact(
 	diff := actualExecutionPrice.Sub(spotPrice).Abs()
 	priceImpact := diff.DivRound(spotPrice, 20).Mul(decimal.NewFromInt(100))
 
-	return priceImpact.BigFloat(), nil
+	return priceImpact, nil
 }
 
 type RewardResult struct {
@@ -245,32 +240,50 @@ func bytesToBigIntLE(b []byte) *big.Int {
 	return new(big.Int).SetBytes(reverseBytes(b))
 }
 
-func CalculateUnClaimFee(poolState *Pool, positionState *Position) (*big.Int, *big.Int) {
+func CalculateUnClaimFee(poolState *Pool, positionState *Position) (decimal.Decimal, decimal.Decimal) {
 
-	totalPositionLiquidity := new(big.Int).Add(positionState.UnlockedLiquidity.BigInt(),
-		new(big.Int).Add(positionState.VestedLiquidity.BigInt(), positionState.PermanentLockedLiquidity.BigInt()))
+	// totalPositionLiquidity := new(big.Int).Add(positionState.UnlockedLiquidity.BigInt(),
+	// new(big.Int).Add(positionState.VestedLiquidity.BigInt(), positionState.PermanentLockedLiquidity.BigInt()))
 
-	feeAPerTokenStored := new(big.Int).Sub(
-		bytesToBigIntLE(poolState.FeeAPerLiquidity[:]),
-		bytesToBigIntLE(positionState.FeeAPerTokenCheckpoint[:]),
+	totalPositionLiquidity := decimal.NewFromBigInt(positionState.UnlockedLiquidity.BigInt(), 0).Add(
+		decimal.NewFromBigInt(positionState.VestedLiquidity.BigInt(), 0).Add(
+			decimal.NewFromBigInt(positionState.PermanentLockedLiquidity.BigInt(), 0),
+		),
 	)
 
-	feeBPerTokenStored := new(big.Int).Sub(
-		bytesToBigIntLE(poolState.FeeBPerLiquidity[:]),
-		bytesToBigIntLE(positionState.FeeBPerTokenCheckpoint[:]),
+	// feeAPerTokenStored := new(big.Int).Sub(
+	// 	bytesToBigIntLE(poolState.FeeAPerLiquidity[:]),
+	// 	bytesToBigIntLE(positionState.FeeAPerTokenCheckpoint[:]),
+	// )
+	feeAPerTokenStored := decimal.NewFromBigInt(bytesToBigIntLE(poolState.FeeAPerLiquidity[:]), 0).Sub(
+		decimal.NewFromBigInt(bytesToBigIntLE(positionState.FeeAPerTokenCheckpoint[:]), 0),
 	)
 
-	feeA := new(big.Int).Rsh(new(big.Int).Mul(totalPositionLiquidity, feeAPerTokenStored), LIQUIDITY_SCALE)
-	feeB := new(big.Int).Rsh(new(big.Int).Mul(totalPositionLiquidity, feeBPerTokenStored), LIQUIDITY_SCALE)
+	// feeBPerTokenStored := new(big.Int).Sub(
+	// 	bytesToBigIntLE(poolState.FeeBPerLiquidity[:]),
+	// 	bytesToBigIntLE(positionState.FeeBPerTokenCheckpoint[:]),
+	// )
 
-	return new(big.Int).Add(new(big.Int).SetUint64(positionState.FeeAPending), feeA),
-		new(big.Int).Add(new(big.Int).SetUint64(positionState.FeeBPending), feeB)
+	feeBPerTokenStored := decimal.NewFromBigInt(bytesToBigIntLE(poolState.FeeBPerLiquidity[:]), 0).Sub(
+		decimal.NewFromBigInt(bytesToBigIntLE(positionState.FeeBPerTokenCheckpoint[:]), 0),
+	)
+
+	// feeA := new(big.Int).Rsh(new(big.Int).Mul(totalPositionLiquidity, feeAPerTokenStored), LIQUIDITY_SCALE)
+	// feeB := new(big.Int).Rsh(new(big.Int).Mul(totalPositionLiquidity, feeBPerTokenStored), LIQUIDITY_SCALE)
+
+	feeA := decimal.NewFromBigInt(new(big.Int).Rsh(totalPositionLiquidity.Mul(feeAPerTokenStored).BigInt(), LIQUIDITY_SCALE), 0)
+	feeB := decimal.NewFromBigInt(new(big.Int).Rsh(totalPositionLiquidity.Mul(feeBPerTokenStored).BigInt(), LIQUIDITY_SCALE), 0)
+
+	// return new(big.Int).Add(new(big.Int).SetUint64(positionState.FeeAPending), feeA),
+	// 	new(big.Int).Add(new(big.Int).SetUint64(positionState.FeeBPending), feeB)
+	return decimal.NewFromUint64(positionState.FeeAPending).Add(feeA),
+		decimal.NewFromUint64(positionState.FeeBPending).Add(feeB)
 }
 
-func CalculateUnClaimReward(poolState *Pool, positionState *Position) []*big.Int {
-	var rewards []*big.Int
+func CalculateUnClaimReward(poolState *Pool, positionState *Position) []decimal.Decimal {
+	var rewards []decimal.Decimal
 	for _, item := range positionState.RewardInfos {
-		rewards = append(rewards, new(big.Int).SetUint64(item.RewardPendings))
+		rewards = append(rewards, decimal.NewFromUint64(item.RewardPendings))
 	}
 	return rewards
 }

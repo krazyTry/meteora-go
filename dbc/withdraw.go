@@ -7,73 +7,43 @@ import (
 
 	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/programs/token"
+	"github.com/gagliardetto/solana-go/rpc"
 	solanago "github.com/krazyTry/meteora-go/solana"
 )
 
-func dbcWithdrawLeftover(
-	m *DBC,
-	config solana.PublicKey,
-	dbcPool solana.PublicKey,
-	tokenBaseAccount solana.PublicKey,
-	baseVault solana.PublicKey,
-	baseMint solana.PublicKey,
+func WithdrawLeftoverInstruction(
+	ctx context.Context,
+	rpcClient *rpc.Client,
+	payer solana.PublicKey,
 	leftoverReceiver solana.PublicKey,
-	tokenBaseProgram solana.PublicKey,
-) (solana.Instruction, error) {
+	poolAddress solana.PublicKey,
+	poolState *dbc.VirtualPool,
+	configState *dbc.PoolConfig,
+) ([]solana.Instruction, error) {
+	baseMint := poolState.BaseMint // baseMint
 
-	poolAuthority := m.poolAuthority
-	eventAuthority := m.eventAuthority
+	var instructions []solana.Instruction
 
-	program := dbc.ProgramID
+	tokenBaseAccount, err := solanago.PrepareTokenATA(ctx, rpcClient, leftoverReceiver, baseMint, payer, &instructions)
+	if err != nil {
+		return nil, err
+	}
 
-	return dbc.NewWithdrawLeftoverInstruction(
+	baseVault := poolState.BaseVault // dbc.DeriveTokenVaultPDA(pool, virtualPool.BaseMint)
+
+	tokenBaseProgram := dbc.GetTokenProgram(configState.TokenType)
+
+	withdrawIx, err := dbc.NewWithdrawLeftoverInstruction(
 		poolAuthority,
-		config,
-		dbcPool,
+		poolState.Config,
+		poolAddress,
 		tokenBaseAccount,
 		baseVault,
 		baseMint,
 		leftoverReceiver,
 		tokenBaseProgram,
 		eventAuthority,
-		program,
-	)
-}
-
-func (m *DBC) WithdrawLeftoverInstruction(
-	ctx context.Context,
-	payer solana.PublicKey,
-	leftoverReceiver solana.PublicKey,
-	virtualPool *dbc.VirtualPool,
-	config *dbc.PoolConfig,
-) ([]solana.Instruction, error) {
-	quoteMint := config.QuoteMint    // solana.WrappedSol
-	baseMint := virtualPool.BaseMint // baseMint
-
-	pool, err := dbc.DeriveDbcPoolPDA(quoteMint, baseMint, virtualPool.Config)
-	if err != nil {
-		return nil, err
-	}
-
-	var instructions []solana.Instruction
-
-	tokenBaseAccount, err := solanago.PrepareTokenATA(ctx, m.rpcClient, leftoverReceiver, baseMint, payer, &instructions)
-	if err != nil {
-		return nil, err
-	}
-
-	baseVault := virtualPool.BaseVault // dbc.DeriveTokenVaultPDA(pool, virtualPool.BaseMint)
-
-	tokenBaseProgram := dbc.GetTokenProgram(config.TokenType)
-
-	withdrawIx, err := dbcWithdrawLeftover(m,
-		virtualPool.Config,
-		pool,
-		tokenBaseAccount,
-		baseVault,
-		baseMint,
-		leftoverReceiver,
-		tokenBaseProgram,
+		dbc.ProgramID,
 	)
 	if err != nil {
 		return nil, err
@@ -89,17 +59,25 @@ func (m *DBC) WithdrawLeftover(
 	baseMint solana.PublicKey,
 ) (string, error) {
 
-	virtualPool, err := m.GetPoolByBaseMint(ctx, baseMint)
+	poolState, err := m.GetPoolByBaseMint(ctx, baseMint)
 	if err != nil {
 		return "", err
 	}
 
-	config, err := m.GetConfig(ctx, virtualPool.Config)
+	configState, err := m.GetConfig(ctx, poolState.Config)
 	if err != nil {
 		return "", err
 	}
 
-	instructions, err := m.WithdrawLeftoverInstruction(ctx, payer.PublicKey(), m.leftoverReceiver.PublicKey(), virtualPool, config)
+	instructions, err := WithdrawLeftoverInstruction(
+		ctx,
+		m.rpcClient,
+		payer.PublicKey(),
+		m.leftoverReceiver.PublicKey(),
+		poolState.Address,
+		poolState.VirtualPool,
+		configState,
+	)
 	if err != nil {
 		return "", err
 	}
@@ -126,67 +104,37 @@ func (m *DBC) WithdrawLeftover(
 	return sig.String(), nil
 }
 
-func dbcWithdrawPartnerSurplus(
-	m *DBC,
-	config solana.PublicKey,
-	dbcPool solana.PublicKey,
-	tokenQuoteAccount solana.PublicKey,
-	quoteVault solana.PublicKey,
-	quoteMint solana.PublicKey,
-	feeClaimer solana.PublicKey,
-	tokenQuoteProgram solana.PublicKey,
-) (solana.Instruction, error) {
-	poolAuthority := m.poolAuthority
-	eventAuthority := m.eventAuthority
-
-	program := dbc.ProgramID
-
-	return dbc.NewPartnerWithdrawSurplusInstruction(
-		poolAuthority,
-		config,
-		dbcPool,
-		tokenQuoteAccount,
-		quoteVault,
-		quoteMint,
-		feeClaimer,
-		tokenQuoteProgram,
-		eventAuthority,
-		program,
-	)
-}
-
-func (m *DBC) WithdrawPartnerSurplusInstruction(
+func WithdrawPartnerSurplusInstruction(
 	ctx context.Context,
+	rpcClient *rpc.Client,
 	payer solana.PublicKey,
-	partner solana.PublicKey,
-	virtualPool *dbc.VirtualPool,
-	config *dbc.PoolConfig,
+	poolPartner solana.PublicKey,
+	poolAddress solana.PublicKey,
+	poolState *dbc.VirtualPool,
+	configState *dbc.PoolConfig,
 ) ([]solana.Instruction, error) {
-	quoteMint := config.QuoteMint    // solana.WrappedSol
-	baseMint := virtualPool.BaseMint // baseMint
-	quoteVault := virtualPool.QuoteVault
-
-	pool, err := dbc.DeriveDbcPoolPDA(quoteMint, baseMint, virtualPool.Config)
-	if err != nil {
-		return nil, err
-	}
+	quoteMint := configState.QuoteMint // solana.WrappedSol
+	quoteVault := poolState.QuoteVault
 
 	var instructions []solana.Instruction
-	tokenQuoteAccount, err := solanago.PrepareTokenATA(ctx, m.rpcClient, partner, quoteMint, payer, &instructions)
+	tokenQuoteAccount, err := solanago.PrepareTokenATA(ctx, rpcClient, poolPartner, quoteMint, payer, &instructions)
 	if err != nil {
 		return nil, err
 	}
 
-	tokenQuoteProgram := dbc.GetTokenProgram(config.QuoteTokenFlag)
+	tokenQuoteProgram := dbc.GetTokenProgram(configState.QuoteTokenFlag)
 
-	withdrawIx, err := dbcWithdrawPartnerSurplus(m,
-		virtualPool.Config,
-		pool,
+	withdrawIx, err := dbc.NewPartnerWithdrawSurplusInstruction(
+		poolAuthority,
+		poolState.Config,
+		poolAddress,
 		tokenQuoteAccount,
 		quoteVault,
 		quoteMint,
-		partner,
+		poolPartner,
 		tokenQuoteProgram,
+		eventAuthority,
+		dbc.ProgramID,
 	)
 	if err != nil {
 		return nil, err
@@ -196,11 +144,10 @@ func (m *DBC) WithdrawPartnerSurplusInstruction(
 	if quoteMint.Equals(solana.WrappedSol) {
 		closeWSOLIx := token.NewCloseAccountInstruction(
 			tokenQuoteAccount,
-			partner,
-			partner,
-			[]solana.PublicKey{},
+			poolPartner,
+			poolPartner,
+			nil,
 		).Build()
-
 		instructions = append(instructions, closeWSOLIx)
 	}
 	return instructions, nil
@@ -211,17 +158,25 @@ func (m *DBC) WithdrawPartnerSurplus(
 	payer *solana.Wallet,
 	baseMint solana.PublicKey,
 ) (string, error) {
-	virtualPool, err := m.GetPoolByBaseMint(ctx, baseMint)
+	poolState, err := m.GetPoolByBaseMint(ctx, baseMint)
 	if err != nil {
 		return "", err
 	}
 
-	config, err := m.GetConfig(ctx, virtualPool.Config)
+	configState, err := m.GetConfig(ctx, poolState.Config)
 	if err != nil {
 		return "", err
 	}
 
-	instructions, err := m.WithdrawPartnerSurplusInstruction(ctx, payer.PublicKey(), m.feeClaimer.PublicKey(), virtualPool, config)
+	instructions, err := WithdrawPartnerSurplusInstruction(
+		ctx,
+		m.rpcClient,
+		payer.PublicKey(),
+		m.feeClaimer.PublicKey(),
+		poolState.Address,
+		poolState.VirtualPool,
+		configState,
+	)
 	if err != nil {
 		return "", err
 	}
@@ -248,66 +203,37 @@ func (m *DBC) WithdrawPartnerSurplus(
 	return sig.String(), nil
 }
 
-func dbcWithdrawCreatorSurplus(
-	m *DBC,
-	config solana.PublicKey,
-	dbcPool solana.PublicKey,
-	tokenQuoteAccount solana.PublicKey,
-	quoteVault solana.PublicKey,
-	quoteMint solana.PublicKey,
-	creator solana.PublicKey,
-	tokenQuoteProgram solana.PublicKey,
-) (solana.Instruction, error) {
-	poolAuthority := m.poolAuthority
-	eventAuthority := m.eventAuthority
-
-	program := dbc.ProgramID
-	return dbc.NewCreatorWithdrawSurplusInstruction(
-		poolAuthority,
-		config,
-		dbcPool,
-		tokenQuoteAccount,
-		quoteVault,
-		quoteMint,
-		creator,
-		tokenQuoteProgram,
-		eventAuthority,
-		program,
-	)
-}
-
-func (m *DBC) WithdrawCreatorSurplusInstruction(
+func WithdrawCreatorSurplusInstruction(
 	ctx context.Context,
+	rpcClient *rpc.Client,
 	payer solana.PublicKey,
-	creator solana.PublicKey,
-	virtualPool *dbc.VirtualPool,
+	poolCreator solana.PublicKey,
+	poolAddress solana.PublicKey,
+	poolState *dbc.VirtualPool,
 	config *dbc.PoolConfig,
 ) ([]solana.Instruction, error) {
-	quoteMint := config.QuoteMint    // solana.WrappedSol
-	baseMint := virtualPool.BaseMint // baseMint
-	quoteVault := virtualPool.QuoteVault
-
-	pool, err := dbc.DeriveDbcPoolPDA(quoteMint, baseMint, virtualPool.Config)
-	if err != nil {
-		return nil, err
-	}
+	quoteMint := config.QuoteMint // solana.WrappedSol
+	quoteVault := poolState.QuoteVault
 
 	var instructions []solana.Instruction
-	tokenQuoteAccount, err := solanago.PrepareTokenATA(ctx, m.rpcClient, creator, quoteMint, payer, &instructions)
+	tokenQuoteAccount, err := solanago.PrepareTokenATA(ctx, rpcClient, poolCreator, quoteMint, payer, &instructions)
 	if err != nil {
 		return nil, err
 	}
 
 	tokenQuoteProgram := dbc.GetTokenProgram(config.QuoteTokenFlag)
 
-	withdrawIx, err := dbcWithdrawCreatorSurplus(m,
-		virtualPool.Config,
-		pool,
+	withdrawIx, err := dbc.NewCreatorWithdrawSurplusInstruction(
+		poolAuthority,
+		poolState.Config,
+		poolAddress,
 		tokenQuoteAccount,
 		quoteVault,
 		quoteMint,
-		creator,
+		poolCreator,
 		tokenQuoteProgram,
+		eventAuthority,
+		dbc.ProgramID,
 	)
 	if err != nil {
 		return nil, err
@@ -317,8 +243,8 @@ func (m *DBC) WithdrawCreatorSurplusInstruction(
 	if quoteMint.Equals(solana.WrappedSol) {
 		closeWSOLIx := token.NewCloseAccountInstruction(
 			tokenQuoteAccount,
-			creator,
-			creator,
+			poolCreator,
+			poolCreator,
 			[]solana.PublicKey{},
 		).Build()
 
@@ -333,17 +259,25 @@ func (m *DBC) WithdrawCreatorSurplus(
 	baseMint solana.PublicKey,
 ) (string, error) {
 
-	virtualPool, err := m.GetPoolByBaseMint(ctx, baseMint)
+	poolState, err := m.GetPoolByBaseMint(ctx, baseMint)
 	if err != nil {
 		return "", err
 	}
 
-	config, err := m.GetConfig(ctx, virtualPool.Config)
+	configState, err := m.GetConfig(ctx, poolState.Config)
 	if err != nil {
 		return "", err
 	}
 
-	instructions, err := m.WithdrawCreatorSurplusInstruction(ctx, payer.PublicKey(), m.poolCreator.PublicKey(), virtualPool, config)
+	instructions, err := WithdrawCreatorSurplusInstruction(
+		ctx,
+		m.rpcClient,
+		payer.PublicKey(),
+		m.poolCreator.PublicKey(),
+		poolState.Address,
+		poolState.VirtualPool,
+		configState,
+	)
 	if err != nil {
 		return "", err
 	}
@@ -370,76 +304,40 @@ func (m *DBC) WithdrawCreatorSurplus(
 	return sig.String(), nil
 }
 
-func withdrawMigrationFee(
-	m *DBC,
-	// Params:
+func WithdrawMigrationFeeInstruction(
+	ctx context.Context,
+	rpcClient *rpc.Client,
+	payer solana.PublicKey,
+	owner solana.PublicKey,
 	flag uint8,
+	poolAddress solana.PublicKey,
+	poolState *dbc.VirtualPool,
+	configState *dbc.PoolConfig,
+) ([]solana.Instruction, error) {
+	quoteMint := configState.QuoteMint // solana.WrappedSol
+	quoteVault := poolState.QuoteVault
 
-	// Accounts:
-	config solana.PublicKey,
-	dbcPool solana.PublicKey,
-	tokenQuoteAccount solana.PublicKey,
-	quoteVault solana.PublicKey,
-	quoteMint solana.PublicKey,
-	sender solana.PublicKey,
-	tokenQuoteProgram solana.PublicKey,
-) (solana.Instruction, error) {
+	var instructions []solana.Instruction
+	tokenQuoteAccount, err := solanago.PrepareTokenATA(ctx, rpcClient, owner, quoteMint, payer, &instructions)
+	if err != nil {
+		return nil, err
+	}
 
-	poolAuthority := m.poolAuthority
-	eventAuthority := m.eventAuthority
+	tokenQuoteProgram := dbc.GetTokenProgram(configState.QuoteTokenFlag)
 
-	program := dbc.ProgramID
-
-	return dbc.NewWithdrawMigrationFeeInstruction(
+	withdrawIx, err := dbc.NewWithdrawMigrationFeeInstruction(
 		flag,
 		// Accounts:
 		poolAuthority,
-		config,
-		dbcPool,
+		poolState.Config,
+		poolAddress,
 		tokenQuoteAccount,
 		quoteVault,
 		quoteMint,
-		sender,
+		owner,
 		tokenQuoteProgram,
 		eventAuthority,
-		program,
-	)
-}
-
-func (m *DBC) WithdrawMigrationFeeInstruction(
-	ctx context.Context,
-	payer solana.PublicKey,
-	flag uint8,
-	account solana.PublicKey,
-	virtualPool *dbc.VirtualPool,
-	config *dbc.PoolConfig,
-) ([]solana.Instruction, error) {
-	quoteMint := config.QuoteMint    // solana.WrappedSol
-	baseMint := virtualPool.BaseMint // baseMint
-	quoteVault := virtualPool.QuoteVault
-
-	pool, err := dbc.DeriveDbcPoolPDA(quoteMint, baseMint, virtualPool.Config)
-	if err != nil {
-		return nil, err
-	}
-
-	var instructions []solana.Instruction
-	tokenQuoteAccount, err := solanago.PrepareTokenATA(ctx, m.rpcClient, account, quoteMint, payer, &instructions)
-	if err != nil {
-		return nil, err
-	}
-
-	tokenQuoteProgram := dbc.GetTokenProgram(config.QuoteTokenFlag)
-
-	withdrawIx, err := withdrawMigrationFee(m,
-		flag,
-		virtualPool.Config,
-		pool,
-		tokenQuoteAccount,
-		quoteVault,
-		quoteMint,
-		account,
-		tokenQuoteProgram,
+		dbc.ProgramID,
 	)
 	if err != nil {
 		return nil, err
@@ -449,8 +347,8 @@ func (m *DBC) WithdrawMigrationFeeInstruction(
 	if quoteMint.Equals(solana.WrappedSol) {
 		closeWSOLIx := token.NewCloseAccountInstruction(
 			tokenQuoteAccount,
-			account,
-			account,
+			owner,
+			owner,
 			[]solana.PublicKey{},
 		).Build()
 
@@ -464,17 +362,27 @@ func (m *DBC) WithdrawPartnerMigrationFee(
 	payer *solana.Wallet,
 	baseMint solana.PublicKey,
 ) (string, error) {
-	virtualPool, err := m.GetPoolByBaseMint(ctx, baseMint)
+	poolState, err := m.GetPoolByBaseMint(ctx, baseMint)
 	if err != nil {
 		return "", err
 	}
 
-	config, err := m.GetConfig(ctx, virtualPool.Config)
+	configState, err := m.GetConfig(ctx, poolState.Config)
 	if err != nil {
 		return "", err
 	}
 
-	instructions, err := m.WithdrawMigrationFeeInstruction(ctx, payer.PublicKey(), 0, m.feeClaimer.PublicKey(), virtualPool, config)
+	instructions, err := WithdrawMigrationFeeInstruction(
+		ctx,
+		m.rpcClient,
+		payer.PublicKey(),
+		m.feeClaimer.PublicKey(),
+		0,
+
+		poolState.Address,
+		poolState.VirtualPool,
+		configState,
+	)
 	if err != nil {
 		return "", err
 	}
@@ -506,17 +414,26 @@ func (m *DBC) WithdrawCreatorMigrationFee(
 	payer *solana.Wallet,
 	baseMint solana.PublicKey,
 ) (string, error) {
-	virtualPool, err := m.GetPoolByBaseMint(ctx, baseMint)
+	poolState, err := m.GetPoolByBaseMint(ctx, baseMint)
 	if err != nil {
 		return "", err
 	}
 
-	config, err := m.GetConfig(ctx, virtualPool.Config)
+	configState, err := m.GetConfig(ctx, poolState.Config)
 	if err != nil {
 		return "", err
 	}
 
-	instructions, err := m.WithdrawMigrationFeeInstruction(ctx, payer.PublicKey(), 1, m.poolCreator.PublicKey(), virtualPool, config)
+	instructions, err := WithdrawMigrationFeeInstruction(
+		ctx,
+		m.rpcClient,
+		payer.PublicKey(),
+		m.poolCreator.PublicKey(),
+		1,
+		poolState.Address,
+		poolState.VirtualPool,
+		configState,
+	)
 	if err != nil {
 		return "", err
 	}

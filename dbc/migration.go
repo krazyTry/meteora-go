@@ -1,8 +1,6 @@
 package dbc
 
 import (
-	"fmt"
-
 	"github.com/krazyTry/meteora-go/damm.v2/cp_amm"
 	solanago "github.com/krazyTry/meteora-go/solana"
 
@@ -13,53 +11,20 @@ import (
 
 	"github.com/gagliardetto/solana-go"
 	computebudget "github.com/gagliardetto/solana-go/programs/compute-budget"
+	"github.com/gagliardetto/solana-go/rpc"
 )
 
-func dbcCreateLocker(
-	m *DBC,
-	dbcPool solana.PublicKey,
-	config solana.PublicKey,
-	baseVault solana.PublicKey,
-	baseMint solana.PublicKey,
-	base solana.PublicKey,
-	creator solana.PublicKey,
-	escrow solana.PublicKey,
-	escrowToken solana.PublicKey,
-	payer solana.PublicKey,
-	tokenProgram solana.PublicKey,
-) (solana.Instruction, error) {
-
-	poolAuthority := m.poolAuthority
-	lockerProgram := locker.ProgramID
-	lockerEventAuthority := m.lockerEventAuthority
-	systemProgram := solana.SystemProgramID
-
-	return dbc.NewCreateLockerInstruction(
-		dbcPool,
-		config,
-		poolAuthority,
-		baseVault,
-		baseMint,
-		base,
-		creator,
-		escrow,
-		escrowToken,
-		payer,
-		tokenProgram,
-		lockerProgram,
-		lockerEventAuthority,
-		systemProgram,
-	)
-}
-
-func (m *DBC) CreateLockerInstruction(
+func CreateLockerInstruction(
 	ctx context.Context,
+	rpcClient *rpc.Client,
 	payer solana.PublicKey,
-	virtualPool *dbc.VirtualPool,
-	config *dbc.PoolConfig,
+	poolCreator solana.PublicKey,
+	poolAddress solana.PublicKey,
+	poolState *dbc.VirtualPool,
+	configState *dbc.PoolConfig,
 ) ([]solana.Instruction, error) {
 
-	switch virtualPool.MigrationProgress {
+	switch poolState.MigrationProgress {
 	case dbc.MigrationProgressLockedVesting:
 		return nil, ErrDammV2LockerNotRequired
 	case dbc.MigrationProgressPostBondingCurve:
@@ -67,16 +32,10 @@ func (m *DBC) CreateLockerInstruction(
 		return nil, ErrMigrationProgressState
 	}
 
-	quoteMint := config.QuoteMint      // solana.WrappedSol
-	baseMint := virtualPool.BaseMint   // baseMint
-	baseVault := virtualPool.BaseVault // dbc.DeriveTokenVaultPDA(pool, virtualPool.BaseMint)
+	baseMint := poolState.BaseMint   // baseMint
+	baseVault := poolState.BaseVault // dbc.DeriveTokenVaultPDA(pool, virtualPool.BaseMint)
 
-	pool, err := dbc.DeriveDbcPoolPDA(quoteMint, baseMint, virtualPool.Config)
-	if err != nil {
-		return nil, err
-	}
-
-	base, err := dbc.DeriveBaseKeyForLocker(pool)
+	base, err := dbc.DeriveBaseKeyForLocker(poolAddress)
 	if err != nil {
 		return nil, err
 	}
@@ -86,34 +45,27 @@ func (m *DBC) CreateLockerInstruction(
 		return nil, err
 	}
 
-	// exists, err := solanago.GetAccountInfo(ctx, m.rpcClient, escrow)
-	// if err != nil && err != rpc.ErrNotFound {
-	// 	return nil, err
-	// }
-
-	// if exists != nil {
-	// 	return nil, ErrDammV2LockerExist
-	// }
-
 	var instructions []solana.Instruction
-	tokenEscrowAccount, err := solanago.PrepareTokenATA(ctx, m.rpcClient, escrow, baseMint, payer, &instructions)
+	tokenEscrowAccount, err := solanago.PrepareTokenATA(ctx, rpcClient, escrow, baseMint, payer, &instructions)
 	if err != nil {
 		return nil, err
 	}
 
-	tokenBaseProgram := dbc.GetTokenProgram(config.TokenType)
-
-	lockerIx, err := dbcCreateLocker(m,
-		pool,
-		virtualPool.Config,
+	lockerIx, err := dbc.NewCreateLockerInstruction(
+		poolAddress,
+		poolState.Config,
+		poolAuthority,
 		baseVault,
 		baseMint,
 		base,
-		m.poolCreator.PublicKey(),
+		poolCreator,
 		escrow,
 		tokenEscrowAccount,
 		payer,
-		tokenBaseProgram,
+		dbc.GetTokenProgram(configState.TokenType),
+		locker.ProgramID,
+		lockerEventAuthority,
+		solana.SystemProgramID,
 	)
 	if err != nil {
 		return nil, err
@@ -128,17 +80,26 @@ func (m *DBC) CreateLocker(
 	payer *solana.Wallet,
 	baseMint solana.PublicKey,
 ) (string, error) {
-	virtualPool, err := m.GetPoolByBaseMint(ctx, baseMint)
+	poolState, err := m.GetPoolByBaseMint(ctx, baseMint)
 	if err != nil {
 		return "", err
 	}
 
-	config, err := m.GetConfig(ctx, virtualPool.Config)
+	configState, err := m.GetConfig(ctx, poolState.Config)
 	if err != nil {
 		return "", err
 	}
 
-	instructions, err := m.CreateLockerInstruction(ctx, payer.PublicKey(), virtualPool, config)
+	instructions, err := CreateLockerInstruction(
+		ctx,
+		m.rpcClient,
+		payer.PublicKey(),
+		m.poolCreator.PublicKey(),
+		poolState.Address,
+		poolState.VirtualPool,
+		configState,
+	)
+
 	if err != nil {
 		if err == ErrDammV2LockerNotRequired {
 			return "***************************************************************************************", nil
@@ -166,73 +127,38 @@ func (m *DBC) CreateLocker(
 	return sig.String(), nil
 }
 
-func dbcMigrationDammV2CreateMetadata(
-	m *DBC,
-	dbcPool solana.PublicKey,
-	config solana.PublicKey,
-	migrationMetadata solana.PublicKey,
-	payer solana.PublicKey,
-) (solana.Instruction, error) {
-	eventAuthority := m.eventAuthority
-	systemProgram := solana.SystemProgramID
-	program := dbc.ProgramID
-
-	return dbc.NewMigrationDammV2CreateMetadataInstruction(
-		dbcPool,
-		config,
-		migrationMetadata,
-		payer,
-		systemProgram,
-		eventAuthority,
-		program,
-	)
-}
-
-func (m *DBC) MigrationDammV2CreateMetadataInstruction(
+func MigrationDammV2CreateMetadataInstruction(
 	ctx context.Context,
 	payer solana.PublicKey,
-	virtualPool *dbc.VirtualPool,
-	config *dbc.PoolConfig,
+	poolAddress solana.PublicKey,
+	poolState *dbc.VirtualPool,
 ) ([]solana.Instruction, error) {
-	switch virtualPool.MigrationProgress {
+	switch poolState.MigrationProgress {
 	case dbc.MigrationProgressCreatedPool:
 		return nil, ErrMigrationProgressState
 	default:
 	}
 
-	quoteMint := config.QuoteMint    // solana.WrappedSol
-	baseMint := virtualPool.BaseMint // baseMint
-
-	pool, err := dbc.DeriveDbcPoolPDA(quoteMint, baseMint, virtualPool.Config)
+	migrationMetadata, err := dbc.DeriveDammV2MigrationMetadataPDA(poolAddress)
 	if err != nil {
 		return nil, err
 	}
-
-	migrationMetadata, err := dbc.DeriveDammV2MigrationMetadataPDA(pool)
-	if err != nil {
-		return nil, err
-	}
-
-	// exists, err := solanago.GetAccountInfo(ctx, m.rpcClient, migrationMetadata)
-	// if err != nil && err != rpc.ErrNotFound {
-	// 	return nil, err
-	// }
-
-	// if exists != nil {
-	// 	return nil, ErrDammV2MetadataExist
-	// }
 
 	var instructions []solana.Instruction
 
-	migrationIx, err := dbcMigrationDammV2CreateMetadata(m,
-		pool,
-		virtualPool.Config,
+	migrationIx, err := dbc.NewMigrationDammV2CreateMetadataInstruction(
+		poolAddress,
+		poolState.Config,
 		migrationMetadata,
 		payer,
+		solana.SystemProgramID,
+		eventAuthority,
+		dbc.ProgramID,
 	)
 	if err != nil {
 		return nil, err
 	}
+
 	instructions = append(instructions, migrationIx)
 	return instructions, nil
 }
@@ -243,21 +169,17 @@ func (m *DBC) MigrationDammV2CreateMetadata(
 	baseMint solana.PublicKey,
 ) (string, error) {
 
-	virtualPool, err := m.GetPoolByBaseMint(ctx, baseMint)
+	poolState, err := m.GetPoolByBaseMint(ctx, baseMint)
 	if err != nil {
 		return "", err
 	}
 
-	if virtualPool.MigrationProgress != dbc.MigrationProgressLockedVesting {
-		return "", fmt.Errorf("virtualPool.MigrationProgress != dbc.MigrationProgressLockedVesting")
-	}
-
-	config, err := m.GetConfig(ctx, virtualPool.Config)
-	if err != nil {
-		return "", err
-	}
-
-	instructions, err := m.MigrationDammV2CreateMetadataInstruction(ctx, payer.PublicKey(), virtualPool, config)
+	instructions, err := MigrationDammV2CreateMetadataInstruction(
+		ctx,
+		payer.PublicKey(),
+		poolState.Address,
+		poolState.VirtualPool,
+	)
 	if err != nil {
 		return "", err
 	}
@@ -282,100 +204,35 @@ func (m *DBC) MigrationDammV2CreateMetadata(
 	return sig.String(), nil
 }
 
-func dbcMigrationDammV2(
-	m *DBC,
-	dbcPool solana.PublicKey,
-	migrationMetadata solana.PublicKey,
-	config solana.PublicKey,
-	dammPool solana.PublicKey,
-	firstPositionNftMint solana.PublicKey,
-	firstPositionNftAccount solana.PublicKey,
-	firstPosition solana.PublicKey,
-	secondPositionNftMint solana.PublicKey,
-	secondPositionNftAccount solana.PublicKey,
-	secondPosition solana.PublicKey,
-	baseMint solana.PublicKey,
-	quoteMint solana.PublicKey,
-	tokenAVault solana.PublicKey,
-	tokenBVault solana.PublicKey,
-	baseVault solana.PublicKey,
-	quoteVault solana.PublicKey,
-	payer solana.PublicKey,
-	tokenBaseProgram solana.PublicKey,
-	tokenQuoteProgram solana.PublicKey,
-	remainingAccounts []*solana.AccountMeta,
-) (solana.Instruction, error) {
-
-	dammPoolAuthority := m.dammPoolAuthority
-	dammEventAuthority := m.dammEventAuthority
-	poolAuthority := m.poolAuthority
-	systemProgram := solana.SystemProgramID
-	ammProgram := cp_amm.ProgramID
-	token2022Program := solana.Token2022ProgramID
-
-	return dbc.NewMigrationDammV2Instruction(
-		dbcPool,
-		migrationMetadata,
-		config,
-		poolAuthority,
-		dammPool,
-		firstPositionNftMint,
-		firstPositionNftAccount,
-		firstPosition,
-		secondPositionNftMint,
-		secondPositionNftAccount,
-		secondPosition,
-		dammPoolAuthority,
-		ammProgram,
-		baseMint,
-		quoteMint,
-		tokenAVault,
-		tokenBVault,
-		baseVault,
-		quoteVault,
-		payer,
-		tokenBaseProgram,
-		tokenQuoteProgram,
-		token2022Program,
-		dammEventAuthority,
-		systemProgram,
-		remainingAccounts,
-	)
-}
-
-func (m *DBC) MigrationDammV2Instruction(
+func MigrationDammV2Instruction(
 	ctx context.Context,
 	payer solana.PublicKey,
-	virtualPool *dbc.VirtualPool,
-	config *dbc.PoolConfig,
+	poolAddress solana.PublicKey,
+	poolState *dbc.VirtualPool,
+	configState *dbc.PoolConfig,
 	partnerPositionNft *solana.Wallet,
 	creatorPositionNft *solana.Wallet,
 ) ([]solana.Instruction, error) {
 
-	switch virtualPool.MigrationProgress {
+	switch poolState.MigrationProgress {
 	case dbc.MigrationProgressLockedVesting:
 	default:
 		return nil, ErrMigrationProgressState
 	}
 
-	quoteMint := config.QuoteMint        // solana.WrappedSol
-	baseMint := virtualPool.BaseMint     // baseMint
-	baseVault := virtualPool.BaseVault   // dbc.DeriveTokenVaultPDA(pool, virtualPool.BaseMint)
-	quoteVault := virtualPool.QuoteVault // dbc.DeriveTokenVaultPDA(pool, config.QuoteMint)
+	quoteMint := configState.QuoteMint // solana.WrappedSol
+	baseMint := poolState.BaseMint     // baseMint
+	baseVault := poolState.BaseVault   // dbc.DeriveTokenVaultPDA(pool, virtualPool.BaseMint)
+	quoteVault := poolState.QuoteVault // dbc.DeriveTokenVaultPDA(pool, config.QuoteMint)
 
-	pool, err := dbc.DeriveDbcPoolPDA(quoteMint, baseMint, virtualPool.Config)
+	migrationMetadata, err := dbc.DeriveDammV2MigrationMetadataPDA(poolAddress)
 	if err != nil {
 		return nil, err
 	}
 
-	migrationMetadata, err := dbc.DeriveDammV2MigrationMetadataPDA(pool)
-	if err != nil {
-		return nil, err
-	}
+	dammConfig := dbc.GetDammV2Config(configState.MigrationFeeOption)
 
-	dammConfig := dbc.GetDammV2Config(config.MigrationFeeOption)
-
-	dammPool, err := dbc.DeriveDammV2PoolPDA(dammConfig, baseMint, quoteMint)
+	dammPoolAddress, err := dbc.DeriveDammV2PoolPDA(dammConfig, baseMint, quoteMint)
 	if err != nil {
 		return nil, err
 	}
@@ -404,33 +261,32 @@ func (m *DBC) MigrationDammV2Instruction(
 		return nil, err
 	}
 
-	tokenBaseVault, err := dbc.DeriveDammV2TokenVaultPDA(dammPool, baseMint)
+	tokenBaseVault, err := dbc.DeriveDammV2TokenVaultPDA(dammPoolAddress, baseMint)
 	if err != nil {
 		return nil, err
 	}
 
-	tokenQuoteVault, err := dbc.DeriveDammV2TokenVaultPDA(dammPool, quoteMint)
+	tokenQuoteVault, err := dbc.DeriveDammV2TokenVaultPDA(dammPoolAddress, quoteMint)
 	if err != nil {
 		return nil, err
 	}
-
-	tokenBaseProgram := dbc.GetTokenProgram(config.TokenType)
-
-	tokenQuoteProgram := dbc.GetTokenProgram(config.QuoteTokenFlag)
 
 	var instructions []solana.Instruction
 
-	migrationIx, err := dbcMigrationDammV2(m,
-		pool,
+	migrationIx, err := dbc.NewMigrationDammV2Instruction(
+		poolAddress,
 		migrationMetadata,
-		virtualPool.Config,
-		dammPool,
+		poolState.Config,
+		poolAuthority,
+		dammPoolAddress,
 		partnerPositionNft.PublicKey(),
 		partnerPositionNftAccount,
 		partnerPosition,
 		creatorPositionNft.PublicKey(),
 		creatorPositionNftAccount,
 		creatorPosition,
+		dammPoolAuthority,
+		cp_amm.ProgramID,
 		baseMint,
 		quoteMint,
 		tokenBaseVault,
@@ -438,8 +294,11 @@ func (m *DBC) MigrationDammV2Instruction(
 		baseVault,
 		quoteVault,
 		payer,
-		tokenBaseProgram,
-		tokenQuoteProgram,
+		dbc.GetTokenProgram(configState.TokenType),
+		dbc.GetTokenProgram(configState.QuoteTokenFlag),
+		solana.Token2022ProgramID,
+		dammEventAuthority,
+		solana.SystemProgramID,
 		[]*solana.AccountMeta{
 			solana.NewAccountMeta(dammConfig, false, false),
 		},
@@ -457,15 +316,12 @@ func (m *DBC) MigrationDammV2(
 	payer *solana.Wallet,
 	baseMint solana.PublicKey,
 ) (string, *solana.Wallet, *solana.Wallet, error) {
-	virtualPool, err := m.GetPoolByBaseMint(ctx, baseMint)
+	poolState, err := m.GetPoolByBaseMint(ctx, baseMint)
 	if err != nil {
 		return "", nil, nil, err
 	}
-	if virtualPool.MigrationProgress != dbc.MigrationProgressLockedVesting {
-		return "", nil, nil, fmt.Errorf("virtualPool.MigrationProgress != dbc.MigrationProgressLockedVesting")
-	}
 
-	config, err := m.GetConfig(ctx, virtualPool.Config)
+	configState, err := m.GetConfig(ctx, poolState.Config)
 	if err != nil {
 		return "", nil, nil, err
 	}
@@ -473,7 +329,15 @@ func (m *DBC) MigrationDammV2(
 	partnerPositionNft := solana.NewWallet()
 	creatorPositionNft := solana.NewWallet()
 
-	instructions, err := m.MigrationDammV2Instruction(ctx, payer.PublicKey(), virtualPool, config, partnerPositionNft, creatorPositionNft)
+	instructions, err := MigrationDammV2Instruction(
+		ctx,
+		payer.PublicKey(),
+		poolState.Address,
+		poolState.VirtualPool,
+		configState,
+		partnerPositionNft,
+		creatorPositionNft,
+	)
 	if err != nil {
 		return "", nil, nil, err
 	}
@@ -481,7 +345,9 @@ func (m *DBC) MigrationDammV2(
 	sig, err := solanago.SendTransaction(ctx,
 		m.rpcClient,
 		m.wsClient,
-		append([]solana.Instruction{computebudget.NewSetComputeUnitLimitInstruction(500_000).Build()}, instructions...),
+		append([]solana.Instruction{
+			computebudget.NewSetComputeUnitLimitInstruction(500_000).Build(),
+		}, instructions...),
 		payer.PublicKey(),
 		func(key solana.PublicKey) *solana.PrivateKey {
 			switch {

@@ -26,14 +26,14 @@ func getVariableFee(dynamicFee DynamicFeeConfig, volatilityTracker VolatilityTra
 
 	// volatilityTimesBinStep = volatilityAccumulator * binStep
 	volatilityTimesBinStep := decimal.NewFromBigInt(volatilityTracker.VolatilityAccumulator.BigInt(), 0).Mul(
-		decimal.NewFromInt(int64(dynamicFee.BinStep)),
+		decimal.NewFromUint64(uint64(dynamicFee.BinStep)),
 	)
 
 	// squared = (volatilityTimesBinStep)^2
 	squared := volatilityTimesBinStep.Mul(volatilityTimesBinStep)
 
 	// vFee = squared * variableFeeControl
-	vFee := squared.Mul(decimal.NewFromInt(int64(dynamicFee.VariableFeeControl)))
+	vFee := squared.Mul(decimal.NewFromUint64(uint64(dynamicFee.VariableFeeControl)))
 
 	// scaleFactor = 100_000_000_000
 	scaleFactor := decimal.NewFromInt(100_000_000_000)
@@ -52,10 +52,10 @@ func getBaseFeeNumerator(
 ) decimal.Decimal {
 
 	baseFeeMode := baseFee.BaseFeeMode
-	cliffFeeNumerator := decimal.NewFromInt(int64(baseFee.CliffFeeNumerator))
-	thirdFactor := decimal.NewFromInt(int64(baseFee.ThirdFactor))
-	firstFactor := decimal.NewFromInt(int64(baseFee.FirstFactor))
-	secondFactor := decimal.NewFromInt(int64(baseFee.SecondFactor))
+	cliffFeeNumerator := decimal.NewFromUint64(baseFee.CliffFeeNumerator)
+	thirdFactor := decimal.NewFromUint64(baseFee.ThirdFactor)
+	firstFactor := decimal.NewFromUint64(uint64(baseFee.FirstFactor))
+	secondFactor := decimal.NewFromUint64(baseFee.SecondFactor)
 
 	if baseFeeMode == BaseFeeModeRateLimiter {
 		feeIncrementBps := firstFactor
@@ -65,9 +65,9 @@ func getBaseFeeNumerator(
 		isRateLimiterApplied := CheckRateLimiterApplied(
 			baseFeeMode,
 			isBaseToQuote,
-			currentPoint.BigInt(),
-			activationPoint.BigInt(),
-			secondFactor.BigInt(),
+			currentPoint,
+			activationPoint,
+			secondFactor,
 		)
 
 		if currentPoint.LessThan(activationPoint) {
@@ -148,12 +148,12 @@ func getFeeOnAmount(
 	}
 
 	// 3. cap at MAX_FEE_NUMERATOR
-	if totalFeeNumerator.GreaterThan(decimal.NewFromInt(MAX_FEE_NUMERATOR.Int64())) {
-		totalFeeNumerator = decimal.NewFromInt(MAX_FEE_NUMERATOR.Int64())
+	if totalFeeNumerator.GreaterThan(decimal.NewFromBigInt(MAX_FEE_NUMERATOR, 0)) {
+		totalFeeNumerator = decimal.NewFromBigInt(MAX_FEE_NUMERATOR, 0)
 	}
 
 	// 4. trading fee: tradingFee = amount * totalFeeNumerator / FEE_DENOMINATOR
-	tradingFee, err := mulDiv(amount, totalFeeNumerator, decimal.NewFromInt(FEE_DENOMINATOR.Int64()), true)
+	tradingFee, err := mulDiv(amount, totalFeeNumerator, decimal.NewFromBigInt(FEE_DENOMINATOR, 0), true)
 	if err != nil {
 		return decimal.Decimal{}, decimal.Decimal{}, decimal.Decimal{}, decimal.Decimal{}, err
 	}
@@ -161,7 +161,7 @@ func getFeeOnAmount(
 	amountAfterFee = amount.Sub(tradingFee)
 
 	// 5. protocol fee
-	protocolFee, err := mulDiv(tradingFee, decimal.NewFromInt(int64(poolFees.ProtocolFeePercent)), decimal.NewFromInt(100), false)
+	protocolFee, err := mulDiv(tradingFee, decimal.NewFromUint64(uint64(poolFees.ProtocolFeePercent)), decimal.NewFromInt(100), false)
 	if err != nil {
 		return decimal.Decimal{}, decimal.Decimal{}, decimal.Decimal{}, decimal.Decimal{}, err
 	}
@@ -170,7 +170,7 @@ func getFeeOnAmount(
 	// 6. referral fee
 	referralFee = decimal.Zero
 	if isReferral {
-		referralFee, err = mulDiv(protocolFee, decimal.NewFromInt(int64(poolFees.ReferralFeePercent)), decimal.NewFromInt(100), false)
+		referralFee, err = mulDiv(protocolFee, decimal.NewFromUint64(uint64(poolFees.ReferralFeePercent)), decimal.NewFromInt(100), false)
 		if err != nil {
 			return decimal.Decimal{}, decimal.Decimal{}, decimal.Decimal{}, decimal.Decimal{}, err
 		}

@@ -10,67 +10,58 @@ import (
 	solanago "github.com/krazyTry/meteora-go/solana"
 )
 
-func dbcCreateConfig(
-	m *DBC,
-	config,
-	feeClaimer,
-	leftoverReceiver,
-	payer,
+func CreateConfigInstruction(
+	ctx context.Context,
+	payer solana.PublicKey,
+	config solana.PublicKey,
+	partner solana.PublicKey,
+	leftoverReceiver solana.PublicKey,
 	quoteMint solana.PublicKey,
 	configParameters *dbc.ConfigParameters,
-) (solana.Instruction, error) {
+) ([]solana.Instruction, error) {
 
-	eventAuthority := m.eventAuthority
-
-	systemProgram := solana.SystemProgramID
-
-	// quoteMint := solana.WrappedSol
-
-	program := dbc.ProgramID
-
-	if configParameters == nil {
-		return nil, fmt.Errorf("configParameters is nil")
-	}
-
-	return dbc.NewCreateConfigInstruction(
+	createConfigIx, err := dbc.NewCreateConfigInstruction(
 		configParameters,
 		config,
-		feeClaimer,
+		partner,
 		leftoverReceiver,
 		quoteMint,
 		payer,
-		systemProgram,
+		solana.SystemProgramID,
 		eventAuthority,
-		program,
+		dbc.ProgramID,
 	)
+
+	if err != nil {
+		return nil, err
+	}
+	return []solana.Instruction{createConfigIx}, nil
 }
 
 func (m *DBC) CreateConfig(
 	ctx context.Context,
 	payer *solana.Wallet,
-	config *solana.Wallet,
-	partner solana.PublicKey,
-	leftoverReceiver solana.PublicKey,
 	quoteMint solana.PublicKey,
 	cfg *dbc.ConfigParameters,
 ) (string, error) {
 
-	createConfigIx, err := dbcCreateConfig(
-		m,
-		m.config.PublicKey(),
-		partner,
-		leftoverReceiver,
+	instructions, err := CreateConfigInstruction(
+		ctx,
 		payer.PublicKey(),
+		m.config.PublicKey(),
+		m.feeClaimer.PublicKey(),
+		m.leftoverReceiver.PublicKey(),
 		quoteMint,
 		cfg,
 	)
 	if err != nil {
 		return "", err
 	}
+
 	sig, err := solanago.SendTransaction(ctx,
 		m.rpcClient,
 		m.wsClient,
-		[]solana.Instruction{createConfigIx},
+		instructions,
 		payer.PublicKey(),
 		func(key solana.PublicKey) *solana.PrivateKey {
 			switch {
@@ -89,8 +80,19 @@ func (m *DBC) CreateConfig(
 	return sig.String(), nil
 }
 
-func (m *DBC) GetConfig(ctx context.Context, config solana.PublicKey) (*dbc.PoolConfig, error) {
-	out, err := solanago.GetAccountInfo(ctx, m.rpcClient, config)
+func (m *DBC) GetConfig(
+	ctx context.Context,
+	config solana.PublicKey,
+) (*dbc.PoolConfig, error) {
+	return GetConfig(ctx, m.rpcClient, config)
+}
+
+func GetConfig(
+	ctx context.Context,
+	rpcClient *rpc.Client,
+	config solana.PublicKey,
+) (*dbc.PoolConfig, error) {
+	out, err := solanago.GetAccountInfo(ctx, rpcClient, config)
 	if err != nil {
 		if err == rpc.ErrNotFound {
 			return nil, nil
@@ -111,7 +113,12 @@ func (m *DBC) GetConfig(ctx context.Context, config solana.PublicKey) (*dbc.Pool
 	return cfg, nil
 }
 
-func (m *DBC) InitConfig(ctx context.Context, payerWallet *solana.Wallet, quoteMint solana.PublicKey, cfg *dbc.ConfigParameters) error {
+func (m *DBC) InitConfig(
+	ctx context.Context,
+	payerWallet *solana.Wallet,
+	quoteMint solana.PublicKey,
+	cfg *dbc.ConfigParameters,
+) error {
 	config, err := m.GetConfig(ctx, m.config.PublicKey())
 	if err != nil {
 		return err
@@ -121,7 +128,7 @@ func (m *DBC) InitConfig(ctx context.Context, payerWallet *solana.Wallet, quoteM
 		return nil
 	}
 
-	if _, err = m.CreateConfig(ctx, payerWallet, m.config, m.feeClaimer.PublicKey(), m.leftoverReceiver.PublicKey(), quoteMint, cfg); err != nil {
+	if _, err = m.CreateConfig(ctx, payerWallet, quoteMint, cfg); err != nil {
 		return err
 	}
 	return nil

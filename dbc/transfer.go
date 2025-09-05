@@ -4,40 +4,38 @@ import (
 	"context"
 	"math/big"
 
-	dbc "github.com/krazyTry/meteora-go/dbc/dynamic_bonding_curve"
-
 	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/programs/token"
+	"github.com/gagliardetto/solana-go/rpc"
 	solanago "github.com/krazyTry/meteora-go/solana"
 )
 
-func (m *DBC) TransferInstruction(
+func TransferInstruction(
 	ctx context.Context,
+	rpcClient *rpc.Client,
 	payer solana.PublicKey,
 	sender solana.PublicKey,
 	receiver solana.PublicKey,
-	virtualPool *dbc.VirtualPool,
-	config *dbc.PoolConfig,
+	baseMint solana.PublicKey,
+	baseTokenDecimal uint8,
 	amount *big.Int,
 ) ([]solana.Instruction, error) {
 
-	baseMint := virtualPool.BaseMint // baseMint
-
 	var instructions []solana.Instruction
 
-	sendTokenAccount, err := solanago.PrepareTokenATA(ctx, m.rpcClient, sender, baseMint, payer, &instructions)
+	sendTokenAccount, err := solanago.PrepareTokenATA(ctx, rpcClient, sender, baseMint, payer, &instructions)
 	if err != nil {
 		return nil, err
 	}
 
-	receiveTokenAccount, err := solanago.PrepareTokenATA(ctx, m.rpcClient, receiver, baseMint, payer, &instructions)
+	receiveTokenAccount, err := solanago.PrepareTokenATA(ctx, rpcClient, receiver, baseMint, payer, &instructions)
 	if err != nil {
 		return nil, err
 	}
 
 	transferIx := token.NewTransferCheckedInstruction(
 		amount.Uint64(),
-		uint8(config.TokenDecimal),
+		baseTokenDecimal,
 		sendTokenAccount,
 		baseMint,
 		receiveTokenAccount,
@@ -57,22 +55,24 @@ func (m *DBC) Transfer(
 	amount *big.Int,
 ) (string, error) {
 
-	virtualPool, err := m.GetPoolByBaseMint(ctx, baseMint)
+	poolState, err := m.GetPoolByBaseMint(ctx, baseMint)
 	if err != nil {
 		return "", err
 	}
 
-	config, err := m.GetConfig(ctx, virtualPool.Config)
+	configState, err := m.GetConfig(ctx, poolState.Config)
 	if err != nil {
 		return "", err
 	}
 
-	instructions, err := m.TransferInstruction(ctx,
+	instructions, err := TransferInstruction(
+		ctx,
+		m.rpcClient,
 		payer.PublicKey(),
 		sender.PublicKey(),
 		receiver.PublicKey(),
-		virtualPool,
-		config,
+		baseMint,
+		uint8(configState.TokenDecimal),
 		amount,
 	)
 

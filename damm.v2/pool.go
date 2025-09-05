@@ -14,67 +14,15 @@ import (
 	"github.com/krazyTry/meteora-go/damm.v2/cp_amm"
 	solanago "github.com/krazyTry/meteora-go/solana"
 	"github.com/krazyTry/meteora-go/u128"
+	"github.com/shopspring/decimal"
 )
 
-func cpAmmInitializeCustomizablePool(
-	m *DammV2,
-	// Params:
-	param *cp_amm.InitializeCustomizablePoolParameters,
-
-	// Accounts:
-	creator solana.PublicKey,
-	positionNft solana.PublicKey,
-	position solana.PublicKey,
-	positionNftAccount solana.PublicKey,
-	payer solana.PublicKey,
-	cpammPool solana.PublicKey,
-	tokenBaseMint solana.PublicKey,
-	tokenQuoteMint solana.PublicKey,
-	tokenBaseVault solana.PublicKey,
-	tokenQuoteVault solana.PublicKey,
-	payerBaseToken solana.PublicKey,
-	payerQuoteToken solana.PublicKey,
-	tokenBaseProgram solana.PublicKey,
-	tokenQuoteProgram solana.PublicKey,
-	tokenBadgeAccounts []*solana.AccountMeta,
-) (solana.Instruction, error) {
-
-	poolAuthority := m.poolAuthority
-	eventAuthority := m.eventAuthority
-	program := cp_amm.ProgramID
-	systemProgram := solana.SystemProgramID
-
-	return cp_amm.NewInitializeCustomizablePoolInstruction(
-		// Params:
-		param,
-		// Accounts:
-		creator,
-		positionNft,
-		positionNftAccount,
-		payer,
-		poolAuthority,
-		cpammPool,
-		position,
-		tokenBaseMint,
-		tokenQuoteMint,
-		tokenBaseVault,
-		tokenQuoteVault,
-		payerBaseToken,
-		payerQuoteToken,
-		tokenBaseProgram,
-		tokenQuoteProgram,
-		solana.Token2022ProgramID,
-		systemProgram,
-		eventAuthority,
-		program,
-		tokenBadgeAccounts,
-	)
-}
-
-func (m *DammV2) CreateCustomizablePoolInstruction(
+func CreateCustomizablePoolInstruction(
 	ctx context.Context,
-	payer *solana.Wallet,
-	positionNft *solana.Wallet,
+	rpcClient *rpc.Client,
+	payer solana.PublicKey,
+	poolCreator solana.PublicKey,
+	positionNft solana.PublicKey,
 	initialPrice int, // 1 base token = 1 quote token
 	baseMint solana.PublicKey,
 	quoteMint solana.PublicKey,
@@ -84,15 +32,12 @@ func (m *DammV2) CreateCustomizablePoolInstruction(
 	activationType cp_amm.ActivationType,
 	collectFeeMode cp_amm.CollectFeeMode,
 	activationPoint *uint64,
-	useDynamicFee bool,
-	maxBaseFeeBps int64,
-	minBaseFeeBps int64,
-	feeSchedulerMode cp_amm.FeeSchedulerMode,
-	numberOfPeriod int,
-	totalDuration int64,
+	sqrtMaxPrice *big.Int,
+	sqrtMinPrice *big.Int,
+	poolFees cp_amm.PoolFeeParameters,
 	isLockLiquidity bool,
 ) ([]solana.Instruction, solana.PublicKey, error) {
-	tokens, err := solanago.GetMultipleToken(ctx, m.rpcClient, baseMint, quoteMint)
+	tokens, err := solanago.GetMultipleToken(ctx, rpcClient, baseMint, quoteMint)
 	if err != nil {
 		return nil, solana.PublicKey{}, err
 	}
@@ -107,8 +52,8 @@ func (m *DammV2) CreateCustomizablePoolInstruction(
 	tokenBaseDecimals := tokens[0].Decimals
 	tokenQuoteDecimals := tokens[1].Decimals
 
-	initialPoolTokenBaseAmount := cp_amm.GetInitialPoolTokenAmount(baseAmount, tokenBaseDecimals)
-	initialPoolTokenQuoteAmount := cp_amm.GetInitialPoolTokenAmount(quoteAmount, tokenQuoteDecimals)
+	initialPoolTokenBaseAmount := cp_amm.GetInitialPoolTokenAmount(decimal.NewFromBigInt(baseAmount, 0), tokenBaseDecimals)
+	initialPoolTokenQuoteAmount := cp_amm.GetInitialPoolTokenAmount(decimal.NewFromBigInt(quoteAmount, 0), tokenQuoteDecimals)
 
 	initSqrtPrice, err := cp_amm.GetSqrtPriceFromPrice(strconv.Itoa(initialPrice), tokenBaseDecimals, tokenQuoteDecimals)
 	if err != nil {
@@ -118,71 +63,55 @@ func (m *DammV2) CreateCustomizablePoolInstruction(
 	liquidityDelta := cp_amm.GetLiquidityDelta(
 		initialPoolTokenBaseAmount,
 		initialPoolTokenQuoteAmount,
-		cp_amm.MAX_SQRT_PRICE,
-		cp_amm.MIN_SQRT_PRICE,
-		initSqrtPrice,
+		decimal.NewFromBigInt(sqrtMaxPrice, 0), // cp_amm.MAX_SQRT_PRICE,
+		decimal.NewFromBigInt(sqrtMinPrice, 0), // cp_amm.MIN_SQRT_PRICE,
+		decimal.NewFromBigInt(initSqrtPrice, 0),
 	)
 
-	baseFeeParam, err := cp_amm.GetBaseFeeParams(maxBaseFeeBps, minBaseFeeBps, feeSchedulerMode, numberOfPeriod, totalDuration)
+	position, err := cp_amm.DerivePositionAddress(positionNft)
 	if err != nil {
 		return nil, solana.PublicKey{}, err
 	}
 
-	dynamicFeeParam, err := cp_amm.GetDynamicFeeParams(minBaseFeeBps, cp_amm.MAX_PRICE_CHANGE_BPS_DEFAULT)
+	positionNftAccount, err := cp_amm.DerivePositionNftAccount(positionNft)
 	if err != nil {
 		return nil, solana.PublicKey{}, err
 	}
 
-	poolFees := cp_amm.PoolFeeParameters{
-		BaseFee:    *baseFeeParam,
-		DynamicFee: dynamicFeeParam,
-		Padding:    [3]uint8{},
-	}
-
-	position, err := cp_amm.DerivePositionAddress(positionNft.PublicKey())
+	poolAddress, err := cp_amm.DeriveCustomizablePoolAddress(baseMint, quoteMint) //m.deriveCpAmmPoolPDA(quoteMint, baseMint)
 	if err != nil {
 		return nil, solana.PublicKey{}, err
 	}
 
-	positionNftAccount, err := cp_amm.DerivePositionNftAccount(positionNft.PublicKey())
+	baseVault, err := cp_amm.DeriveTokenVaultAddress(baseMint, poolAddress)
 	if err != nil {
 		return nil, solana.PublicKey{}, err
 	}
-
-	cpammPool, err := cp_amm.DeriveCustomizablePoolAddress(baseMint, quoteMint) //m.deriveCpAmmPoolPDA(quoteMint, baseMint)
-	if err != nil {
-		return nil, solana.PublicKey{}, err
-	}
-
-	baseVault, err := cp_amm.DeriveTokenVaultAddress(baseMint, cpammPool)
-	if err != nil {
-		return nil, solana.PublicKey{}, err
-	}
-	quoteVault, err := cp_amm.DeriveTokenVaultAddress(quoteMint, cpammPool)
+	quoteVault, err := cp_amm.DeriveTokenVaultAddress(quoteMint, poolAddress)
 	if err != nil {
 		return nil, solana.PublicKey{}, err
 	}
 
 	var instructions []solana.Instruction
 
-	baseTokenAccount, err := solanago.PrepareTokenATA(ctx, m.rpcClient, payer.PublicKey(), baseMint, payer.PublicKey(), &instructions)
+	baseTokenAccount, err := solanago.PrepareTokenATA(ctx, rpcClient, payer, baseMint, payer, &instructions)
 	if err != nil {
 		return nil, solana.PublicKey{}, err
 	}
 
-	quoteTokenAccount, err := solanago.PrepareTokenATA(ctx, m.rpcClient, payer.PublicKey(), quoteMint, payer.PublicKey(), &instructions)
+	quoteTokenAccount, err := solanago.PrepareTokenATA(ctx, rpcClient, payer, quoteMint, payer, &instructions)
 	if err != nil {
 		return nil, solana.PublicKey{}, err
 	}
 
 	if baseMint.Equals(solana.WrappedSol) {
-		if initialPoolTokenBaseAmount.Cmp(big.NewInt(0)) <= 0 {
+		if initialPoolTokenBaseAmount.Cmp(decimal.Zero) <= 0 {
 			return nil, solana.PublicKey{}, fmt.Errorf("amountIn must be greater than 0")
 		}
 
 		wrapSOLIx := system.NewTransferInstruction(
-			initialPoolTokenBaseAmount.Uint64(),
-			payer.PublicKey(),
+			initialPoolTokenBaseAmount.BigInt().Uint64(),
+			payer,
 			baseTokenAccount,
 		).Build()
 
@@ -195,13 +124,13 @@ func (m *DammV2) CreateCustomizablePoolInstruction(
 	}
 
 	if quoteMint.Equals(solana.WrappedSol) {
-		if initialPoolTokenQuoteAmount.Cmp(big.NewInt(0)) <= 0 {
+		if initialPoolTokenQuoteAmount.Cmp(decimal.Zero) <= 0 {
 			return nil, solana.PublicKey{}, fmt.Errorf("amountIn must be greater than 0")
 		}
 
 		wrapSOLIx := system.NewTransferInstruction(
-			initialPoolTokenQuoteAmount.Uint64(),
-			payer.PublicKey(),
+			initialPoolTokenQuoteAmount.BigInt().Uint64(),
+			payer,
 			quoteTokenAccount,
 		).Build()
 
@@ -228,7 +157,8 @@ func (m *DammV2) CreateCustomizablePoolInstruction(
 	tokenBadgeAccounts = append(tokenBadgeAccounts, solana.NewAccountMeta(baseTokenBadge, false, false))
 	tokenBadgeAccounts = append(tokenBadgeAccounts, solana.NewAccountMeta(quoteTokenBadge, false, false))
 
-	createIx, err := cpAmmInitializeCustomizablePool(m,
+	createIx, err := cp_amm.NewInitializeCustomizablePoolInstruction(
+		// Params:
 		&cp_amm.InitializeCustomizablePoolParameters{
 			PoolFees:        poolFees,
 			SqrtMinPrice:    u128.GenUint128FromString(cp_amm.MIN_SQRT_PRICE.String()),
@@ -240,12 +170,14 @@ func (m *DammV2) CreateCustomizablePoolInstruction(
 			CollectFeeMode:  collectFeeMode,
 			ActivationPoint: activationPoint,
 		},
-		m.poolCreator.PublicKey(),
-		positionNft.PublicKey(),
-		position,
+		// Accounts:
+		poolCreator,
+		positionNft,
 		positionNftAccount,
-		payer.PublicKey(),
-		cpammPool,
+		payer,
+		poolAuthority,
+		poolAddress,
+		position,
 		baseMint,
 		quoteMint,
 		baseVault,
@@ -254,6 +186,10 @@ func (m *DammV2) CreateCustomizablePoolInstruction(
 		quoteTokenAccount,
 		tokenBaseProgram,
 		tokenQuoteProgram,
+		solana.Token2022ProgramID,
+		solana.SystemProgramID,
+		eventAuthority,
+		cp_amm.ProgramID,
 		tokenBadgeAccounts,
 	)
 	if err != nil {
@@ -265,8 +201,8 @@ func (m *DammV2) CreateCustomizablePoolInstruction(
 	if baseMint.Equals(solana.WrappedSol) {
 		unwrapIx := token.NewCloseAccountInstruction(
 			baseTokenAccount,
-			payer.PublicKey(),
-			payer.PublicKey(),
+			payer,
+			payer,
 			[]solana.PublicKey{},
 		).Build()
 		instructions = append(instructions, unwrapIx)
@@ -275,21 +211,32 @@ func (m *DammV2) CreateCustomizablePoolInstruction(
 	if quoteMint.Equals(solana.WrappedSol) {
 		unwrapIx := token.NewCloseAccountInstruction(
 			quoteTokenAccount,
-			payer.PublicKey(),
-			payer.PublicKey(),
+			payer,
+			payer,
 			[]solana.PublicKey{},
 		).Build()
 		instructions = append(instructions, unwrapIx)
 	}
 
 	if isLockLiquidity {
-		lockIx, err := cpAmmPermanentLockPosition(m, liquidityDelta, cpammPool, position, positionNftAccount, m.poolCreator.PublicKey())
+		lockIx, err := cp_amm.NewPermanentLockPositionInstruction(
+			// Params:
+			u128.GenUint128FromString(liquidityDelta.String()),
+
+			// Accounts:
+			poolAddress,
+			position,
+			positionNftAccount,
+			poolCreator,
+			eventAuthority,
+			cp_amm.ProgramID,
+		)
 		if err != nil {
 			return nil, solana.PublicKey{}, err
 		}
 		instructions = append(instructions, lockIx)
 	}
-	return instructions, cpammPool, nil
+	return instructions, poolAddress, nil
 }
 
 func (m *DammV2) CreateCustomizablePool(
@@ -313,11 +260,33 @@ func (m *DammV2) CreateCustomizablePool(
 	isLockLiquidity bool,
 ) (string, solana.PublicKey, *solana.Wallet, error) {
 
+	baseFeeParam, err := cp_amm.GetBaseFeeParams(maxBaseFeeBps, minBaseFeeBps, feeSchedulerMode, numberOfPeriod, totalDuration)
+	if err != nil {
+		return "", solana.PublicKey{}, nil, err
+	}
+
+	var dynamicFeeParam *cp_amm.DynamicFeeParameters
+	if useDynamicFee {
+		dynamicFeeParam, err = cp_amm.GetDynamicFeeParams(minBaseFeeBps, cp_amm.MAX_PRICE_CHANGE_BPS_DEFAULT)
+		if err != nil {
+			return "", solana.PublicKey{}, nil, err
+		}
+	}
+
+	poolFees := cp_amm.PoolFeeParameters{
+		BaseFee:    *baseFeeParam,
+		DynamicFee: dynamicFeeParam,
+		Padding:    [3]uint8{},
+	}
+
 	positionNft := solana.NewWallet()
 
-	instructions, cpammPool, err := m.CreateCustomizablePoolInstruction(ctx,
-		payer,
-		positionNft,
+	instructions, cpammPool, err := CreateCustomizablePoolInstruction(
+		ctx,
+		m.rpcClient,
+		payer.PublicKey(),
+		m.poolCreator.PublicKey(),
+		positionNft.PublicKey(),
 		initialPrice,
 		baseMint,
 		quoteMint,
@@ -327,12 +296,9 @@ func (m *DammV2) CreateCustomizablePool(
 		activationType,
 		collectFeeMode,
 		activationPoint,
-		useDynamicFee,
-		maxBaseFeeBps,
-		minBaseFeeBps,
-		feeSchedulerMode,
-		numberOfPeriod,
-		totalDuration,
+		cp_amm.MAX_SQRT_PRICE,
+		cp_amm.MIN_SQRT_PRICE,
+		poolFees,
 		isLockLiquidity,
 	)
 	if err != nil {
@@ -362,67 +328,14 @@ func (m *DammV2) CreateCustomizablePool(
 	return sig.String(), cpammPool, positionNft, nil
 }
 
-func cpAmmInitializePool(
-	m *DammV2,
-	// Params:
-	param *cp_amm.InitializePoolParameters,
-
-	// Accounts:
-	creator solana.PublicKey,
-	positionNft solana.PublicKey,
-	positionNftAccount solana.PublicKey,
-	payer solana.PublicKey,
-	config solana.PublicKey,
-	cpammPool solana.PublicKey,
-	position solana.PublicKey,
-	tokenBaseMint solana.PublicKey,
-	tokenQuoteMint solana.PublicKey,
-	tokenBaseVault solana.PublicKey,
-	tokenQuoteVault solana.PublicKey,
-	tokenBaseAccount solana.PublicKey,
-	tokenQuoteAccount solana.PublicKey,
-	tokenBaseProgram solana.PublicKey,
-	tokenQuoteProgram solana.PublicKey,
-	tokenBadgeAccounts []*solana.AccountMeta,
-) (solana.Instruction, error) {
-	poolAuthority := m.poolAuthority
-	eventAuthority := m.eventAuthority
-	program := cp_amm.ProgramID
-	systemProgram := solana.SystemProgramID
-	return cp_amm.NewInitializePoolInstruction(
-		// Params:
-		param,
-
-		// Accounts:
-		creator,
-		positionNft,
-		positionNftAccount,
-		payer,
-		config,
-		poolAuthority,
-		cpammPool,
-		position,
-		tokenBaseMint,
-		tokenQuoteMint,
-		tokenBaseVault,
-		tokenQuoteVault,
-		tokenBaseAccount,
-		tokenQuoteAccount,
-		tokenBaseProgram,
-		tokenQuoteProgram,
-		solana.Token2022ProgramID,
-		systemProgram,
-		eventAuthority,
-		program,
-		tokenBadgeAccounts,
-	)
-}
-
-func (m *DammV2) CreatePoolInstruction(
+func CreatePoolInstruction(
 	ctx context.Context,
-	payer *solana.Wallet,
-	configurator solana.PublicKey,
-	positionNft *solana.Wallet,
+	rpcClient *rpc.Client,
+	payer solana.PublicKey,
+	poolCreator solana.PublicKey,
+	config solana.PublicKey,
+	configState *cp_amm.Config,
+	positionNft solana.PublicKey,
 	initialPrice int,
 	baseMint solana.PublicKey,
 	quoteMint solana.PublicKey,
@@ -431,12 +344,8 @@ func (m *DammV2) CreatePoolInstruction(
 	activationPoint *uint64,
 	isLockLiquidity bool,
 ) ([]solana.Instruction, solana.PublicKey, error) {
-	config, err := m.GetConfig(ctx, configurator)
-	if err != nil {
-		return nil, solana.PublicKey{}, err
-	}
 
-	tokens, err := solanago.GetMultipleToken(ctx, m.rpcClient, baseMint, quoteMint)
+	tokens, err := solanago.GetMultipleToken(ctx, rpcClient, baseMint, quoteMint)
 	if err != nil {
 		return nil, solana.PublicKey{}, err
 	}
@@ -451,8 +360,8 @@ func (m *DammV2) CreatePoolInstruction(
 	tokenBaseDecimals := tokens[0].Decimals
 	tokenQuoteDecimals := tokens[1].Decimals
 
-	initialPoolTokenBaseAmount := cp_amm.GetInitialPoolTokenAmount(baseAmount, tokenBaseDecimals)
-	initialPoolTokenQuoteAmount := cp_amm.GetInitialPoolTokenAmount(quoteAmount, tokenQuoteDecimals)
+	initialPoolTokenBaseAmount := cp_amm.GetInitialPoolTokenAmount(decimal.NewFromBigInt(baseAmount, 0), tokenBaseDecimals)
+	initialPoolTokenQuoteAmount := cp_amm.GetInitialPoolTokenAmount(decimal.NewFromBigInt(quoteAmount, 0), tokenQuoteDecimals)
 
 	initSqrtPrice, err := cp_amm.GetSqrtPriceFromPrice(strconv.Itoa(initialPrice), tokenBaseDecimals, tokenQuoteDecimals)
 	if err != nil {
@@ -462,56 +371,56 @@ func (m *DammV2) CreatePoolInstruction(
 	liquidityDelta := cp_amm.GetLiquidityDelta(
 		initialPoolTokenBaseAmount,
 		initialPoolTokenQuoteAmount,
-		config.SqrtMaxPrice.BigInt(),
-		config.SqrtMinPrice.BigInt(),
-		initSqrtPrice,
+		decimal.NewFromBigInt(configState.SqrtMaxPrice.BigInt(), 0),
+		decimal.NewFromBigInt(configState.SqrtMinPrice.BigInt(), 0),
+		decimal.NewFromBigInt(initSqrtPrice, 0),
 	)
 
-	position, err := cp_amm.DerivePositionAddress(positionNft.PublicKey())
+	position, err := cp_amm.DerivePositionAddress(positionNft)
 	if err != nil {
 		return nil, solana.PublicKey{}, err
 	}
 
-	positionNftAccount, err := cp_amm.DerivePositionNftAccount(positionNft.PublicKey())
+	positionNftAccount, err := cp_amm.DerivePositionNftAccount(positionNft)
 	if err != nil {
 		return nil, solana.PublicKey{}, err
 	}
 
-	cpammPool, err := cp_amm.DeriveCpAmmPoolPDA(configurator, quoteMint, baseMint)
+	poolAddress, err := cp_amm.DeriveCpAmmPoolPDA(config, quoteMint, baseMint)
 	if err != nil {
 		return nil, solana.PublicKey{}, err
 	}
 
-	baseVault, err := cp_amm.DeriveTokenVaultAddress(baseMint, cpammPool)
+	baseVault, err := cp_amm.DeriveTokenVaultAddress(baseMint, poolAddress)
 	if err != nil {
 		return nil, solana.PublicKey{}, err
 	}
 
-	quoteVault, err := cp_amm.DeriveTokenVaultAddress(quoteMint, cpammPool)
+	quoteVault, err := cp_amm.DeriveTokenVaultAddress(quoteMint, poolAddress)
 	if err != nil {
 		return nil, solana.PublicKey{}, err
 	}
 
 	var instructions []solana.Instruction
 
-	baseTokenAccount, err := solanago.PrepareTokenATA(ctx, m.rpcClient, payer.PublicKey(), baseMint, payer.PublicKey(), &instructions)
+	baseTokenAccount, err := solanago.PrepareTokenATA(ctx, rpcClient, payer, baseMint, payer, &instructions)
 	if err != nil {
 		return nil, solana.PublicKey{}, err
 	}
 
-	quoteTokenAccount, err := solanago.PrepareTokenATA(ctx, m.rpcClient, payer.PublicKey(), quoteMint, payer.PublicKey(), &instructions)
+	quoteTokenAccount, err := solanago.PrepareTokenATA(ctx, rpcClient, payer, quoteMint, payer, &instructions)
 	if err != nil {
 		return nil, solana.PublicKey{}, err
 	}
 
 	if baseMint.Equals(solana.WrappedSol) {
-		if initialPoolTokenBaseAmount.Cmp(big.NewInt(0)) <= 0 {
+		if initialPoolTokenBaseAmount.Cmp(decimal.Zero) <= 0 {
 			return nil, solana.PublicKey{}, fmt.Errorf("amountIn must be greater than 0")
 		}
 
 		wrapSOLIx := system.NewTransferInstruction(
-			initialPoolTokenBaseAmount.Uint64(),
-			payer.PublicKey(),
+			initialPoolTokenBaseAmount.BigInt().Uint64(),
+			payer,
 			baseTokenAccount,
 		).Build()
 
@@ -524,13 +433,13 @@ func (m *DammV2) CreatePoolInstruction(
 	}
 
 	if quoteMint.Equals(solana.WrappedSol) {
-		if initialPoolTokenQuoteAmount.Cmp(big.NewInt(0)) <= 0 {
+		if initialPoolTokenQuoteAmount.Cmp(decimal.Zero) <= 0 {
 			return nil, solana.PublicKey{}, fmt.Errorf("amountIn must be greater than 0")
 		}
 
 		wrapSOLIx := system.NewTransferInstruction(
-			initialPoolTokenQuoteAmount.Uint64(),
-			payer.PublicKey(),
+			initialPoolTokenQuoteAmount.BigInt().Uint64(),
+			payer,
 			quoteTokenAccount,
 		).Build()
 
@@ -554,18 +463,22 @@ func (m *DammV2) CreatePoolInstruction(
 	tokenBadgeAccounts = append(tokenBadgeAccounts, solana.NewAccountMeta(baseTokenBadge, false, false))
 	tokenBadgeAccounts = append(tokenBadgeAccounts, solana.NewAccountMeta(quoteTokenBadge, false, false))
 
-	createIx, err := cpAmmInitializePool(m,
+	createIx, err := cp_amm.NewInitializePoolInstruction(
+		// Params:
 		&cp_amm.InitializePoolParameters{
 			Liquidity:       u128.GenUint128FromString(liquidityDelta.String()),
 			SqrtPrice:       u128.GenUint128FromString(initSqrtPrice.String()),
 			ActivationPoint: activationPoint,
 		},
-		m.poolCreator.PublicKey(),
-		positionNft.PublicKey(),
+
+		// Accounts:
+		poolCreator,
+		positionNft,
 		positionNftAccount,
-		payer.PublicKey(),
-		configurator,
-		cpammPool,
+		payer,
+		config,
+		poolAuthority,
+		poolAddress,
 		position,
 		baseMint,
 		quoteMint,
@@ -575,8 +488,13 @@ func (m *DammV2) CreatePoolInstruction(
 		quoteTokenAccount,
 		tokenBaseProgram,
 		tokenQuoteProgram,
+		solana.Token2022ProgramID,
+		solana.SystemProgramID,
+		eventAuthority,
+		cp_amm.ProgramID,
 		tokenBadgeAccounts,
 	)
+
 	if err != nil {
 		return nil, solana.PublicKey{}, err
 	}
@@ -585,8 +503,8 @@ func (m *DammV2) CreatePoolInstruction(
 	if baseMint.Equals(solana.WrappedSol) {
 		unwrapIx := token.NewCloseAccountInstruction(
 			baseTokenAccount,
-			payer.PublicKey(),
-			payer.PublicKey(),
+			payer,
+			payer,
 			[]solana.PublicKey{},
 		).Build()
 		instructions = append(instructions, unwrapIx)
@@ -595,21 +513,32 @@ func (m *DammV2) CreatePoolInstruction(
 	if quoteMint.Equals(solana.WrappedSol) {
 		unwrapIx := token.NewCloseAccountInstruction(
 			quoteTokenAccount,
-			payer.PublicKey(),
-			payer.PublicKey(),
+			payer,
+			payer,
 			[]solana.PublicKey{},
 		).Build()
 		instructions = append(instructions, unwrapIx)
 	}
 
 	if isLockLiquidity {
-		lockIx, err := cpAmmPermanentLockPosition(m, liquidityDelta, cpammPool, position, positionNftAccount, m.poolCreator.PublicKey())
+		lockIx, err := cp_amm.NewPermanentLockPositionInstruction(
+			// Params:
+			u128.GenUint128FromString(liquidityDelta.String()),
+
+			// Accounts:
+			poolAddress,
+			position,
+			positionNftAccount,
+			poolCreator,
+			eventAuthority,
+			cp_amm.ProgramID,
+		)
 		if err != nil {
 			return nil, solana.PublicKey{}, err
 		}
 		instructions = append(instructions, lockIx)
 	}
-	return instructions, cpammPool, nil
+	return instructions, poolAddress, nil
 }
 
 func (m *DammV2) CreatePool(
@@ -624,16 +553,24 @@ func (m *DammV2) CreatePool(
 	activationPoint *uint64,
 	isLockLiquidity bool,
 ) (string, solana.PublicKey, *solana.Wallet, error) {
-	configurator, err := cp_amm.DeriveConfigAddress(configIndex)
+	config, err := cp_amm.DeriveConfigAddress(configIndex)
+	if err != nil {
+		return "", solana.PublicKey{}, nil, err
+	}
+	configState, err := m.GetConfig(ctx, config)
 	if err != nil {
 		return "", solana.PublicKey{}, nil, err
 	}
 
 	positionNft := solana.NewWallet()
-	instructions, cpammPool, err := m.CreatePoolInstruction(ctx,
-		payer,
-		configurator,
-		positionNft,
+	instructions, cpammPool, err := CreatePoolInstruction(
+		ctx,
+		m.rpcClient,
+		payer.PublicKey(),
+		m.poolCreator.PublicKey(),
+		config,
+		configState,
+		positionNft.PublicKey(),
 		initialPrice,
 		baseMint,
 		quoteMint,
@@ -669,71 +606,15 @@ func (m *DammV2) CreatePool(
 	return sig.String(), cpammPool, positionNft, nil
 }
 
-func cpAmmInitializePoolWithDynamicConfig(
-	m *DammV2,
-	// Params:
-	param *cp_amm.InitializeCustomizablePoolParameters,
-
-	// Accounts:
-	creator solana.PublicKey,
-	positionNft solana.PublicKey,
-	positionNftAccount solana.PublicKey,
-	payer solana.PublicKey,
-	poolCreatorAuthority solana.PublicKey,
-	config solana.PublicKey,
-	cpammPool solana.PublicKey,
-	position solana.PublicKey,
-	tokenBaseMint solana.PublicKey,
-	tokenQuoteMint solana.PublicKey,
-	tokenBaseVault solana.PublicKey,
-	tokenQuoteVault solana.PublicKey,
-	payerBaseToken solana.PublicKey,
-	payerQuoteToken solana.PublicKey,
-	tokenBaseProgram solana.PublicKey,
-	tokenQuoteProgram solana.PublicKey,
-	tokenBadgeAccounts []*solana.AccountMeta,
-) (solana.Instruction, error) {
-	poolAuthority := m.poolAuthority
-	eventAuthority := m.eventAuthority
-	program := cp_amm.ProgramID
-	systemProgram := solana.SystemProgramID
-
-	return cp_amm.NewInitializePoolWithDynamicConfigInstruction(
-		// Params:
-		param,
-
-		// Accounts:
-		creator,
-		positionNft,
-		positionNftAccount,
-		payer,
-		poolCreatorAuthority,
-		config,
-		poolAuthority,
-		cpammPool,
-		position,
-		tokenBaseMint,
-		tokenQuoteMint,
-		tokenBaseVault,
-		tokenQuoteVault,
-		payerBaseToken,
-		payerQuoteToken,
-		tokenBaseProgram,
-		tokenQuoteProgram,
-		solana.Token2022ProgramID,
-		systemProgram,
-		eventAuthority,
-		program,
-		tokenBadgeAccounts,
-	)
-}
-
-func (m *DammV2) CreateCustomizablePoolWithDynamicConfigInstruction(
+func CreateCustomizablePoolWithDynamicConfigInstruction(
 	ctx context.Context,
-	payer *solana.Wallet,
-	configurator solana.PublicKey,
-	positionNft *solana.Wallet,
-	poolCreatorAuthority *solana.Wallet,
+	rpcClient *rpc.Client,
+	payer solana.PublicKey,
+	poolCreator solana.PublicKey,
+	config solana.PublicKey,
+	configState *cp_amm.Config,
+	positionNft solana.PublicKey,
+	poolCreatorAuthority solana.PublicKey,
 	initialPrice int, // 1 base token = 1 quote token
 	baseMint solana.PublicKey,
 	quoteMint solana.PublicKey,
@@ -743,21 +624,11 @@ func (m *DammV2) CreateCustomizablePoolWithDynamicConfigInstruction(
 	activationType cp_amm.ActivationType,
 	collectFeeMode cp_amm.CollectFeeMode,
 	activationPoint *uint64,
-	useDynamicFee bool,
-	maxBaseFeeBps int64,
-	minBaseFeeBps int64,
-	feeSchedulerMode cp_amm.FeeSchedulerMode,
-	numberOfPeriod int,
-	totalDuration int64,
+	poolFees cp_amm.PoolFeeParameters,
 	isLockLiquidity bool,
 ) ([]solana.Instruction, solana.PublicKey, error) {
 
-	config, err := m.GetConfig(ctx, configurator)
-	if err != nil {
-		return nil, solana.PublicKey{}, err
-	}
-
-	tokens, err := solanago.GetMultipleToken(ctx, m.rpcClient, baseMint, quoteMint)
+	tokens, err := solanago.GetMultipleToken(ctx, rpcClient, baseMint, quoteMint)
 	if err != nil {
 		return nil, solana.PublicKey{}, err
 	}
@@ -772,8 +643,8 @@ func (m *DammV2) CreateCustomizablePoolWithDynamicConfigInstruction(
 	tokenBaseDecimals := tokens[0].Decimals
 	tokenQuoteDecimals := tokens[1].Decimals
 
-	initialPoolTokenBaseAmount := cp_amm.GetInitialPoolTokenAmount(baseAmount, tokenBaseDecimals)
-	initialPoolTokenQuoteAmount := cp_amm.GetInitialPoolTokenAmount(quoteAmount, tokenQuoteDecimals)
+	initialPoolTokenBaseAmount := cp_amm.GetInitialPoolTokenAmount(decimal.NewFromBigInt(baseAmount, 0), tokenBaseDecimals)
+	initialPoolTokenQuoteAmount := cp_amm.GetInitialPoolTokenAmount(decimal.NewFromBigInt(quoteAmount, 0), tokenQuoteDecimals)
 
 	initSqrtPrice, err := cp_amm.GetSqrtPriceFromPrice(strconv.Itoa(initialPrice), tokenBaseDecimals, tokenQuoteDecimals)
 	if err != nil {
@@ -783,65 +654,55 @@ func (m *DammV2) CreateCustomizablePoolWithDynamicConfigInstruction(
 	liquidityDelta := cp_amm.GetLiquidityDelta(
 		initialPoolTokenBaseAmount,
 		initialPoolTokenQuoteAmount,
-		config.SqrtMaxPrice.BigInt(),
-		config.SqrtMinPrice.BigInt(),
-		initSqrtPrice,
+		decimal.NewFromBigInt(configState.SqrtMaxPrice.BigInt(), 0),
+		decimal.NewFromBigInt(configState.SqrtMinPrice.BigInt(), 0),
+		decimal.NewFromBigInt(initSqrtPrice, 0),
 	)
 
-	baseFeeParam, err := cp_amm.GetBaseFeeParams(maxBaseFeeBps, minBaseFeeBps, feeSchedulerMode, numberOfPeriod, totalDuration)
+	position, err := cp_amm.DerivePositionAddress(positionNft)
 	if err != nil {
 		return nil, solana.PublicKey{}, err
 	}
 
-	poolFees := cp_amm.PoolFeeParameters{
-		BaseFee: *baseFeeParam,
-		Padding: [3]uint8{},
-	}
-
-	position, err := cp_amm.DerivePositionAddress(positionNft.PublicKey())
+	positionNftAccount, err := cp_amm.DerivePositionNftAccount(positionNft)
 	if err != nil {
 		return nil, solana.PublicKey{}, err
 	}
 
-	positionNftAccount, err := cp_amm.DerivePositionNftAccount(positionNft.PublicKey())
+	poolAddress, err := cp_amm.DeriveCpAmmPoolPDA(config, quoteMint, baseMint)
 	if err != nil {
 		return nil, solana.PublicKey{}, err
 	}
 
-	cpammPool, err := cp_amm.DeriveCpAmmPoolPDA(configurator, quoteMint, baseMint)
+	baseVault, err := cp_amm.DeriveTokenVaultAddress(baseMint, poolAddress)
 	if err != nil {
 		return nil, solana.PublicKey{}, err
 	}
-
-	baseVault, err := cp_amm.DeriveTokenVaultAddress(baseMint, cpammPool)
-	if err != nil {
-		return nil, solana.PublicKey{}, err
-	}
-	quoteVault, err := cp_amm.DeriveTokenVaultAddress(quoteMint, cpammPool)
+	quoteVault, err := cp_amm.DeriveTokenVaultAddress(quoteMint, poolAddress)
 	if err != nil {
 		return nil, solana.PublicKey{}, err
 	}
 
 	var instructions []solana.Instruction
 
-	baseTokenAccount, err := solanago.PrepareTokenATA(ctx, m.rpcClient, payer.PublicKey(), baseMint, payer.PublicKey(), &instructions)
+	baseTokenAccount, err := solanago.PrepareTokenATA(ctx, rpcClient, payer, baseMint, payer, &instructions)
 	if err != nil {
 		return nil, solana.PublicKey{}, err
 	}
 
-	quoteTokenAccount, err := solanago.PrepareTokenATA(ctx, m.rpcClient, payer.PublicKey(), quoteMint, payer.PublicKey(), &instructions)
+	quoteTokenAccount, err := solanago.PrepareTokenATA(ctx, rpcClient, payer, quoteMint, payer, &instructions)
 	if err != nil {
 		return nil, solana.PublicKey{}, err
 	}
 
 	if baseMint.Equals(solana.WrappedSol) {
-		if initialPoolTokenBaseAmount.Cmp(big.NewInt(0)) <= 0 {
+		if initialPoolTokenBaseAmount.Cmp(decimal.Zero) <= 0 {
 			return nil, solana.PublicKey{}, fmt.Errorf("amountIn must be greater than 0")
 		}
 
 		wrapSOLIx := system.NewTransferInstruction(
-			initialPoolTokenBaseAmount.Uint64(),
-			payer.PublicKey(),
+			initialPoolTokenBaseAmount.BigInt().Uint64(),
+			payer,
 			baseTokenAccount,
 		).Build()
 
@@ -854,13 +715,13 @@ func (m *DammV2) CreateCustomizablePoolWithDynamicConfigInstruction(
 	}
 
 	if quoteMint.Equals(solana.WrappedSol) {
-		if initialPoolTokenQuoteAmount.Cmp(big.NewInt(0)) <= 0 {
+		if initialPoolTokenQuoteAmount.Cmp(decimal.Zero) <= 0 {
 			return nil, solana.PublicKey{}, fmt.Errorf("amountIn must be greater than 0")
 		}
 
 		wrapSOLIx := system.NewTransferInstruction(
-			initialPoolTokenQuoteAmount.Uint64(),
-			payer.PublicKey(),
+			initialPoolTokenQuoteAmount.BigInt().Uint64(),
+			payer,
 			quoteTokenAccount,
 		).Build()
 
@@ -884,7 +745,8 @@ func (m *DammV2) CreateCustomizablePoolWithDynamicConfigInstruction(
 	tokenBadgeAccounts = append(tokenBadgeAccounts, solana.NewAccountMeta(baseTokenBadge, false, false))
 	tokenBadgeAccounts = append(tokenBadgeAccounts, solana.NewAccountMeta(quoteTokenBadge, false, false))
 
-	createIx, err := cpAmmInitializePoolWithDynamicConfig(m,
+	createIx, err := cp_amm.NewInitializePoolWithDynamicConfigInstruction(
+		// Params:
 		&cp_amm.InitializeCustomizablePoolParameters{
 			PoolFees:        poolFees,
 			SqrtMinPrice:    u128.GenUint128FromString(cp_amm.MIN_SQRT_PRICE.String()),
@@ -896,13 +758,16 @@ func (m *DammV2) CreateCustomizablePoolWithDynamicConfigInstruction(
 			CollectFeeMode:  collectFeeMode,
 			ActivationPoint: activationPoint,
 		},
-		m.poolCreator.PublicKey(),
-		positionNft.PublicKey(),
+
+		// Accounts:
+		poolCreator,
+		positionNft,
 		positionNftAccount,
-		payer.PublicKey(),
-		poolCreatorAuthority.PublicKey(),
-		configurator,
-		cpammPool,
+		payer,
+		poolCreatorAuthority,
+		config,
+		poolAuthority,
+		poolAddress,
 		position,
 		baseMint,
 		quoteMint,
@@ -912,8 +777,13 @@ func (m *DammV2) CreateCustomizablePoolWithDynamicConfigInstruction(
 		quoteTokenAccount,
 		tokenBaseProgram,
 		tokenQuoteProgram,
+		solana.Token2022ProgramID,
+		solana.SystemProgramID,
+		eventAuthority,
+		cp_amm.ProgramID,
 		tokenBadgeAccounts,
 	)
+
 	if err != nil {
 		return nil, solana.PublicKey{}, err
 	}
@@ -922,8 +792,8 @@ func (m *DammV2) CreateCustomizablePoolWithDynamicConfigInstruction(
 	if baseMint.Equals(solana.WrappedSol) {
 		unwrapIx := token.NewCloseAccountInstruction(
 			baseTokenAccount,
-			payer.PublicKey(),
-			payer.PublicKey(),
+			payer,
+			payer,
 			[]solana.PublicKey{},
 		).Build()
 		instructions = append(instructions, unwrapIx)
@@ -932,21 +802,32 @@ func (m *DammV2) CreateCustomizablePoolWithDynamicConfigInstruction(
 	if quoteMint.Equals(solana.WrappedSol) {
 		unwrapIx := token.NewCloseAccountInstruction(
 			quoteTokenAccount,
-			payer.PublicKey(),
-			payer.PublicKey(),
+			payer,
+			payer,
 			[]solana.PublicKey{},
 		).Build()
 		instructions = append(instructions, unwrapIx)
 	}
 
 	if isLockLiquidity {
-		lockIx, err := cpAmmPermanentLockPosition(m, liquidityDelta, cpammPool, position, positionNftAccount, m.poolCreator.PublicKey())
+		lockIx, err := cp_amm.NewPermanentLockPositionInstruction(
+			// Params:
+			u128.GenUint128FromString(liquidityDelta.String()),
+
+			// Accounts:
+			poolAddress,
+			position,
+			positionNftAccount,
+			poolCreator,
+			eventAuthority,
+			cp_amm.ProgramID,
+		)
 		if err != nil {
 			return nil, solana.PublicKey{}, err
 		}
 		instructions = append(instructions, lockIx)
 	}
-	return instructions, cpammPool, nil
+	return instructions, poolAddress, nil
 }
 
 func (m *DammV2) CreateCustomizablePoolWithDynamicConfig(
@@ -971,18 +852,45 @@ func (m *DammV2) CreateCustomizablePoolWithDynamicConfig(
 	totalDuration int64,
 	isLockLiquidity bool,
 ) (string, solana.PublicKey, *solana.Wallet, error) {
-	configurator, err := cp_amm.DeriveConfigAddress(configIndex)
+	config, err := cp_amm.DeriveConfigAddress(configIndex)
+	if err != nil {
+		return "", solana.PublicKey{}, nil, err
+	}
+	configState, err := m.GetConfig(ctx, config)
 	if err != nil {
 		return "", solana.PublicKey{}, nil, err
 	}
 
+	baseFeeParam, err := cp_amm.GetBaseFeeParams(maxBaseFeeBps, minBaseFeeBps, feeSchedulerMode, numberOfPeriod, totalDuration)
+	if err != nil {
+		return "", solana.PublicKey{}, nil, err
+	}
+
+	var dynamicFeeParam *cp_amm.DynamicFeeParameters
+	if useDynamicFee {
+		dynamicFeeParam, err = cp_amm.GetDynamicFeeParams(minBaseFeeBps, cp_amm.MAX_PRICE_CHANGE_BPS_DEFAULT)
+		if err != nil {
+			return "", solana.PublicKey{}, nil, err
+		}
+	}
+
+	poolFees := cp_amm.PoolFeeParameters{
+		BaseFee:    *baseFeeParam,
+		DynamicFee: dynamicFeeParam,
+		Padding:    [3]uint8{},
+	}
+
 	positionNft := solana.NewWallet()
 
-	instructions, cpammPool, err := m.CreateCustomizablePoolWithDynamicConfigInstruction(ctx,
-		payer,
-		configurator,
-		positionNft,
-		poolCreatorAuthority,
+	instructions, cpammPool, err := CreateCustomizablePoolWithDynamicConfigInstruction(
+		ctx,
+		m.rpcClient,
+		payer.PublicKey(),
+		m.poolCreator.PublicKey(),
+		config,
+		configState,
+		positionNft.PublicKey(),
+		poolCreatorAuthority.PublicKey(),
 		initialPrice,
 		baseMint,
 		quoteMint,
@@ -992,44 +900,38 @@ func (m *DammV2) CreateCustomizablePoolWithDynamicConfig(
 		activationType,
 		collectFeeMode,
 		activationPoint,
-		useDynamicFee,
-		maxBaseFeeBps,
-		minBaseFeeBps,
-		feeSchedulerMode,
-		numberOfPeriod,
-		totalDuration,
+		poolFees,
 		isLockLiquidity,
 	)
 	if err != nil {
 		return "", solana.PublicKey{}, nil, err
 	}
-	fmt.Println(len(instructions))
-	{
-		sig, err := solanago.SendTransaction(ctx,
-			m.rpcClient,
-			m.wsClient,
-			instructions[:4],
-			payer.PublicKey(),
-			func(key solana.PublicKey) *solana.PrivateKey {
-				switch {
-				case key.Equals(payer.PublicKey()):
-					return &payer.PrivateKey
-				case key.Equals(poolCreatorAuthority.PublicKey()):
-					return &poolCreatorAuthority.PrivateKey
-				case key.Equals(m.poolCreator.PublicKey()):
-					return &m.poolCreator.PrivateKey
-				case key.Equals(positionNft.PublicKey()):
-					return &positionNft.PrivateKey
-				default:
-					return nil
-				}
-			},
-		)
-		if err != nil {
-			return "", solana.PublicKey{}, nil, err
-		}
-		fmt.Println("sig", sig.String())
-	}
+	// {
+	// 	sig, err := solanago.SendTransaction(ctx,
+	// 		m.rpcClient,
+	// 		m.wsClient,
+	// 		instructions[:4],
+	// 		payer.PublicKey(),
+	// 		func(key solana.PublicKey) *solana.PrivateKey {
+	// 			switch {
+	// 			case key.Equals(payer.PublicKey()):
+	// 				return &payer.PrivateKey
+	// 			case key.Equals(poolCreatorAuthority.PublicKey()):
+	// 				return &poolCreatorAuthority.PrivateKey
+	// 			case key.Equals(m.poolCreator.PublicKey()):
+	// 				return &m.poolCreator.PrivateKey
+	// 			case key.Equals(positionNft.PublicKey()):
+	// 				return &positionNft.PrivateKey
+	// 			default:
+	// 				return nil
+	// 			}
+	// 		},
+	// 	)
+	// 	if err != nil {
+	// 		return "", solana.PublicKey{}, nil, err
+	// 	}
+	// 	fmt.Println("sig", sig.String())
+	// }
 
 	sig, err := solanago.SendTransaction(ctx,
 		m.rpcClient,
@@ -1058,9 +960,16 @@ func (m *DammV2) CreateCustomizablePoolWithDynamicConfig(
 }
 
 func (m *DammV2) GetPools(ctx context.Context) (map[solana.PublicKey]*Pool, error) {
+	return GetPools(ctx, m.rpcClient)
+}
+
+func GetPools(
+	ctx context.Context,
+	rpcClient *rpc.Client,
+) (map[solana.PublicKey]*Pool, error) {
 	opt := solanago.GenProgramAccountFilter(cp_amm.AccountKeyPool, nil)
 
-	outs, err := m.rpcClient.GetProgramAccountsWithOpts(ctx, cp_amm.ProgramID, opt)
+	outs, err := rpcClient.GetProgramAccountsWithOpts(ctx, cp_amm.ProgramID, opt)
 	if err != nil {
 		if err == rpc.ErrNotFound {
 			return nil, nil
@@ -1083,8 +992,19 @@ func (m *DammV2) GetPools(ctx context.Context) (map[solana.PublicKey]*Pool, erro
 	return data, nil
 }
 
-func (m *DammV2) GetPoolByBaseMint(ctx context.Context, baseMint solana.PublicKey) (*Pool, error) {
-	pools, err := m.GetPools(ctx)
+func (m *DammV2) GetPoolByBaseMint(
+	ctx context.Context,
+	baseMint solana.PublicKey,
+) (*Pool, error) {
+	return GetPoolByBaseMint(ctx, m.rpcClient, baseMint)
+}
+
+func GetPoolByBaseMint(
+	ctx context.Context,
+	rpcClient *rpc.Client,
+	baseMint solana.PublicKey,
+) (*Pool, error) {
+	pools, err := GetPools(ctx, rpcClient)
 	if err != nil {
 		return nil, err
 	}

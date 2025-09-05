@@ -71,6 +71,10 @@ func TestDbc(t *testing.T) {
 	}
 	fmt.Printf("\n\n")
 
+	if err = dbc.Init(); err != nil {
+		t.Fatal("dbc.Init() fail", err)
+	}
+
 	meteoraDBC, err := dbc.NewDBC(wsClient, rpcClient, config, poolCreator, poolPartner, leftoverReceiver)
 	if err != nil {
 		t.Fatal("NewMeteoraDBC() fail", err)
@@ -164,11 +168,11 @@ func TestDbc(t *testing.T) {
 			ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
 			defer cancel1()
 			amountIn := new(big.Int).SetUint64(balance)
-			quote, virtualPool, cfg, currentPoint, err := meteoraDBC.SellQuote(ctx1, baseMint, amountIn, 250)
+			quote, poolState, configState, currentPoint, err := meteoraDBC.SellQuote(ctx1, baseMint, amountIn, 250)
 			if err != nil {
 				t.Fatal("testMintBalance() fail")
 			}
-			sig, err := meteoraDBC.Sell(ctx1, ownerWallet, nil, virtualPool, cfg, amountIn, quote.MinimumAmountOut, currentPoint)
+			sig, err := meteoraDBC.Sell(ctx1, ownerWallet, nil, poolState.Address, poolState.VirtualPool, configState, amountIn, quote.MinimumAmountOut, currentPoint)
 			if err != nil {
 				t.Fatal("dbc.Sell() fail", err)
 			}
@@ -213,12 +217,12 @@ func TestDbc(t *testing.T) {
 		ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
 		defer cancel1()
 		amountIn := new(big.Int).SetUint64(uint64(0.4 * 1e9))
-		minOutAmount, virtualPool, cfg, currentPoint, err := meteoraDBC.BuyQuote(ctx1, baseMint, amountIn, 250)
+		minOutAmount, poolState, configState, currentPoint, err := meteoraDBC.BuyQuote(ctx1, baseMint, amountIn, 250)
 		if err != nil {
 			t.Fatal("dbc.BuyQuote() fail", err)
 		}
 		fmt.Printf("buy token address:%s expected:%v minimum:%v\n", baseMint, minOutAmount.AmountOut, minOutAmount.MinimumAmountOut)
-		sig, err := meteoraDBC.Buy(ctx1, ownerWallet, nil, virtualPool, cfg, amountIn, minOutAmount.MinimumAmountOut, currentPoint)
+		sig, err := meteoraDBC.Buy(ctx1, ownerWallet, nil, poolState.Address, poolState.VirtualPool, configState, amountIn, minOutAmount.MinimumAmountOut, currentPoint)
 		if err != nil {
 			t.Fatal("dbc.Buy() fail", err)
 		}
@@ -242,11 +246,11 @@ func TestDbc(t *testing.T) {
 		defer cancel1()
 
 		amountIn := new(big.Int).SetUint64(balance / 2) // uint64(100000 * 1e9)
-		quote, virtualPool, cfg, currentPoint, err := meteoraDBC.SellQuote(ctx1, baseMint, amountIn, 250)
+		quote, poolState, configState, currentPoint, err := meteoraDBC.SellQuote(ctx1, baseMint, amountIn, 250)
 		if err != nil {
 			t.Fatal("dbc.SellQuote() fail", err)
 		}
-		sig, err := meteoraDBC.Sell(ctx1, ownerWallet, nil, virtualPool, cfg, amountIn, quote.MinimumAmountOut, currentPoint)
+		sig, err := meteoraDBC.Sell(ctx1, ownerWallet, nil, poolState.Address, poolState.VirtualPool, configState, amountIn, quote.MinimumAmountOut, currentPoint)
 		if err != nil {
 			t.Fatal("dbc.Sell() fail", err)
 		}
@@ -267,12 +271,12 @@ func TestDbc(t *testing.T) {
 		ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
 		defer cancel1()
 		amountIn := new(big.Int).SetUint64(uint64(0.2 * 1e9))
-		minOutAmount, virtualPool, cfg, currentPoint, err := meteoraDBC.BuyQuote(ctx1, baseMint, amountIn, 250)
+		minOutAmount, poolState, configState, currentPoint, err := meteoraDBC.BuyQuote(ctx1, baseMint, amountIn, 250)
 		if err != nil {
 			t.Fatal("dbc.BuyQuote() fail", err)
 		}
 		fmt.Printf("buy token address:%s expected:%v minimum:%v\n", baseMint, minOutAmount.AmountOut, minOutAmount.MinimumAmountOut)
-		sig, err := meteoraDBC.Buy(ctx1, ownerWallet, nil, virtualPool, cfg, amountIn, minOutAmount.MinimumAmountOut, currentPoint)
+		sig, err := meteoraDBC.Buy(ctx1, ownerWallet, nil, poolState.Address, poolState.VirtualPool, configState, amountIn, minOutAmount.MinimumAmountOut, currentPoint)
 		if err != nil {
 			t.Fatal("dbc.Buy() fail", err)
 		}
@@ -292,11 +296,11 @@ func TestDbc(t *testing.T) {
 		ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
 		defer cancel1()
 		amountIn := new(big.Int).SetUint64(balance) // uint64(100000 * 1e9)
-		quote, virtualPool, cfg, currentPoint, err := meteoraDBC.SellQuote(ctx1, baseMint, amountIn, 250)
+		quote, poolState, configState, currentPoint, err := meteoraDBC.SellQuote(ctx1, baseMint, amountIn, 250)
 		if err != nil {
 			t.Fatal("dbc.SellQuote() fail", err)
 		}
-		sig, err := meteoraDBC.Sell(ctx1, ownerWallet, nil, virtualPool, cfg, amountIn, quote.MinimumAmountOut, currentPoint)
+		sig, err := meteoraDBC.Sell(ctx1, ownerWallet, nil, poolState.Address, poolState.VirtualPool, configState, amountIn, quote.MinimumAmountOut, currentPoint)
 		if err != nil {
 			t.Fatal("dbc.Sell() fail", err)
 		}
@@ -412,12 +416,12 @@ func TestDbc(t *testing.T) {
 			ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
 			defer cancel1()
 			amountIn := new(big.Int).SetUint64(uint64(1 * 1e9))
-			minOutAmount, virtualPool, cfg, currentPoint, err := meteoraDBC.BuyQuote(ctx1, baseMint, amountIn, 250)
+			minOutAmount, poolState, configState, currentPoint, err := meteoraDBC.BuyQuote(ctx1, baseMint, amountIn, 250)
 			if err != nil {
 				t.Fatal("dbc.BuyQuote() fail", err)
 			}
 			fmt.Printf("buy token address:%s expected:%v minimum:%v\n", baseMint, minOutAmount.AmountOut, minOutAmount.MinimumAmountOut)
-			sig, err := meteoraDBC.Buy(ctx1, ownerWallet, nil, virtualPool, cfg, amountIn, minOutAmount.MinimumAmountOut, currentPoint)
+			sig, err := meteoraDBC.Buy(ctx1, ownerWallet, nil, poolState.Address, poolState.VirtualPool, configState, amountIn, minOutAmount.MinimumAmountOut, currentPoint)
 			if err != nil {
 				t.Fatal("dbc.Buy() fail", err)
 			}
@@ -620,12 +624,12 @@ func TestDbc(t *testing.T) {
 				defer cancel1()
 				amountIn := new(big.Int).SetUint64(balance) // uint64(100000 * 1e9)
 
-				quote, virtualPool, err := meteoraDammV2.SellQuote(ctx1, baseMint, amountIn, 250)
+				quote, poolState, err := meteoraDammV2.SellQuote(ctx1, baseMint, amountIn, 250)
 				if err != nil {
 					t.Fatal("cpAmm.BuyQuote fail", err)
 				}
 
-				sig, err := meteoraDammV2.Sell(ctx1, leftoverReceiver, nil, virtualPool, amountIn, quote.MinSwapOutAmount)
+				sig, err := meteoraDammV2.Sell(ctx1, leftoverReceiver, nil, poolState.Address, poolState.Pool, amountIn, quote.MinSwapOutAmount)
 				if err != nil {
 					t.Fatal("cpAmm.Sell fail", err)
 				}
@@ -673,12 +677,12 @@ func TestDbc(t *testing.T) {
 		ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
 		defer cancel1()
 		amountIn := new(big.Int).SetUint64(uint64(0.2 * 1e9))
-		minOutAmount, virtualPool, err := meteoraDammV2.BuyQuote(ctx1, baseMint, amountIn, 250)
+		minOutAmount, poolState, err := meteoraDammV2.BuyQuote(ctx1, baseMint, amountIn, 250)
 		if err != nil {
 			t.Fatal("cpAmm.BuyQuote() fail", err)
 		}
 		fmt.Printf("buy token address:%s expected:%v minimum:%v\n", baseMint, minOutAmount.SwapOutAmount, minOutAmount.MinSwapOutAmount)
-		sig, err := meteoraDammV2.Buy(ctx1, ownerWallet, nil, virtualPool, amountIn, minOutAmount.MinSwapOutAmount)
+		sig, err := meteoraDammV2.Buy(ctx1, ownerWallet, nil, poolState.Address, poolState.Pool, amountIn, minOutAmount.MinSwapOutAmount)
 		if err != nil {
 			t.Fatal("cpAmm.Buy() fail", err)
 		}
@@ -701,12 +705,12 @@ func TestDbc(t *testing.T) {
 			defer cancel1()
 			amountIn := new(big.Int).SetUint64(balance) // uint64(100000 * 1e9)
 
-			quote, virtualPool, err := meteoraDammV2.SellQuote(ctx1, baseMint, amountIn, 250)
+			quote, poolState, err := meteoraDammV2.SellQuote(ctx1, baseMint, amountIn, 250)
 			if err != nil {
 				t.Fatal("cpAmm.BuyQuote fail", err)
 			}
 
-			sig, err := meteoraDammV2.Sell(ctx1, ownerWallet, nil, virtualPool, amountIn, quote.MinSwapOutAmount)
+			sig, err := meteoraDammV2.Sell(ctx1, ownerWallet, nil, poolState.Address, poolState.Pool, amountIn, quote.MinSwapOutAmount)
 			if err != nil {
 				t.Fatal("cpAmm.Sell fail", err)
 			}
@@ -891,7 +895,7 @@ func testDBCPoolCheck(t *testing.T, ctx context.Context, dbc *dbc.DBC, baseMint 
 	fmt.Println("pool.CreatorQuoteFee:", pool.CreatorQuoteFee)
 	fmt.Println("===========================")
 
-	return pool
+	return pool.VirtualPool
 }
 
 func testDBCConfigCheck(t *testing.T, ctx context.Context, dbc *dbc.DBC, quoteMint, address solana.PublicKey) {

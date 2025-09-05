@@ -15,7 +15,43 @@ var (
 
 	ErrDammV2LockerNotRequired = errors.New("locker not required")
 	ErrMigrationProgressState  = errors.New("virtual pool state error")
+
+	poolAuthority        solana.PublicKey
+	eventAuthority       solana.PublicKey
+	lockerEventAuthority solana.PublicKey
+
+	dammPoolAuthority  solana.PublicKey
+	dammEventAuthority solana.PublicKey
 )
+
+func Init() error {
+	var err error
+	poolAuthority, err = dbc.DerivePoolAuthorityPDA()
+	if err != nil {
+		return err
+	}
+
+	eventAuthority, err = dbc.DeriveEventAuthorityPDA()
+	if err != nil {
+		return err
+	}
+
+	lockerEventAuthority, err = dbc.DeriveLockerEventAuthority()
+	if err != nil {
+		return err
+	}
+
+	dammPoolAuthority, err = dbc.DeriveDammV2PoolAuthority()
+	if err != nil {
+		return err
+	}
+
+	dammEventAuthority, err = dbc.DeriveDammV2EventAuthority()
+	if err != nil {
+		return err
+	}
+	return nil
+}
 
 type DBC struct {
 	wsClient         *ws.Client
@@ -24,13 +60,6 @@ type DBC struct {
 	feeClaimer       *solana.Wallet
 	leftoverReceiver *solana.Wallet
 	poolCreator      *solana.Wallet
-
-	poolAuthority        solana.PublicKey
-	eventAuthority       solana.PublicKey
-	lockerEventAuthority solana.PublicKey
-
-	dammPoolAuthority  solana.PublicKey
-	dammEventAuthority solana.PublicKey
 }
 
 func NewDBC(
@@ -42,42 +71,12 @@ func NewDBC(
 	leftoverReceiver *solana.Wallet,
 ) (*DBC, error) {
 
-	poolAuthority, err := dbc.DerivePoolAuthorityPDA()
-	if err != nil {
-		return nil, err
-	}
-
-	eventAuthority, err := dbc.DeriveEventAuthorityPDA()
-	if err != nil {
-		return nil, err
-	}
-
-	lockerEventAuthority, err := dbc.DeriveLockerEventAuthority()
-	if err != nil {
-		return nil, err
-	}
-
-	dammPoolAuthority, err := dbc.DeriveDammV2PoolAuthority()
-	if err != nil {
-		return nil, err
-	}
-
-	dammEventAuthority, err := dbc.DeriveDammV2EventAuthority()
-	if err != nil {
-		return nil, err
-	}
-
 	return &DBC{
-		wsClient:             wsClient,
-		rpcClient:            rpcClient,
-		config:               config,
-		feeClaimer:           poolPartner,
-		leftoverReceiver:     leftoverReceiver,
-		poolCreator:          poolCreator,
-		poolAuthority:        poolAuthority,
-		eventAuthority:       eventAuthority,
-		lockerEventAuthority: lockerEventAuthority,
-		dammPoolAuthority:    dammPoolAuthority,
-		dammEventAuthority:   dammEventAuthority,
+		wsClient:         wsClient,
+		rpcClient:        rpcClient,
+		config:           config,
+		feeClaimer:       poolPartner,
+		leftoverReceiver: leftoverReceiver,
+		poolCreator:      poolCreator,
 	}, nil
 }

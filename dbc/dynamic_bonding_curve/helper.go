@@ -2,7 +2,6 @@ package dynamic_bonding_curve
 
 import (
 	"bytes"
-	"math/big"
 
 	"github.com/gagliardetto/solana-go"
 	"github.com/shopspring/decimal"
@@ -147,7 +146,7 @@ func GetTokenProgram(tokenType TokenType) solana.PublicKey {
 func CheckRateLimiterApplied(
 	baseFeeMode BaseFeeMode,
 	swapBaseForQuote bool,
-	currentPoint, activationPoint, maxLimiterDuration *big.Int,
+	currentPoint, activationPoint, maxLimiterDuration decimal.Decimal,
 ) bool {
 	// 1. baseFeeMode == RateLimiter
 	// 2. swapBaseForQuote == false
@@ -156,8 +155,10 @@ func CheckRateLimiterApplied(
 
 	if baseFeeMode == BaseFeeModeRateLimiter &&
 		!swapBaseForQuote &&
-		!decimal.NewFromBigInt(currentPoint, 0).LessThan(decimal.NewFromBigInt(activationPoint, 0)) && // currentPoint >= activationPoint
-		!decimal.NewFromBigInt(currentPoint, 0).GreaterThan(decimal.NewFromBigInt(activationPoint, 0).Add(decimal.NewFromBigInt(maxLimiterDuration, 0))) { // currentPoint <= activationPoint + maxLimiterDuration
+		!currentPoint.LessThan(activationPoint) &&
+		!currentPoint.GreaterThan(activationPoint.Add(maxLimiterDuration)) {
+		// 	 !decimal.NewFromBigInt(currentPoint, 0).LessThan(decimal.NewFromBigInt(activationPoint, 0)) && // currentPoint >= activationPoint
+		// !decimal.NewFromBigInt(currentPoint, 0).GreaterThan(decimal.NewFromBigInt(activationPoint, 0).Add(decimal.NewFromBigInt(maxLimiterDuration, 0))) { // currentPoint <= activationPoint + maxLimiterDuration
 		return true
 	}
 

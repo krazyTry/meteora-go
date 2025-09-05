@@ -7,70 +7,23 @@ import (
 
 	dbc "github.com/krazyTry/meteora-go/dbc/dynamic_bonding_curve"
 	solanago "github.com/krazyTry/meteora-go/solana"
+	"github.com/shopspring/decimal"
 
 	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/programs/system"
 	token "github.com/gagliardetto/solana-go/programs/token"
+	"github.com/gagliardetto/solana-go/rpc"
 )
 
-func dbcSwap(
-	m *DBC,
-	config solana.PublicKey,
-	dbcPool solana.PublicKey,
-	baseMint solana.PublicKey,
-	quoteMint solana.PublicKey,
-	baseVault solana.PublicKey,
-	quoteVault solana.PublicKey,
-	payer solana.PublicKey,
-	referralTokenAccount solana.PublicKey,
-	inputTokenAccount solana.PublicKey,
-	outputTokenAccount solana.PublicKey,
-	tokenBaseProgram solana.PublicKey,
-	tokenQuoteProgram solana.PublicKey,
-	amountIn uint64,
-	minOut uint64,
-	remainingAccounts []*solana.AccountMeta,
-) (solana.Instruction, error) {
-
-	poolAuthority := m.poolAuthority
-	eventAuthority := m.eventAuthority
-
-	program := dbc.ProgramID
-
-	// Params:
-	params := dbc.SwapParameters{
-		AmountIn:         amountIn,
-		MinimumAmountOut: minOut,
-	}
-
-	return dbc.NewSwapInstruction(
-		params,
-		poolAuthority,
-		config,
-		dbcPool,
-		inputTokenAccount,
-		outputTokenAccount,
-		baseVault,
-		quoteVault,
-		baseMint,
-		quoteMint,
-		payer,
-		tokenBaseProgram,
-		tokenQuoteProgram,
-		referralTokenAccount,
-		eventAuthority,
-		program,
-		remainingAccounts,
-	)
-}
-
-func (m *DBC) SwapInstruction(
+func SwapInstruction(
 	ctx context.Context,
+	rpcClient *rpc.Client,
 	payer solana.PublicKey,
 	owner solana.PublicKey,
 	referrer solana.PublicKey,
-	virtualPool *dbc.VirtualPool,
-	config *dbc.PoolConfig,
+	poolAddress solana.PublicKey,
+	poolState *dbc.VirtualPool,
+	configState *dbc.PoolConfig,
 	swapBaseForQuote bool,
 	amountIn *big.Int,
 	minimumAmountOut *big.Int,
@@ -82,47 +35,48 @@ func (m *DBC) SwapInstruction(
 	// 3. current point is greater than activation point
 	// 4. current point is less than activation point + maxLimiterDuration
 	isRateLimiterApplied := dbc.CheckRateLimiterApplied(
-		config.PoolFees.BaseFee.BaseFeeMode,
+		configState.PoolFees.BaseFee.BaseFeeMode,
 		swapBaseForQuote,
-		currentPoint,
-		new(big.Int).SetUint64(virtualPool.ActivationPoint),
-		new(big.Int).SetUint64(config.PoolFees.BaseFee.SecondFactor),
+		decimal.NewFromBigInt(currentPoint, 0),
+		decimal.NewFromUint64(poolState.ActivationPoint),
+		decimal.NewFromUint64(configState.PoolFees.BaseFee.SecondFactor),
 	)
 
-	inputMint, outputMint, inputMintProgram, outputMintProgram := dbc.PrepareSwapParams(swapBaseForQuote, virtualPool, config)
+	inputMint, outputMint, inputMintProgram, outputMintProgram := dbc.PrepareSwapParams(swapBaseForQuote, poolState, configState)
 
 	var instructions []solana.Instruction
 
-	inputTokenAccount, err := solanago.PrepareTokenATA(ctx, m.rpcClient, owner, inputMint, payer, &instructions)
+	inputTokenAccount, err := solanago.PrepareTokenATA(ctx, rpcClient, owner, inputMint, payer, &instructions)
 	if err != nil {
 		return nil, err
 	}
 
-	outputTokenAccount, err := solanago.PrepareTokenATA(ctx, m.rpcClient, owner, outputMint, payer, &instructions)
+	outputTokenAccount, err := solanago.PrepareTokenATA(ctx, rpcClient, owner, outputMint, payer, &instructions)
 	if err != nil {
 		return nil, err
 	}
 
-	baseMint := virtualPool.BaseMint
-	quoteMint := config.QuoteMint
+	baseMint := poolState.BaseMint
+	quoteMint := configState.QuoteMint
 
 	referralTokenAccount := solana.PublicKey{}
 
 	if !referrer.Equals(solana.PublicKey{}) {
-		switch config.CollectFeeMode {
+		switch configState.CollectFeeMode {
 		case dbc.CollectFeeModeQuoteToken:
-			referralTokenAccount, err = solanago.PrepareTokenATA(ctx, m.rpcClient, referrer, quoteMint, payer, &instructions)
+			referralTokenAccount, err = solanago.PrepareTokenATA(ctx, rpcClient, referrer, quoteMint, payer, &instructions)
 			if err != nil {
 				return nil, err
 			}
 		case dbc.CollectFeeModeOutputToken:
-			referralTokenAccount, err = solanago.PrepareTokenATA(ctx, m.rpcClient, referrer, baseMint, payer, &instructions)
+			referralTokenAccount, err = solanago.PrepareTokenATA(ctx, rpcClient, referrer, baseMint, payer, &instructions)
 			if err != nil {
 				return nil, err
 			}
 		}
 	}
 
+	// TODO 逻辑复杂 值得优化
 	switch {
 	case inputMint.Equals(solana.WrappedSol):
 		if amountIn.Cmp(big.NewInt(0)) <= 0 {
@@ -148,13 +102,8 @@ func (m *DBC) SwapInstruction(
 	case outputMint.Equals(solana.WrappedSol):
 	}
 
-	pool, err := dbc.DeriveDbcPoolPDA(quoteMint, baseMint, virtualPool.Config)
-	if err != nil {
-		return nil, err
-	}
-
-	baseVault := virtualPool.BaseVault   // dbc.DeriveTokenVaultPDA(pool, virtualPool.BaseMint)
-	quoteVault := virtualPool.QuoteVault // dbc.DeriveTokenVaultPDA(pool, config.QuoteMint)
+	baseVault := poolState.BaseVault   // dbc.DeriveTokenVaultPDA(pool, virtualPool.BaseMint)
+	quoteVault := poolState.QuoteVault // dbc.DeriveTokenVaultPDA(pool, config.QuoteMint)
 
 	var remainingAccounts []*solana.AccountMeta
 	if isRateLimiterApplied {
@@ -163,23 +112,31 @@ func (m *DBC) SwapInstruction(
 		}
 	}
 
-	swapIx, err := dbcSwap(m,
-		virtualPool.Config,
-		pool,
-		baseMint,
-		quoteMint,
-		baseVault,
-		quoteVault,
-		payer,
-		referralTokenAccount,
+	params := dbc.SwapParameters{
+		AmountIn:         amountIn.Uint64(),
+		MinimumAmountOut: minimumAmountOut.Uint64(),
+	}
+
+	swapIx, err := dbc.NewSwapInstruction(
+		params,
+		poolAuthority,
+		poolState.Config,
+		poolAddress,
 		inputTokenAccount,
 		outputTokenAccount,
+		baseVault,
+		quoteVault,
+		baseMint,
+		quoteMint,
+		payer,
 		inputMintProgram,
 		outputMintProgram,
-		amountIn.Uint64(),
-		minimumAmountOut.Uint64(),
+		referralTokenAccount,
+		eventAuthority,
+		dbc.ProgramID,
 		remainingAccounts,
 	)
+
 	if err != nil {
 		return nil, err
 	}
@@ -204,7 +161,7 @@ func (m *DBC) SwapInstruction(
 		instructions = append(instructions, unwrapIx)
 	}
 
-	if config.CollectFeeMode == dbc.CollectFeeModeQuoteToken && !referrer.Equals(solana.PublicKey{}) {
+	if configState.CollectFeeMode == dbc.CollectFeeModeQuoteToken && !referrer.Equals(solana.PublicKey{}) {
 		unwrapIx := token.NewCloseAccountInstruction(
 			referralTokenAccount,
 			referrer,
@@ -222,15 +179,17 @@ func (m *DBC) Swap(
 	payer *solana.Wallet,
 	owner *solana.Wallet,
 	referrer *solana.Wallet,
-	virtualPool *dbc.VirtualPool,
-	config *dbc.PoolConfig,
+	poolAddress solana.PublicKey,
+	poolState *dbc.VirtualPool,
+	configState *dbc.PoolConfig,
 	swapBaseForQuote bool,
 	amountIn *big.Int,
 	minimumAmountOut *big.Int,
 	currentPoint *big.Int,
 ) (string, error) {
 
-	instructions, err := m.SwapInstruction(ctx,
+	instructions, err := SwapInstruction(ctx,
+		m.rpcClient,
 		payer.PublicKey(),
 		owner.PublicKey(),
 		func() solana.PublicKey {
@@ -239,8 +198,9 @@ func (m *DBC) Swap(
 			}
 			return referrer.PublicKey()
 		}(),
-		virtualPool,
-		config,
+		poolAddress,
+		poolState,
+		configState,
 		swapBaseForQuote,
 		amountIn,
 		minimumAmountOut,
@@ -275,54 +235,110 @@ func (m *DBC) Swap(
 	return sig.String(), nil
 }
 
-func (m *DBC) BuyInstruction(
+func BuyInstruction(
 	ctx context.Context,
+	rpcClient *rpc.Client,
 	buyer solana.PublicKey,
 	referrer solana.PublicKey,
-	virtualPool *dbc.VirtualPool,
-	config *dbc.PoolConfig,
+	poolAddress solana.PublicKey,
+	poolState *dbc.VirtualPool,
+	configState *dbc.PoolConfig,
 	amountIn *big.Int,
 	minimumAmountOut *big.Int,
 	currentPoint *big.Int,
 ) ([]solana.Instruction, error) {
-	return m.SwapInstruction(ctx, buyer, buyer, referrer, virtualPool, config, false, amountIn, minimumAmountOut, currentPoint)
+	return SwapInstruction(
+		ctx,
+		rpcClient,
+		buyer,
+		buyer,
+		referrer,
+		poolAddress,
+		poolState,
+		configState,
+		false,
+		amountIn,
+		minimumAmountOut,
+		currentPoint,
+	)
 }
 
 func (m *DBC) Buy(
 	ctx context.Context,
 	buyer *solana.Wallet,
 	referrer *solana.Wallet,
-	virtualPool *dbc.VirtualPool,
-	config *dbc.PoolConfig,
+	poolAddress solana.PublicKey,
+	poolState *dbc.VirtualPool,
+	configState *dbc.PoolConfig,
 	amountIn *big.Int,
 	minimumAmountOut *big.Int,
 	currentPoint *big.Int,
 ) (string, error) {
-	return m.Swap(ctx, buyer, buyer, referrer, virtualPool, config, false, amountIn, minimumAmountOut, currentPoint)
+	return m.Swap(
+		ctx,
+		buyer,
+		buyer,
+		referrer,
+		poolAddress,
+		poolState,
+		configState,
+		false,
+		amountIn,
+		minimumAmountOut,
+		currentPoint,
+	)
 }
 
-func (m *DBC) SellInstruction(
+func SellInstruction(
 	ctx context.Context,
+	rpcClient *rpc.Client,
 	seller solana.PublicKey,
 	referrer solana.PublicKey,
-	virtualPool *dbc.VirtualPool,
-	config *dbc.PoolConfig,
+	poolAddress solana.PublicKey,
+	poolState *dbc.VirtualPool,
+	configState *dbc.PoolConfig,
 	amountIn *big.Int,
 	minimumAmountOut *big.Int,
 	currentPoint *big.Int,
 ) ([]solana.Instruction, error) {
-	return m.SwapInstruction(ctx, seller, seller, referrer, virtualPool, config, true, amountIn, minimumAmountOut, currentPoint)
+	return SwapInstruction(
+		ctx,
+		rpcClient,
+		seller,
+		seller,
+		referrer,
+		poolAddress,
+		poolState,
+		configState,
+		true,
+		amountIn,
+		minimumAmountOut,
+		currentPoint,
+	)
 }
 
 func (m *DBC) Sell(
 	ctx context.Context,
 	seller *solana.Wallet,
 	referrer *solana.Wallet,
-	virtualPool *dbc.VirtualPool,
-	config *dbc.PoolConfig,
+	poolAddress solana.PublicKey,
+	poolState *dbc.VirtualPool,
+	configState *dbc.PoolConfig,
 	amountIn *big.Int,
 	minimumAmountOut *big.Int,
 	currentPoint *big.Int,
 ) (string, error) {
-	return m.Swap(ctx, seller, seller, referrer, virtualPool, config, true, amountIn, minimumAmountOut, currentPoint)
+	return m.Swap(
+		ctx,
+		seller,
+		seller,
+		referrer,
+		poolAddress,
+		poolState,
+		configState,
+		true,
+		amountIn,
+		minimumAmountOut,
+		currentPoint,
+	)
 }

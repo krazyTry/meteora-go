@@ -8,14 +8,30 @@ import (
 	"github.com/gagliardetto/solana-go/rpc/ws"
 )
 
+var (
+	poolAuthority  solana.PublicKey
+	eventAuthority solana.PublicKey
+)
+
+func Init() error {
+	var err error
+	poolAuthority, err = cp_amm.DerivePoolAuthorityPDA()
+	if err != nil {
+		return err
+	}
+
+	eventAuthority, err = cp_amm.DeriveEventAuthorityPDA()
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 type DammV2 struct {
 	wsClient  *ws.Client
 	rpcClient *rpc.Client
 
 	poolCreator *solana.Wallet
-
-	poolAuthority  solana.PublicKey
-	eventAuthority solana.PublicKey
 }
 
 func NewDammV2(
@@ -24,23 +40,10 @@ func NewDammV2(
 	poolCreator *solana.Wallet,
 ) (*DammV2, error) {
 
-	poolAuthority, err := cp_amm.DerivePoolAuthorityPDA()
-	if err != nil {
-		return nil, err
-	}
-
-	eventAuthority, err := cp_amm.DeriveEventAuthorityPDA()
-	if err != nil {
-		return nil, err
-	}
-
 	m := &DammV2{
-		wsClient:       wsClient,
-		rpcClient:      rpcClient,
-		poolCreator:    poolCreator,
-		poolAuthority:  poolAuthority,
-		eventAuthority: eventAuthority,
+		wsClient:    wsClient,
+		rpcClient:   rpcClient,
+		poolCreator: poolCreator,
 	}
-
 	return m, nil
 }

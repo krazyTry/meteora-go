@@ -6,11 +6,11 @@ import (
 
 func PrepareSwapParams(
 	swapBaseForQuote bool,
-	virtualPool *Pool,
+	poolState *Pool,
 ) (solana.PublicKey, solana.PublicKey, solana.PublicKey, solana.PublicKey) {
 	if swapBaseForQuote {
-		return virtualPool.TokenAMint, virtualPool.TokenBMint, GetTokenProgram(virtualPool.TokenAFlag), GetTokenProgram(virtualPool.TokenBFlag)
+		return poolState.TokenAMint, poolState.TokenBMint, GetTokenProgram(poolState.TokenAFlag), GetTokenProgram(poolState.TokenBFlag)
 	} else {
-		return virtualPool.TokenBMint, virtualPool.TokenAMint, GetTokenProgram(virtualPool.TokenBFlag), GetTokenProgram(virtualPool.TokenAFlag)
+		return poolState.TokenBMint, poolState.TokenAMint, GetTokenProgram(poolState.TokenBFlag), GetTokenProgram(poolState.TokenAFlag)
 	}
 }

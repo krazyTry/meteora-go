@@ -11,23 +11,15 @@ import (
 	"github.com/gagliardetto/solana-go/rpc"
 )
 
-func cpAmmRefreshVesting(
-	cpammPool solana.PublicKey,
-	position solana.PublicKey,
-	positionNftAccount solana.PublicKey,
-	owner solana.PublicKey,
-	vestingAccounts []*solana.AccountMeta,
-) (solana.Instruction, error) {
-	return cp_amm.NewRefreshVestingInstruction(
-		cpammPool,
-		position,
-		positionNftAccount,
-		owner,
-		vestingAccounts,
-	)
+func (m *DammV2) GetVestingsByPosition(ctx context.Context, position solana.PublicKey) ([]*Vesting, error) {
+	return GetVestingsByPosition(ctx, m.rpcClient, position)
 }
 
-func (m *DammV2) GetVestingsByPosition(ctx context.Context, position solana.PublicKey) ([]*Vesting, error) {
+func GetVestingsByPosition(
+	ctx context.Context,
+	rpcClient *rpc.Client,
+	position solana.PublicKey,
+) ([]*Vesting, error) {
 	opt := solanago.GenProgramAccountFilter(
 		cp_amm.AccountKeyVesting,
 		&solanago.Filter{
@@ -36,7 +28,7 @@ func (m *DammV2) GetVestingsByPosition(ctx context.Context, position solana.Publ
 		},
 	)
 
-	outs, err := m.rpcClient.GetProgramAccountsWithOpts(ctx, cp_amm.ProgramID, opt)
+	outs, err := rpcClient.GetProgramAccountsWithOpts(ctx, cp_amm.ProgramID, opt)
 	if err != nil {
 		if err == rpc.ErrNotFound {
 			return nil, nil

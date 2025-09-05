@@ -6,6 +6,7 @@ import (
 	"math/big"
 
 	"github.com/gagliardetto/solana-go"
+	"github.com/shopspring/decimal"
 )
 
 // DeriveConfigAddress https://docs.meteora.ag/developer-guide/guides/damm-v2/pool-fee-configs#view-all-public-config-key-addresses-json
@@ -129,23 +130,22 @@ func GetTokenProgram(tokenType TokenType) solana.PublicKey {
 	}
 }
 
-func IsVestingComplete(cliffPoint, periodFrequency *big.Int, numberOfPeriods uint16, currentPoint *big.Int) bool {
+func IsVestingComplete(cliffPoint, periodFrequency, numberOfPeriods, currentPoint decimal.Decimal) bool {
 	// endPoint = cliffPoint + periodFrequency * numberOfPeriods
-	endPoint := new(big.Int).Mul(periodFrequency, big.NewInt(int64(numberOfPeriods)))
-	endPoint.Add(endPoint, cliffPoint)
+	// endPoint := new(big.Int).Mul(periodFrequency, big.NewInt(int64(numberOfPeriods)))
+	// endPoint.Add(endPoint, cliffPoint)
+	endPoint := periodFrequency.Mul(numberOfPeriods).Add(cliffPoint)
 
 	// return currentPoint >= endPoint
 	return currentPoint.Cmp(endPoint) >= 0
 }
 
 // initialPoolTokenAmount = tokenAmount * 10^decimals
-func GetInitialPoolTokenAmount(amount *big.Int, decimals uint8) *big.Int {
-
+func GetInitialPoolTokenAmount(amount decimal.Decimal, decimals uint8) decimal.Decimal {
 	// 10^decimals
-	scale := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(decimals)), nil)
-
+	scale := decimal.NewFromBigInt(new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(decimals)), nil), 0)
 	// tokenAmount * 10^decimals
-	result := new(big.Int).Mul(amount, scale)
+	// result := new(big.Int).Mul(amount, scale)
 
-	return result
+	return amount.Mul(scale)
 }

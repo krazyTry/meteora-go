@@ -75,9 +75,9 @@ func getSwapResult(
 	)
 
 	if tradeDirection == TradeDirectionBaseToQuote {
-		outputAmount, nextSqrtPrice, err = GetSwapAmountFromBaseToQuote(configState.Curve[:], poolState.SqrtPrice, actualAmountIn)
+		outputAmount, nextSqrtPrice, err = getSwapAmountFromBaseToQuote(configState.Curve[:], poolState.SqrtPrice, actualAmountIn)
 	} else {
-		outputAmount, nextSqrtPrice, err = GetSwapAmountFromQuoteToBase(configState.Curve[:], poolState.SqrtPrice, actualAmountIn)
+		outputAmount, nextSqrtPrice, err = getSwapAmountFromQuoteToBase(configState.Curve[:], poolState.SqrtPrice, actualAmountIn)
 	}
 	if err != nil {
 		return nil, err
@@ -125,12 +125,12 @@ func getSwapResult(
 
 func PrepareSwapParams(
 	swapBaseForQuote bool,
-	virtualPool *VirtualPool,
+	poolState *VirtualPool,
 	poolConfig *PoolConfig,
 ) (solana.PublicKey, solana.PublicKey, solana.PublicKey, solana.PublicKey) {
 	if swapBaseForQuote {
-		return virtualPool.BaseMint, poolConfig.QuoteMint, GetTokenProgram(virtualPool.PoolType), GetTokenProgram(poolConfig.QuoteTokenFlag)
+		return poolState.BaseMint, poolConfig.QuoteMint, GetTokenProgram(poolState.PoolType), GetTokenProgram(poolConfig.QuoteTokenFlag)
 	} else {
-		return poolConfig.QuoteMint, virtualPool.BaseMint, GetTokenProgram(poolConfig.QuoteTokenFlag), GetTokenProgram(virtualPool.PoolType)
+		return poolConfig.QuoteMint, poolState.BaseMint, GetTokenProgram(poolConfig.QuoteTokenFlag), GetTokenProgram(poolState.PoolType)
 	}
 }

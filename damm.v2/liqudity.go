@@ -12,66 +12,17 @@ import (
 	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/programs/system"
 	"github.com/gagliardetto/solana-go/programs/token"
+	"github.com/gagliardetto/solana-go/rpc"
 )
 
-func cpAmmAddLiquidity(
-	m *DammV2,
-	// delta liquidity
-	liquidityDelta *big.Int,
-	// maximum token a amount
-	tokenBaseAmountThreshold uint64,
-	// maximum token b amount
-	tokenQuoteAmountThreshold uint64,
-
-	// Accounts:
-	owner solana.PublicKey,
-	cpammPool solana.PublicKey,
-	position solana.PublicKey,
-	positionNftAccount solana.PublicKey,
-	tokenBaseAccount solana.PublicKey,
-	tokenQuoteAccount solana.PublicKey,
-	tokenBaseMint solana.PublicKey,
-	tokenQuoteMint solana.PublicKey,
-	tokenBaseVault solana.PublicKey,
-	tokenQuoteVault solana.PublicKey,
-	tokenBaseProgram solana.PublicKey,
-	tokenQuoteProgram solana.PublicKey,
-) (solana.Instruction, error) {
-
-	eventAuthority := m.eventAuthority
-	program := cp_amm.ProgramID
-
-	params := cp_amm.AddLiquidityParameters{
-		LiquidityDelta:        u128.GenUint128FromString(liquidityDelta.String()),
-		TokenAAmountThreshold: tokenBaseAmountThreshold,
-		TokenBAmountThreshold: tokenQuoteAmountThreshold,
-	}
-
-	return cp_amm.NewAddLiquidityInstruction(
-		params,
-		cpammPool,
-		position,
-		tokenBaseAccount,
-		tokenQuoteAccount,
-		tokenBaseVault,
-		tokenQuoteVault,
-		tokenBaseMint,
-		tokenQuoteMint,
-		positionNftAccount,
-		owner,
-		tokenBaseProgram,
-		tokenQuoteProgram,
-		eventAuthority,
-		program,
-	)
-}
-
-func (m *DammV2) AddPositionLiquidityInstruction(
+func AddPositionLiquidityInstruction(
 	ctx context.Context,
-	payer *solana.Wallet,
-	owner *solana.Wallet,
+	rpcClient *rpc.Client,
+	payer solana.PublicKey,
+	owner solana.PublicKey,
 	ownerPosition *UserPosition,
-	virtualPool *Pool,
+	poolAddress solana.PublicKey,
+	poolState *cp_amm.Pool,
 	bAddBase bool,
 	amountIn *big.Int,
 	liquidityDelta *big.Int,
@@ -81,26 +32,20 @@ func (m *DammV2) AddPositionLiquidityInstruction(
 		return nil, fmt.Errorf("amountIn must be greater than 0")
 	}
 
-	baseMint := virtualPool.TokenAMint
-	quoteMint := virtualPool.TokenBMint
+	baseMint := poolState.TokenAMint
+	quoteMint := poolState.TokenBMint
 
-	baseVault := virtualPool.TokenAVault
-	quoteVault := virtualPool.TokenBVault
+	baseVault := poolState.TokenAVault
+	quoteVault := poolState.TokenBVault
 
 	var instructions []solana.Instruction
 
-	// cpammPool, err := m.deriveCpAmmPoolPDA(quoteMint, baseMint)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	cpammPool := virtualPool.Address
-
-	baseTokenAccount, err := solanago.PrepareTokenATA(ctx, m.rpcClient, owner.PublicKey(), baseMint, payer.PublicKey(), &instructions)
+	baseTokenAccount, err := solanago.PrepareTokenATA(ctx, rpcClient, owner, baseMint, payer, &instructions)
 	if err != nil {
 		return nil, err
 	}
 
-	quoteTokenAccount, err := solanago.PrepareTokenATA(ctx, m.rpcClient, owner.PublicKey(), quoteMint, payer.PublicKey(), &instructions)
+	quoteTokenAccount, err := solanago.PrepareTokenATA(ctx, rpcClient, owner, quoteMint, payer, &instructions)
 	if err != nil {
 		return nil, err
 	}
@@ -122,7 +67,7 @@ func (m *DammV2) AddPositionLiquidityInstruction(
 		// wrap SOL by transferring lamports into the WSOL ATA
 		wrapSOLIx := system.NewTransferInstruction(
 			tokenBaseAmountThreshold,
-			owner.PublicKey(),
+			owner,
 			baseTokenAccount,
 		).Build()
 
@@ -138,7 +83,7 @@ func (m *DammV2) AddPositionLiquidityInstruction(
 		// wrap SOL by transferring lamports into the WSOL ATA
 		wrapSOLIx := system.NewTransferInstruction(
 			tokenQuoteAmountThreshold,
-			owner.PublicKey(),
+			owner,
 			quoteTokenAccount,
 		).Build()
 
@@ -150,23 +95,30 @@ func (m *DammV2) AddPositionLiquidityInstruction(
 		instructions = append(instructions, wrapSOLIx, syncNativeIx)
 	}
 
-	liquidityIx, err := cpAmmAddLiquidity(m,
-		liquidityDelta,
-		tokenBaseAmountThreshold,
-		tokenQuoteAmountThreshold,
-		owner.PublicKey(),
-		cpammPool,
+	params := cp_amm.AddLiquidityParameters{
+		LiquidityDelta:        u128.GenUint128FromString(liquidityDelta.String()),
+		TokenAAmountThreshold: tokenBaseAmountThreshold,
+		TokenBAmountThreshold: tokenQuoteAmountThreshold,
+	}
+
+	liquidityIx, err := cp_amm.NewAddLiquidityInstruction(
+		params,
+		poolAddress,
 		ownerPosition.Position,
-		ownerPosition.PositionNftAccount,
 		baseTokenAccount,
 		quoteTokenAccount,
 		baseMint,
 		quoteMint,
 		baseVault,
 		quoteVault,
-		cp_amm.GetTokenProgram(virtualPool.TokenAFlag),
-		cp_amm.GetTokenProgram(virtualPool.TokenBFlag),
+		ownerPosition.PositionNftAccount,
+		owner,
+		cp_amm.GetTokenProgram(poolState.TokenAFlag),
+		cp_amm.GetTokenProgram(poolState.TokenBFlag),
+		eventAuthority,
+		cp_amm.ProgramID,
 	)
+
 	if err != nil {
 		return nil, err
 	}
@@ -175,8 +127,8 @@ func (m *DammV2) AddPositionLiquidityInstruction(
 	if baseMint.Equals(solana.WrappedSol) {
 		unwrapIx := token.NewCloseAccountInstruction(
 			baseTokenAccount,
-			owner.PublicKey(),
-			owner.PublicKey(),
+			owner,
+			owner,
 			[]solana.PublicKey{},
 		).Build()
 		instructions = append(instructions, unwrapIx)
@@ -185,8 +137,8 @@ func (m *DammV2) AddPositionLiquidityInstruction(
 	if quoteMint.Equals(solana.WrappedSol) {
 		unwrapIx := token.NewCloseAccountInstruction(
 			quoteTokenAccount,
-			owner.PublicKey(),
-			owner.PublicKey(),
+			owner,
+			owner,
 			[]solana.PublicKey{},
 		).Build()
 		instructions = append(instructions, unwrapIx)
@@ -199,14 +151,14 @@ func (m *DammV2) AddPositionLiquidity(
 	ctx context.Context,
 	payer *solana.Wallet,
 	owner *solana.Wallet,
-	virtualPool *Pool,
+	poolState *Pool,
 	bAddBase bool,
 	amountIn *big.Int,
 	liquidityDelta *big.Int,
 	minOutAmount *big.Int,
 ) (string, error) {
 	var userPosition *UserPosition
-	userPositions, err := m.GetUserPositionByUserAndPoolPDA(ctx, virtualPool.Address, owner.PublicKey())
+	userPositions, err := m.GetUserPositionByUserAndPoolPDA(ctx, poolState.Address, owner.PublicKey())
 	if err != nil {
 		return "", err
 	}
@@ -216,11 +168,14 @@ func (m *DammV2) AddPositionLiquidity(
 	}
 	userPosition = userPositions[0]
 
-	instructions, err := m.AddPositionLiquidityInstruction(ctx,
-		payer,
-		owner,
+	instructions, err := AddPositionLiquidityInstruction(
+		ctx,
+		m.rpcClient,
+		payer.PublicKey(),
+		owner.PublicKey(),
 		userPosition,
-		virtualPool,
+		poolState.Address,
+		poolState.Pool,
 		bAddBase,
 		amountIn,
 		liquidityDelta,
@@ -251,71 +206,21 @@ func (m *DammV2) AddPositionLiquidity(
 	return sig.String(), nil
 }
 
-func cpAmmRemoveLiquidity(
-	m *DammV2,
-	// delta liquidity
-	liquidityDelta *big.Int,
-	// maximum token a amount
-	tokenBaseAmountThreshold uint64,
-	// maximum token b amount
-	tokenQuoteAmountThreshold uint64,
-
-	// Accounts:
-	owner solana.PublicKey,
-	cpammPool solana.PublicKey,
-	position solana.PublicKey,
-	positionNftAccount solana.PublicKey,
-	tokenBaseAccount solana.PublicKey,
-	tokenQuoteAccount solana.PublicKey,
-	tokenBaseMint solana.PublicKey,
-	tokenQuoteMint solana.PublicKey,
-	tokenBaseVault solana.PublicKey,
-	tokenQuoteVault solana.PublicKey,
-	tokenBaseProgram solana.PublicKey,
-	tokenQuoteProgram solana.PublicKey,
-) (solana.Instruction, error) {
-	poolAuthority := m.poolAuthority
-	eventAuthority := m.eventAuthority
-	program := cp_amm.ProgramID
-
-	return cp_amm.NewRemoveLiquidityInstruction(
-		cp_amm.RemoveLiquidityParameters{
-			LiquidityDelta:        u128.GenUint128FromString(liquidityDelta.String()),
-			TokenAAmountThreshold: tokenBaseAmountThreshold,
-			TokenBAmountThreshold: tokenQuoteAmountThreshold,
-		},
-		// Accounts:
-		poolAuthority,
-		cpammPool,
-		position,
-		tokenBaseAccount,
-		tokenQuoteAccount,
-		tokenBaseVault,
-		tokenQuoteVault,
-		tokenBaseMint,
-		tokenQuoteMint,
-		positionNftAccount,
-		owner,
-		tokenBaseProgram,
-		tokenQuoteProgram,
-		eventAuthority,
-		program,
-	)
-}
-
-func (m *DammV2) RemovePositionLiquidityInstruction(
+func RemovePositionLiquidityInstruction(
 	ctx context.Context,
-	payer *solana.Wallet,
-	owner *solana.Wallet,
+	rpcClient *rpc.Client,
+	payer solana.PublicKey,
+	owner solana.PublicKey,
 	ownerPosition *UserPosition,
-	virtualPool *Pool,
+	poolAddress solana.PublicKey,
+	poolState *cp_amm.Pool,
 	liquidityDelta *big.Int,
 	tokenBaseAmountThreshold *big.Int,
 	tokenQuoteAmountThreshold *big.Int,
 	vestings []*Vesting,
 ) ([]solana.Instruction, error) {
 
-	currentPoint, err := solanago.CurrenPoint(ctx, m.rpcClient, uint8(virtualPool.ActivationType))
+	currentPoint, err := solanago.CurrenPoint(ctx, rpcClient, uint8(poolState.ActivationType))
 	if err != nil {
 		return nil, err
 	}
@@ -324,26 +229,20 @@ func (m *DammV2) RemovePositionLiquidityInstruction(
 		return nil, err
 	}
 
-	baseMint := virtualPool.TokenAMint
-	quoteMint := virtualPool.TokenBMint
+	baseMint := poolState.TokenAMint
+	quoteMint := poolState.TokenBMint
 
-	baseVault := virtualPool.TokenAVault
-	quoteVault := virtualPool.TokenBVault
+	baseVault := poolState.TokenAVault
+	quoteVault := poolState.TokenBVault
 
 	var instructions []solana.Instruction
 
-	// cpammPool, err := m.deriveCpAmmPoolPDA(quoteMint, baseMint)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	cpammPool := virtualPool.Address
-
-	baseTokenAccount, err := solanago.PrepareTokenATA(ctx, m.rpcClient, owner.PublicKey(), baseMint, payer.PublicKey(), &instructions)
+	baseTokenAccount, err := solanago.PrepareTokenATA(ctx, rpcClient, owner, baseMint, payer, &instructions)
 	if err != nil {
 		return nil, err
 	}
 
-	quoteTokenAccount, err := solanago.PrepareTokenATA(ctx, m.rpcClient, owner.PublicKey(), quoteMint, payer.PublicKey(), &instructions)
+	quoteTokenAccount, err := solanago.PrepareTokenATA(ctx, rpcClient, owner, quoteMint, payer, &instructions)
 	if err != nil {
 		return nil, err
 	}
@@ -355,42 +254,68 @@ func (m *DammV2) RemovePositionLiquidityInstruction(
 				solana.NewAccountMeta(v.Vesting, false, false),
 			}
 		}
-		refreshVestingIx, err := cpAmmRefreshVesting(cpammPool, ownerPosition.Position, ownerPosition.PositionNftAccount, owner.PublicKey(), vestingAccounts)
+
+		refreshVestingIx, err := cp_amm.NewRefreshVestingInstruction(
+			poolAddress,
+			ownerPosition.Position,
+			ownerPosition.PositionNftAccount,
+			owner,
+			vestingAccounts,
+		)
+
 		if err != nil {
 			return nil, err
 		}
 		instructions = append(instructions, refreshVestingIx)
 	}
 
-	liquidityIx, err := cpAmmRemoveLiquidity(m,
-		liquidityDelta,
-		tokenBaseAmountThreshold.Uint64(),
-		tokenQuoteAmountThreshold.Uint64(),
-		owner.PublicKey(),
-		cpammPool,
+	liquidityIx, err := cp_amm.NewRemoveLiquidityInstruction(
+		cp_amm.RemoveLiquidityParameters{
+			LiquidityDelta:        u128.GenUint128FromString(liquidityDelta.String()),
+			TokenAAmountThreshold: tokenBaseAmountThreshold.Uint64(),
+			TokenBAmountThreshold: tokenQuoteAmountThreshold.Uint64(),
+		},
+		// Accounts:
+		poolAuthority,
+		poolAddress,
 		ownerPosition.Position,
-		ownerPosition.PositionNftAccount,
 		baseTokenAccount,
 		quoteTokenAccount,
-		baseMint,
-		quoteMint,
 		baseVault,
 		quoteVault,
-		cp_amm.GetTokenProgram(virtualPool.TokenAFlag),
-		cp_amm.GetTokenProgram(virtualPool.TokenBFlag),
+		baseMint,
+		quoteMint,
+		ownerPosition.PositionNftAccount,
+		owner,
+		cp_amm.GetTokenProgram(poolState.TokenAFlag),
+		cp_amm.GetTokenProgram(poolState.TokenBFlag),
+		eventAuthority,
+		cp_amm.ProgramID,
 	)
 	if err != nil {
 		return nil, err
 	}
 	instructions = append(instructions, liquidityIx)
 
-	unwrapIx := token.NewCloseAccountInstruction(
-		quoteTokenAccount,
-		owner.PublicKey(),
-		owner.PublicKey(),
-		[]solana.PublicKey{},
-	).Build()
-	instructions = append(instructions, unwrapIx)
+	if baseMint.Equals(solana.WrappedSol) {
+		unwrapIx := token.NewCloseAccountInstruction(
+			baseTokenAccount,
+			owner,
+			owner,
+			[]solana.PublicKey{},
+		).Build()
+		instructions = append(instructions, unwrapIx)
+	}
+
+	if quoteMint.Equals(solana.WrappedSol) {
+		unwrapIx := token.NewCloseAccountInstruction(
+			quoteTokenAccount,
+			owner,
+			owner,
+			[]solana.PublicKey{},
+		).Build()
+		instructions = append(instructions, unwrapIx)
+	}
 	return instructions, nil
 }
 
@@ -398,14 +323,14 @@ func (m *DammV2) RemovePositionLiquidity(
 	ctx context.Context,
 	payer *solana.Wallet,
 	owner *solana.Wallet,
-	virtualPool *Pool,
+	poolState *Pool,
 	liquidityDelta *big.Int,
 	tokenBaseAmountThreshold *big.Int,
 	tokenQuoteAmountThreshold *big.Int,
 	vestings []*Vesting,
 ) (string, error) {
 	var userPosition *UserPosition
-	userPositions, err := m.GetUserPositionByUserAndPoolPDA(ctx, virtualPool.Address, owner.PublicKey())
+	userPositions, err := m.GetUserPositionByUserAndPoolPDA(ctx, poolState.Address, owner.PublicKey())
 	if err != nil {
 		return "", err
 	}
@@ -415,11 +340,14 @@ func (m *DammV2) RemovePositionLiquidity(
 	}
 	userPosition = userPositions[0]
 
-	instructions, err := m.RemovePositionLiquidityInstruction(ctx,
-		payer,
-		owner,
+	instructions, err := RemovePositionLiquidityInstruction(
+		ctx,
+		m.rpcClient,
+		payer.PublicKey(),
+		owner.PublicKey(),
 		userPosition,
-		virtualPool,
+		poolState.Address,
+		poolState.Pool,
 		liquidityDelta,
 		tokenBaseAmountThreshold,
 		tokenQuoteAmountThreshold,
@@ -451,65 +379,18 @@ func (m *DammV2) RemovePositionLiquidity(
 	return sig.String(), nil
 }
 
-func cpAmmRemoveAllLiquidity(
-	m *DammV2,
-	// Params:
-	tokenBaseAmountThreshold uint64,
-	tokenQuoteAmountThreshold uint64,
-
-	// Accounts:
-	cpammPool solana.PublicKey,
-	position solana.PublicKey,
-	tokenBaseAccount solana.PublicKey,
-	tokenQuoteAccount solana.PublicKey,
-	tokenBaseVault solana.PublicKey,
-	tokenQuoteVault solana.PublicKey,
-	tokenBaseMint solana.PublicKey,
-	tokenQuoteMint solana.PublicKey,
-	positionNftAccount solana.PublicKey,
-	owner solana.PublicKey,
-	tokenBaseProgram solana.PublicKey,
-	tokenQuoteProgram solana.PublicKey,
-) (solana.Instruction, error) {
-
-	poolAuthority := m.poolAuthority
-	eventAuthority := m.eventAuthority
-	program := cp_amm.ProgramID
-
-	return cp_amm.NewRemoveAllLiquidityInstruction(
-		// Params:
-		tokenBaseAmountThreshold,
-		tokenQuoteAmountThreshold,
-
-		// Accounts:
-		poolAuthority,
-		cpammPool,
-		position,
-		tokenBaseAccount,
-		tokenQuoteAccount,
-		tokenBaseVault,
-		tokenQuoteVault,
-		tokenBaseMint,
-		tokenQuoteMint,
-		positionNftAccount,
-		owner,
-		tokenBaseProgram,
-		tokenQuoteProgram,
-		eventAuthority,
-		program,
-	)
-}
-
-func (m *DammV2) RemoveAllLiquidityInstruction(
+func RemoveAllLiquidityInstruction(
 	ctx context.Context,
-	payer *solana.Wallet,
-	owner *solana.Wallet,
+	rpcClient *rpc.Client,
+	payer solana.PublicKey,
+	owner solana.PublicKey,
 	ownerPosition *UserPosition,
-	virtualPool *Pool,
+	poolAddress solana.PublicKey,
+	poolState *cp_amm.Pool,
 	vestings []*Vesting,
 ) ([]solana.Instruction, error) {
 
-	currentPoint, err := solanago.CurrenPoint(ctx, m.rpcClient, uint8(virtualPool.ActivationType))
+	currentPoint, err := solanago.CurrenPoint(ctx, rpcClient, uint8(poolState.ActivationType))
 	if err != nil {
 		return nil, err
 	}
@@ -518,20 +399,20 @@ func (m *DammV2) RemoveAllLiquidityInstruction(
 		return nil, err
 	}
 
-	baseMint := virtualPool.TokenAMint
-	quoteMint := virtualPool.TokenBMint
+	baseMint := poolState.TokenAMint
+	quoteMint := poolState.TokenBMint
 
-	baseVault := virtualPool.TokenAVault
-	quoteVault := virtualPool.TokenBVault
+	baseVault := poolState.TokenAVault
+	quoteVault := poolState.TokenBVault
 
 	var instructions []solana.Instruction
 
-	baseTokenAccount, err := solanago.PrepareTokenATA(ctx, m.rpcClient, owner.PublicKey(), baseMint, payer.PublicKey(), &instructions)
+	baseTokenAccount, err := solanago.PrepareTokenATA(ctx, rpcClient, owner, baseMint, payer, &instructions)
 	if err != nil {
 		return nil, err
 	}
 
-	quoteTokenAccount, err := solanago.PrepareTokenATA(ctx, m.rpcClient, owner.PublicKey(), quoteMint, payer.PublicKey(), &instructions)
+	quoteTokenAccount, err := solanago.PrepareTokenATA(ctx, rpcClient, owner, quoteMint, payer, &instructions)
 	if err != nil {
 		return nil, err
 	}
@@ -543,7 +424,13 @@ func (m *DammV2) RemoveAllLiquidityInstruction(
 				solana.NewAccountMeta(v.Vesting, false, false),
 			}
 		}
-		refreshVestingIx, err := cpAmmRefreshVesting(virtualPool.Address, ownerPosition.Position, ownerPosition.PositionNftAccount, owner.PublicKey(), vestingAccounts)
+		refreshVestingIx, err := cp_amm.NewRefreshVestingInstruction(
+			poolAddress,
+			ownerPosition.Position,
+			ownerPosition.PositionNftAccount,
+			owner,
+			vestingAccounts,
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -554,10 +441,15 @@ func (m *DammV2) RemoveAllLiquidityInstruction(
 		tokenBaseAmountThreshold  uint64
 		tokenQuoteAmountThreshold uint64
 	)
-	liquidityIx, err := cpAmmRemoveAllLiquidity(m,
+
+	liquidityIx, err := cp_amm.NewRemoveAllLiquidityInstruction(
+		// Params:
 		tokenBaseAmountThreshold,
 		tokenQuoteAmountThreshold,
-		virtualPool.Address,
+
+		// Accounts:
+		poolAuthority,
+		poolAddress,
 		ownerPosition.Position,
 		baseTokenAccount,
 		quoteTokenAccount,
@@ -566,22 +458,38 @@ func (m *DammV2) RemoveAllLiquidityInstruction(
 		baseMint,
 		quoteMint,
 		ownerPosition.PositionNftAccount,
-		owner.PublicKey(),
-		cp_amm.GetTokenProgram(virtualPool.TokenAFlag),
-		cp_amm.GetTokenProgram(virtualPool.TokenBFlag),
+		owner,
+		cp_amm.GetTokenProgram(poolState.TokenAFlag),
+		cp_amm.GetTokenProgram(poolState.TokenBFlag),
+		eventAuthority,
+		cp_amm.ProgramID,
 	)
+
 	if err != nil {
 		return nil, err
 	}
 	instructions = append(instructions, liquidityIx)
 
-	// unwrapIx := token.NewCloseAccountInstruction(
-	// 	quoteTokenAccount,
-	// 	owner.PublicKey(),
-	// 	owner.PublicKey(),
-	// 	[]solana.PublicKey{},
-	// ).Build()
-	// instructions = append(instructions, unwrapIx)
+	if baseMint.Equals(solana.WrappedSol) {
+		unwrapIx := token.NewCloseAccountInstruction(
+			baseTokenAccount,
+			owner,
+			owner,
+			[]solana.PublicKey{},
+		).Build()
+		instructions = append(instructions, unwrapIx)
+	}
+
+	if quoteMint.Equals(solana.WrappedSol) {
+		unwrapIx := token.NewCloseAccountInstruction(
+			quoteTokenAccount,
+			owner,
+			owner,
+			[]solana.PublicKey{},
+		).Build()
+		instructions = append(instructions, unwrapIx)
+	}
+
 	return instructions, nil
 }
 func (m *DammV2) RemoveAllLiquidity(
@@ -591,12 +499,12 @@ func (m *DammV2) RemoveAllLiquidity(
 	baseMint solana.PublicKey,
 	vestings []*Vesting,
 ) (string, error) {
-	virtualPool, err := m.GetPoolByBaseMint(ctx, baseMint)
+	poolState, err := m.GetPoolByBaseMint(ctx, baseMint)
 	if err != nil {
 		return "", err
 	}
 	var userPosition *UserPosition
-	userPositions, err := m.GetUserPositionByUserAndPoolPDA(ctx, virtualPool.Address, owner.PublicKey())
+	userPositions, err := m.GetUserPositionByUserAndPoolPDA(ctx, poolState.Address, owner.PublicKey())
 	if err != nil {
 		return "", err
 	}
@@ -605,12 +513,14 @@ func (m *DammV2) RemoveAllLiquidity(
 	}
 	userPosition = userPositions[0]
 
-	instructions, err := m.RemoveAllLiquidityInstruction(
+	instructions, err := RemoveAllLiquidityInstruction(
 		ctx,
-		payer,
-		owner,
+		m.rpcClient,
+		payer.PublicKey(),
+		owner.PublicKey(),
 		userPosition,
-		virtualPool,
+		poolState.Address,
+		poolState.Pool,
 		vestings,
 	)
 	if err != nil {
@@ -640,12 +550,12 @@ func (m *DammV2) RemoveAllLiquidity(
 }
 
 func (m *DammV2) GetPositionLiquidity(ctx context.Context, baseMint solana.PublicKey, owner solana.PublicKey) (*big.Int, *UserPosition, error) {
-	virtualPool, err := m.GetPoolByBaseMint(ctx, baseMint)
+	poolState, err := m.GetPoolByBaseMint(ctx, baseMint)
 	if err != nil {
 		return nil, nil, err
 	}
 	var userPosition *UserPosition
-	userPositions, err := m.GetUserPositionByUserAndPoolPDA(ctx, virtualPool.Address, owner)
+	userPositions, err := m.GetUserPositionByUserAndPoolPDA(ctx, poolState.Address, owner)
 	if err != nil {
 		return nil, nil, err
 	}

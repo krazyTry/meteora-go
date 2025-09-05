@@ -6,60 +6,19 @@ import (
 
 	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/programs/token"
+	"github.com/gagliardetto/solana-go/rpc"
 	dbc "github.com/krazyTry/meteora-go/dbc/dynamic_bonding_curve"
 	solanago "github.com/krazyTry/meteora-go/solana"
 )
 
-func dbcClaimTradingFee(
-	m *DBC,
-	// Params:
-	maxAmountBase uint64,
-	maxAmountQuote uint64,
-
-	// Accounts:
-	config solana.PublicKey,
-	dbcPool solana.PublicKey,
-	feeClaimer solana.PublicKey,
-	baseMint solana.PublicKey,
-	quoteMint solana.PublicKey,
-	baseVault solana.PublicKey,
-	quoteVault solana.PublicKey,
-	tokenBaseAccount solana.PublicKey,
-	tokenQuoteAccount solana.PublicKey,
-	tokenBaseProgram solana.PublicKey,
-	tokenQuoteProgram solana.PublicKey,
-) (solana.Instruction, error) {
-
-	poolAuthority := m.poolAuthority
-	eventAuthority := m.eventAuthority
-
-	program := dbc.ProgramID
-
-	return dbc.NewClaimTradingFeeInstruction(
-		maxAmountBase,
-		maxAmountQuote,
-		poolAuthority,
-		config,
-		dbcPool,
-		tokenBaseAccount,
-		tokenQuoteAccount,
-		baseVault,
-		quoteVault,
-		baseMint,
-		quoteMint,
-		feeClaimer,
-		tokenBaseProgram,
-		tokenQuoteProgram,
-		eventAuthority,
-		program,
-	)
-}
-
-func (m *DBC) ClaimPartnerTradingFeeInstruction(
+func ClaimPartnerTradingFeeInstruction(
 	ctx context.Context,
-	payer *solana.Wallet,
-	virtualPool *dbc.VirtualPool,
-	config *dbc.PoolConfig,
+	rpcClient *rpc.Client,
+	payer solana.PublicKey,
+	poolPartner solana.PublicKey,
+	poolAddress solana.PublicKey,
+	poolState *dbc.VirtualPool,
+	configState *dbc.PoolConfig,
 	claimBaseForQuote bool,
 	maxAmount uint64,
 ) ([]solana.Instruction, error) {
@@ -71,47 +30,46 @@ func (m *DBC) ClaimPartnerTradingFeeInstruction(
 		maxAmountQuote = maxAmount
 	}
 
-	baseMint := virtualPool.BaseMint // baseMint
-	quoteMint := config.QuoteMint    // solana.WrappedSol
+	baseMint := poolState.BaseMint     // baseMint
+	quoteMint := configState.QuoteMint // solana.WrappedSol
 
-	pool, err := dbc.DeriveDbcPoolPDA(quoteMint, baseMint, virtualPool.Config)
-	if err != nil {
-		return nil, err
-	}
+	baseVault := poolState.BaseVault   // dbc.DeriveTokenVaultPDA(pool, baseMint)
+	quoteVault := poolState.QuoteVault // dbc.DeriveTokenVaultPDA(pool, quoteMint)
 
-	baseVault := virtualPool.BaseVault   // dbc.DeriveTokenVaultPDA(pool, baseMint)
-	quoteVault := virtualPool.QuoteVault // dbc.DeriveTokenVaultPDA(pool, quoteMint)
-
-	tokenBaseProgram := dbc.GetTokenProgram(config.TokenType)
+	tokenBaseProgram := dbc.GetTokenProgram(configState.TokenType)
 	tokenQuoteProgram := solana.TokenProgramID
 
 	var instructions []solana.Instruction
 
-	tokenBaseAccount, err := solanago.PrepareTokenATA(ctx, m.rpcClient, m.feeClaimer.PublicKey(), baseMint, payer.PublicKey(), &instructions)
+	tokenBaseAccount, err := solanago.PrepareTokenATA(ctx, rpcClient, poolPartner, baseMint, payer, &instructions)
 	if err != nil {
 		return nil, err
 	}
 
-	tokenQuoteAccount, err := solanago.PrepareTokenATA(ctx, m.rpcClient, m.feeClaimer.PublicKey(), quoteMint, payer.PublicKey(), &instructions)
+	tokenQuoteAccount, err := solanago.PrepareTokenATA(ctx, rpcClient, poolPartner, quoteMint, payer, &instructions)
 	if err != nil {
 		return nil, err
 	}
 
-	claimIx, err := dbcClaimTradingFee(m,
+	claimIx, err := dbc.NewClaimTradingFeeInstruction(
 		maxAmountBase,
 		maxAmountQuote,
-		virtualPool.Config,
-		pool,
-		m.feeClaimer.PublicKey(),
-		baseMint,
-		quoteMint,
-		baseVault,
-		quoteVault,
+		poolAuthority,
+		poolState.Config,
+		poolAddress,
 		tokenBaseAccount,
 		tokenQuoteAccount,
+		baseVault,
+		quoteVault,
+		baseMint,
+		quoteMint,
+		poolPartner,
 		tokenBaseProgram,
 		tokenQuoteProgram,
+		eventAuthority,
+		dbc.ProgramID,
 	)
+
 	if err != nil {
 		return nil, err
 	}
@@ -122,18 +80,18 @@ func (m *DBC) ClaimPartnerTradingFeeInstruction(
 	case baseMint.Equals(solana.WrappedSol):
 		closeWSOLIx := token.NewCloseAccountInstruction(
 			tokenBaseAccount,
-			m.feeClaimer.PublicKey(),
-			m.feeClaimer.PublicKey(),
-			[]solana.PublicKey{},
+			poolPartner,
+			poolPartner,
+			nil,
 		).Build()
 
 		instructions = append(instructions, closeWSOLIx)
 	case quoteMint.Equals(solana.WrappedSol):
 		closeWSOLIx := token.NewCloseAccountInstruction(
 			tokenQuoteAccount,
-			m.feeClaimer.PublicKey(),
-			m.feeClaimer.PublicKey(),
-			[]solana.PublicKey{},
+			poolPartner,
+			poolPartner,
+			nil,
 		).Build()
 
 		instructions = append(instructions, closeWSOLIx)
@@ -153,17 +111,27 @@ func (m *DBC) ClaimPartnerTradingFee(
 		return "", fmt.Errorf("claim amount must be greater than 0")
 	}
 
-	virtualPool, err := m.GetPoolByBaseMint(ctx, baseMint)
+	poolState, err := m.GetPoolByBaseMint(ctx, baseMint)
 	if err != nil {
 		return "", err
 	}
 
-	config, err := m.GetConfig(ctx, virtualPool.Config)
+	configState, err := m.GetConfig(ctx, poolState.Config)
 	if err != nil {
 		return "", err
 	}
 
-	instructions, err := m.ClaimPartnerTradingFeeInstruction(ctx, payer, virtualPool, config, claimBaseForQuote, maxAmount)
+	instructions, err := ClaimPartnerTradingFeeInstruction(
+		ctx,
+		m.rpcClient,
+		payer.PublicKey(),
+		m.feeClaimer.PublicKey(),
+		poolState.Address,
+		poolState.VirtualPool,
+		configState,
+		claimBaseForQuote,
+		maxAmount,
+	)
 	if err != nil {
 		return "", err
 	}
@@ -189,56 +157,15 @@ func (m *DBC) ClaimPartnerTradingFee(
 	}
 	return sig.String(), nil
 }
-func claimCreatorTradingFee(
-	m *DBC,
-	// Params:
-	maxAmountBase uint64,
-	maxAmountQuote uint64,
 
-	// Accounts:
-	dbcPool solana.PublicKey,
-	creator solana.PublicKey,
-	baseMint solana.PublicKey,
-	quoteMint solana.PublicKey,
-	baseVault solana.PublicKey,
-	quoteVault solana.PublicKey,
-	tokenBaseAccount solana.PublicKey,
-	tokenQuoteAccount solana.PublicKey,
-	tokenBaseProgram solana.PublicKey,
-	tokenQuoteProgram solana.PublicKey,
-) (solana.Instruction, error) {
-
-	poolAuthority := m.poolAuthority
-	eventAuthority := m.eventAuthority
-
-	program := dbc.ProgramID
-
-	return dbc.NewClaimCreatorTradingFeeInstruction(
-		maxAmountBase,
-		maxAmountQuote,
-
-		// Accounts:
-		poolAuthority,
-		dbcPool,
-		tokenBaseAccount,
-		tokenQuoteAccount,
-		baseVault,
-		quoteVault,
-		baseMint,
-		quoteMint,
-		creator,
-		tokenBaseProgram,
-		tokenQuoteProgram,
-		eventAuthority,
-		program,
-	)
-}
-
-func (m *DBC) ClaimCreatorTradingFeeInstruction(
+func ClaimCreatorTradingFeeInstruction(
 	ctx context.Context,
-	payer *solana.Wallet,
-	virtualPool *dbc.VirtualPool,
-	config *dbc.PoolConfig,
+	rpcClient *rpc.Client,
+	payer solana.PublicKey,
+	poolCreator solana.PublicKey,
+	poolAddress solana.PublicKey,
+	poolState *dbc.VirtualPool,
+	configState *dbc.PoolConfig,
 	claimBaseForQuote bool,
 	maxAmount uint64,
 ) ([]solana.Instruction, error) {
@@ -249,47 +176,47 @@ func (m *DBC) ClaimCreatorTradingFeeInstruction(
 	} else {
 		maxAmountQuote = maxAmount
 	}
-	baseMint := virtualPool.BaseMint // baseMint
-	quoteMint := config.QuoteMint    // solana.WrappedSol
+	baseMint := poolState.BaseMint     // baseMint
+	quoteMint := configState.QuoteMint // solana.WrappedSol
 
-	pool, err := dbc.DeriveDbcPoolPDA(quoteMint, baseMint, virtualPool.Config)
-	// pool, err := dbc.DeriveDbcPoolPDA(quoteMint, baseMint, virtualPool.Config)
-	if err != nil {
-		return nil, err
-	}
+	baseVault := poolState.BaseVault   // dbc.DeriveTokenVaultPDA(pool, baseMint)
+	quoteVault := poolState.QuoteVault // dbc.DeriveTokenVaultPDA(pool, quoteMint)
 
-	baseVault := virtualPool.BaseVault   // dbc.DeriveTokenVaultPDA(pool, baseMint)
-	quoteVault := virtualPool.QuoteVault // dbc.DeriveTokenVaultPDA(pool, quoteMint)
-
-	tokenBaseProgram := dbc.GetTokenProgram(config.TokenType)
+	tokenBaseProgram := dbc.GetTokenProgram(configState.TokenType)
 	tokenQuoteProgram := solana.TokenProgramID
 
 	var instructions []solana.Instruction
 
-	tokenBaseAccount, err := solanago.PrepareTokenATA(ctx, m.rpcClient, m.poolCreator.PublicKey(), baseMint, payer.PublicKey(), &instructions)
+	tokenBaseAccount, err := solanago.PrepareTokenATA(ctx, rpcClient, poolCreator, baseMint, payer, &instructions)
 	if err != nil {
 		return nil, err
 	}
 
-	tokenQuoteAccount, err := solanago.PrepareTokenATA(ctx, m.rpcClient, m.poolCreator.PublicKey(), quoteMint, payer.PublicKey(), &instructions)
+	tokenQuoteAccount, err := solanago.PrepareTokenATA(ctx, rpcClient, poolCreator, quoteMint, payer, &instructions)
 	if err != nil {
 		return nil, err
 	}
 
-	claimIx, err := claimCreatorTradingFee(m,
+	claimIx, err := dbc.NewClaimCreatorTradingFeeInstruction(
 		maxAmountBase,
 		maxAmountQuote,
-		pool,
-		m.poolCreator.PublicKey(),
-		baseMint,
-		quoteMint,
-		baseVault,
-		quoteVault,
+
+		// Accounts:
+		poolAuthority,
+		poolAddress,
 		tokenBaseAccount,
 		tokenQuoteAccount,
+		baseVault,
+		quoteVault,
+		baseMint,
+		quoteMint,
+		poolCreator,
 		tokenBaseProgram,
 		tokenQuoteProgram,
+		eventAuthority,
+		dbc.ProgramID,
 	)
+
 	if err != nil {
 		return nil, err
 	}
@@ -300,8 +227,8 @@ func (m *DBC) ClaimCreatorTradingFeeInstruction(
 	case baseMint.Equals(solana.WrappedSol):
 		closeWSOLIx := token.NewCloseAccountInstruction(
 			tokenBaseAccount,
-			m.poolCreator.PublicKey(),
-			m.poolCreator.PublicKey(),
+			poolCreator,
+			poolCreator,
 			[]solana.PublicKey{},
 		).Build()
 
@@ -309,8 +236,8 @@ func (m *DBC) ClaimCreatorTradingFeeInstruction(
 	case quoteMint.Equals(solana.WrappedSol):
 		closeWSOLIx := token.NewCloseAccountInstruction(
 			tokenQuoteAccount,
-			m.poolCreator.PublicKey(),
-			m.poolCreator.PublicKey(),
+			poolCreator,
+			poolCreator,
 			[]solana.PublicKey{},
 		).Build()
 
@@ -331,17 +258,27 @@ func (m *DBC) ClaimCreatorTradingFee(
 		return "", fmt.Errorf("claim amount must be greater than 0")
 	}
 
-	virtualPool, err := m.GetPoolByBaseMint(ctx, baseMint)
+	poolState, err := m.GetPoolByBaseMint(ctx, baseMint)
 	if err != nil {
 		return "", err
 	}
 
-	config, err := m.GetConfig(ctx, virtualPool.Config)
+	configState, err := m.GetConfig(ctx, poolState.Config)
 	if err != nil {
 		return "", err
 	}
 
-	instructions, err := m.ClaimCreatorTradingFeeInstruction(ctx, payer, virtualPool, config, claimBaseForQuote, maxAmount)
+	instructions, err := ClaimCreatorTradingFeeInstruction(
+		ctx,
+		m.rpcClient,
+		payer.PublicKey(),
+		m.poolCreator.PublicKey(),
+		poolState.Address,
+		poolState.VirtualPool,
+		configState,
+		claimBaseForQuote,
+		maxAmount,
+	)
 	if err != nil {
 		return "", err
 	}

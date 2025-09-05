@@ -5,8 +5,10 @@ import (
 	"math/big"
 
 	dbc "github.com/krazyTry/meteora-go/dbc/dynamic_bonding_curve"
+	"github.com/shopspring/decimal"
 
 	"github.com/gagliardetto/solana-go"
+	"github.com/gagliardetto/solana-go/rpc"
 	solanago "github.com/krazyTry/meteora-go/solana"
 )
 
@@ -17,31 +19,51 @@ func (m *DBC) SwapQuote(
 	amountIn *big.Int,
 	slippageBps uint64,
 	// hasReferral bool, // default false
-) (*dbc.QuoteResult, *dbc.VirtualPool, *dbc.PoolConfig, *big.Int, error) {
-	virtualPool, err := m.GetPoolByBaseMint(ctx, baseMint)
+) (*dbc.QuoteResult, *Pool, *dbc.PoolConfig, *big.Int, error) {
+	return SwapQuote(ctx, m.rpcClient, baseMint, swapBaseForQuote, amountIn, slippageBps)
+}
+
+func SwapQuote(
+	ctx context.Context,
+	rpcClient *rpc.Client,
+	baseMint solana.PublicKey,
+	swapBaseForQuote bool, // buy(quote=>base) sell(base => quote)
+	amountIn *big.Int,
+	slippageBps uint64,
+	// hasReferral bool, // default false
+) (*dbc.QuoteResult, *Pool, *dbc.PoolConfig, *big.Int, error) {
+	poolState, err := GetPoolByBaseMint(ctx, rpcClient, baseMint)
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
 
-	config, err := m.GetConfig(ctx, virtualPool.Config)
+	configState, err := GetConfig(ctx, rpcClient, poolState.Config)
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
 
-	if virtualPool.IsMigrated == dbc.IsMigratedCompleted {
+	if poolState.IsMigrated == dbc.IsMigratedCompleted {
 		return nil, nil, nil, nil, ErrPoolCompleted
 	}
 
-	currentPoint, err := solanago.CurrenPoint(ctx, m.rpcClient, uint8(config.ActivationType))
+	currentPoint, err := solanago.CurrenPoint(ctx, rpcClient, uint8(configState.ActivationType))
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
 
-	quote, err := dbc.SwapQuote(virtualPool, config, swapBaseForQuote, amountIn, slippageBps, false, currentPoint)
+	quote, err := dbc.SwapQuote(
+		poolState.VirtualPool,
+		configState,
+		swapBaseForQuote,
+		decimal.NewFromBigInt(amountIn, 0),
+		decimal.NewFromUint64(uint64(slippageBps)),
+		false,
+		decimal.NewFromBigInt(currentPoint, 0),
+	)
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
-	return quote, virtualPool, config, currentPoint, nil
+	return quote, poolState, configState, currentPoint, nil
 }
 
 func (m *DBC) BuyQuote(
@@ -49,7 +71,7 @@ func (m *DBC) BuyQuote(
 	baseMint solana.PublicKey,
 	amountIn *big.Int,
 	slippageBps uint64,
-) (*dbc.QuoteResult, *dbc.VirtualPool, *dbc.PoolConfig, *big.Int, error) {
+) (*dbc.QuoteResult, *Pool, *dbc.PoolConfig, *big.Int, error) {
 	return m.SwapQuote(ctx, baseMint, false, amountIn, slippageBps)
 }
 
@@ -58,6 +80,6 @@ func (m *DBC) SellQuote(
 	baseMint solana.PublicKey,
 	amountIn *big.Int,
 	slippageBps uint64,
-) (*dbc.QuoteResult, *dbc.VirtualPool, *dbc.PoolConfig, *big.Int, error) {
+) (*dbc.QuoteResult, *Pool, *dbc.PoolConfig, *big.Int, error) {
 	return m.SwapQuote(ctx, baseMint, true, amountIn, slippageBps)
 }

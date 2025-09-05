@@ -280,12 +280,12 @@ func TestDammV2(t *testing.T) {
 		ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
 		defer cancel1()
 		amountIn := new(big.Int).SetUint64(uint64(0.2 * 1e9))
-		minOutAmount, virtualPool, err := meteoraDammV2.BuyQuote(ctx1, baseMint, amountIn, 250)
+		minOutAmount, poolState, err := meteoraDammV2.BuyQuote(ctx1, baseMint, amountIn, 250)
 		if err != nil {
 			t.Fatal("cpAmm.BuyQuote() fail", err)
 		}
 		fmt.Printf("buy token address:%s expected:%v minimum:%v\n", baseMint, minOutAmount.SwapOutAmount, minOutAmount.MinSwapOutAmount)
-		sig, err := meteoraDammV2.Buy(ctx1, ownerWallet, nil, virtualPool, amountIn, minOutAmount.MinSwapOutAmount)
+		sig, err := meteoraDammV2.Buy(ctx1, ownerWallet, nil, poolState.Address, poolState.Pool, amountIn, minOutAmount.MinSwapOutAmount)
 		if err != nil {
 			t.Fatal("cpAmm.Buy() fail", err)
 		}
@@ -315,12 +315,12 @@ func TestDammV2(t *testing.T) {
 			defer cancel1()
 			amountIn := new(big.Int).SetUint64(balance) // uint64(100000 * 1e9)
 
-			quote, virtualPool, err := meteoraDammV2.SellQuote(ctx1, baseMint, amountIn, 250)
+			quote, poolState, err := meteoraDammV2.SellQuote(ctx1, baseMint, amountIn, 250)
 			if err != nil {
 				t.Fatal("cpAmm.SellQuote fail", err)
 			}
 
-			sig, err := meteoraDammV2.Sell(ctx1, ownerWallet, nil, virtualPool, amountIn, quote.MinSwapOutAmount)
+			sig, err := meteoraDammV2.Sell(ctx1, ownerWallet, nil, poolState.Address, poolState.Pool, amountIn, quote.MinSwapOutAmount)
 			if err != nil {
 				t.Fatal("cpAmm.Sell fail", err)
 			}

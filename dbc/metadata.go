@@ -19,17 +19,15 @@ func dbcCreatePartnerMetadata(
 	partnerMetadata solana.PublicKey,
 	payer solana.PublicKey,
 	feeClaimer solana.PublicKey,
-) (solana.Instruction, error) {
-	eventAuthority := m.eventAuthority
 
-	program := dbc.ProgramID
-	systemProgram := solana.SystemProgramID
+) (solana.Instruction, error) {
 
 	metadata := dbc.CreatePartnerMetadataParameters{
 		Name:    name,
 		Website: website,
 		Logo:    logo,
 	}
+
 	return dbc.NewCreatePartnerMetadataInstruction(
 		// Params:
 		metadata,
@@ -38,95 +36,85 @@ func dbcCreatePartnerMetadata(
 		partnerMetadata,
 		payer,
 		feeClaimer,
-		systemProgram,
+		solana.SystemProgramID,
 		eventAuthority,
-		program,
+		dbc.ProgramID,
 	)
 }
 
 func (m *DBC) CreatePartnerMetadataInstruction(
 	ctx context.Context,
-	payer *solana.Wallet,
+	payer solana.PublicKey,
+	poolPartner solana.PublicKey,
 	name string,
 	website string,
 	logo string,
-) (solana.Instruction, error) {
+) ([]solana.Instruction, error) {
 
-	partnerMetadata, err := dbc.DerivePartnerMetadataPDA(m.feeClaimer.PublicKey())
+	partnerMetadata, err := dbc.DerivePartnerMetadataPDA(poolPartner)
 	if err != nil {
 		return nil, err
 	}
 
-	return dbcCreatePartnerMetadata(
-		m,
-		name,
-		website,
-		logo,
+	metadata := dbc.CreatePartnerMetadataParameters{
+		Name:    name,
+		Website: website,
+		Logo:    logo,
+	}
+
+	createIx, err := dbc.NewCreatePartnerMetadataInstruction(
+		// Params:
+		metadata,
+
+		// Accounts:
 		partnerMetadata,
-		payer.PublicKey(),
-		m.feeClaimer.PublicKey(),
+		payer,
+		poolPartner,
+		solana.SystemProgramID,
+		eventAuthority,
+		dbc.ProgramID,
 	)
+	if err != nil {
+		return nil, err
+	}
+
+	return []solana.Instruction{createIx}, nil
 }
 
-func dbcCreateVirtualPoolMetadata(
-	m *DBC,
-	// Params:
+func (m *DBC) CreateVirtualPoolMetadataInstruction(
+	ctx context.Context,
+	payer solana.PublicKey,
+	poolCreator solana.PublicKey,
+	poolAddress solana.PublicKey,
 	name string,
 	website string,
 	logo string,
-
-	// Accounts:
-	dbcPool solana.PublicKey,
-	virtualPoolMetadata solana.PublicKey,
-	creator solana.PublicKey,
-	payer solana.PublicKey,
-) (solana.Instruction, error) {
-	eventAuthority := m.eventAuthority
-	program := dbc.ProgramID
-	systemProgram := solana.SystemProgramID
-
+) ([]solana.Instruction, error) {
+	virtualPoolMetadata, err := dbc.DeriveDbcPoolMetadataPDA(poolAddress)
+	if err != nil {
+		return nil, err
+	}
 	metadata := dbc.CreateVirtualPoolMetadataParameters{
 		Name:    name,
 		Website: website,
 		Logo:    logo,
 	}
 
-	return dbc.NewCreateVirtualPoolMetadataInstruction(
+	createIx, err := dbc.NewCreateVirtualPoolMetadataInstruction(
 		// Params:
 		metadata,
 
 		// Accounts:
-		dbcPool,
+		poolAddress,
 		virtualPoolMetadata,
-		creator,
+		poolCreator,
 		payer,
-		systemProgram,
+		solana.SystemProgramID,
 		eventAuthority,
-		program,
+		dbc.ProgramID,
 	)
-}
-
-func (m *DBC) CreateVirtualPoolMetadataInstruction(
-	ctx context.Context,
-	payer *solana.Wallet,
-	baseMint solana.Wallet,
-	name string,
-	website string,
-	logo string,
-) (solana.Instruction, error) {
-	virtualPoolMetadata, err := dbc.DeriveDbcPoolMetadataPDA(baseMint.PublicKey())
 	if err != nil {
 		return nil, err
 	}
-
-	return dbcCreateVirtualPoolMetadata(
-		m,
-		name,
-		website,
-		logo,
-		baseMint.PublicKey(),
-		virtualPoolMetadata,
-		m.poolCreator.PublicKey(),
-		payer.PublicKey(),
-	)
+	return []solana.Instruction{createIx}, nil
 }
