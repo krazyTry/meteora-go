@@ -18,9 +18,9 @@ func (m *DBC) SwapQuote(
 	swapBaseForQuote bool, // buy(quote=>base) sell(base => quote)
 	amountIn *big.Int,
 	slippageBps uint64,
-	// hasReferral bool, // default false
+	hasReferral bool, // default false
 ) (*dbc.QuoteResult, *Pool, *dbc.PoolConfig, *big.Int, error) {
-	return SwapQuote(ctx, m.rpcClient, baseMint, swapBaseForQuote, amountIn, slippageBps)
+	return SwapQuote(ctx, m.rpcClient, baseMint, swapBaseForQuote, amountIn, slippageBps, hasReferral)
 }
 
 func SwapQuote(
@@ -30,7 +30,7 @@ func SwapQuote(
 	swapBaseForQuote bool, // buy(quote=>base) sell(base => quote)
 	amountIn *big.Int,
 	slippageBps uint64,
-	// hasReferral bool, // default false
+	hasReferral bool, // default false
 ) (*dbc.QuoteResult, *Pool, *dbc.PoolConfig, *big.Int, error) {
 	poolState, err := GetPoolByBaseMint(ctx, rpcClient, baseMint)
 	if err != nil {
@@ -57,7 +57,7 @@ func SwapQuote(
 		swapBaseForQuote,
 		decimal.NewFromBigInt(amountIn, 0),
 		decimal.NewFromUint64(uint64(slippageBps)),
-		false,
+		hasReferral,
 		decimal.NewFromBigInt(currentPoint, 0),
 	)
 	if err != nil {
@@ -71,8 +71,9 @@ func (m *DBC) BuyQuote(
 	baseMint solana.PublicKey,
 	amountIn *big.Int,
 	slippageBps uint64,
+	hasReferral bool,
 ) (*dbc.QuoteResult, *Pool, *dbc.PoolConfig, *big.Int, error) {
-	return m.SwapQuote(ctx, baseMint, false, amountIn, slippageBps)
+	return m.SwapQuote(ctx, baseMint, false, amountIn, slippageBps, hasReferral)
 }
 
 func (m *DBC) SellQuote(
@@ -80,6 +81,7 @@ func (m *DBC) SellQuote(
 	baseMint solana.PublicKey,
 	amountIn *big.Int,
 	slippageBps uint64,
+	hasReferral bool,
 ) (*dbc.QuoteResult, *Pool, *dbc.PoolConfig, *big.Int, error) {
-	return m.SwapQuote(ctx, baseMint, true, amountIn, slippageBps)
+	return m.SwapQuote(ctx, baseMint, true, amountIn, slippageBps, hasReferral)
 }

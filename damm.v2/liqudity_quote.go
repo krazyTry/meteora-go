@@ -152,8 +152,18 @@ func GetWithdrawQuote(
 		return nil, nil, err
 	}
 
-	amountA := cp_amm.GetAmountAFromLiquidityDelta(decimal.NewFromBigInt(liquidityDelta, 0), decimal.NewFromBigInt(poolState.SqrtPrice.BigInt(), 0), decimal.NewFromBigInt(poolState.SqrtMaxPrice.BigInt(), 0), false)
-	amountB := cp_amm.GetAmountBFromLiquidityDelta(decimal.NewFromBigInt(liquidityDelta, 0), decimal.NewFromBigInt(poolState.SqrtPrice.BigInt(), 0), decimal.NewFromBigInt(poolState.SqrtMinPrice.BigInt(), 0), false)
+	amountA := cp_amm.GetAmountAFromLiquidityDelta(
+		decimal.NewFromBigInt(liquidityDelta, 0),
+		decimal.NewFromBigInt(poolState.SqrtPrice.BigInt(), 0),
+		decimal.NewFromBigInt(poolState.SqrtMaxPrice.BigInt(), 0),
+		false,
+	)
+	amountB := cp_amm.GetAmountBFromLiquidityDelta(
+		decimal.NewFromBigInt(liquidityDelta, 0),
+		decimal.NewFromBigInt(poolState.SqrtPrice.BigInt(), 0),
+		decimal.NewFromBigInt(poolState.SqrtMinPrice.BigInt(), 0),
+		false,
+	)
 
 	baseMint = poolState.TokenAMint
 	quoteMint := poolState.TokenBMint

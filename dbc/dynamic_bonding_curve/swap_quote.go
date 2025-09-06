@@ -2,6 +2,7 @@ package dynamic_bonding_curve
 
 import (
 	"errors"
+	"math/big"
 
 	"github.com/krazyTry/meteora-go/u128"
 
@@ -9,13 +10,13 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-func getSwapAmountFromQuoteToBase(curve []LiquidityDistributionConfig, sqrtStartPrice binary.Uint128, amountIn decimal.Decimal) (decimal.Decimal, binary.Uint128, error) {
+func getSwapAmountFromQuoteToBase(curve []LiquidityDistributionConfig, currentSqrtPrice binary.Uint128, amountIn, stopSqrtPrice decimal.Decimal) (decimal.Decimal, binary.Uint128, decimal.Decimal, error) {
 	if amountIn.IsZero() {
-		return decimal.Zero, sqrtStartPrice, nil
+		return N0, currentSqrtPrice, N0, nil
 	}
 
-	totalOutput := decimal.Zero
-	sqrtPrice := decimal.NewFromBigInt(sqrtStartPrice.BigInt(), 0)
+	totalOutput := N0
+	currentSqrtPriceLocal := decimal.NewFromBigInt(currentSqrtPrice.BigInt(), 0)
 	amountLeft := amountIn
 
 	// iterate through the curve points
@@ -28,119 +29,161 @@ func getSwapAmountFromQuoteToBase(curve []LiquidityDistributionConfig, sqrtStart
 			continue
 		}
 
-		if pointSqrtPrice.Cmp(sqrtPrice) > 0 {
-			maxAmountIn := getDeltaAmountQuoteUnsigned(sqrtPrice, pointSqrtPrice, pointLiquidity, true)
+		referenceSqrtPrice := decimal.Min(stopSqrtPrice, pointSqrtPrice)
+
+		if referenceSqrtPrice.Cmp(currentSqrtPriceLocal) > 0 {
+			maxAmountIn := getDeltaAmountQuoteUnsigned(
+				currentSqrtPriceLocal,
+				pointSqrtPrice,
+				pointLiquidity,
+				true,
+			)
 
 			if amountLeft.Cmp(maxAmountIn) < 0 {
-				nextSqrtPrice, err := getNextSqrtPriceFromInput(sqrtPrice, pointLiquidity, amountLeft, false)
+				nextSqrtPrice, err := getNextSqrtPriceFromInput(
+					currentSqrtPriceLocal,
+					pointLiquidity,
+					amountLeft,
+					false,
+				)
 				if err != nil {
-					return decimal.Decimal{}, binary.Uint128{}, err
+					return decimal.Decimal{}, binary.Uint128{}, decimal.Decimal{}, err
 				}
-				outputAmount, err := getDeltaAmountBaseUnsigned(sqrtPrice, nextSqrtPrice, pointLiquidity, true)
+				outputAmount, err := getDeltaAmountBaseUnsigned(
+					currentSqrtPriceLocal,
+					nextSqrtPrice,
+					pointLiquidity,
+					false,
+				)
 				if err != nil {
-					return decimal.Decimal{}, binary.Uint128{}, err
+					return decimal.Decimal{}, binary.Uint128{}, decimal.Decimal{}, err
 				}
 				totalOutput = totalOutput.Add(outputAmount)
-				sqrtPrice = nextSqrtPrice
-				amountLeft = decimal.Zero
-
+				currentSqrtPriceLocal = nextSqrtPrice
+				amountLeft = N0
 				break
 			} else {
-				nextSqrtPrice := pointSqrtPrice
+				nextSqrtPrice := referenceSqrtPrice
 
-				outputAmount, err := getDeltaAmountBaseUnsigned(sqrtPrice, nextSqrtPrice, pointLiquidity, true)
+				outputAmount, err := getDeltaAmountBaseUnsigned(
+					currentSqrtPriceLocal,
+					nextSqrtPrice,
+					pointLiquidity,
+					false)
 				if err != nil {
-					return decimal.Decimal{}, binary.Uint128{}, err
+					return decimal.Decimal{}, binary.Uint128{}, decimal.Decimal{}, err
 				}
 				totalOutput = totalOutput.Add(outputAmount)
-				sqrtPrice = nextSqrtPrice
+				currentSqrtPriceLocal = nextSqrtPrice
 				amountLeft = amountLeft.Sub(maxAmountIn)
+
+				if nextSqrtPrice.Equal(stopSqrtPrice) {
+					break
+				}
 			}
 		}
 	}
 
-	if !amountLeft.IsZero() {
-		return decimal.Decimal{}, binary.Uint128{}, errors.New("not enough liquidity to process the entire amount")
-	}
-
-	return totalOutput, u128.GenUint128FromString(sqrtPrice.String()), nil
+	return totalOutput, u128.GenUint128FromString(currentSqrtPriceLocal.String()), amountLeft, nil
 }
 
-func getSwapAmountFromBaseToQuote(curve []LiquidityDistributionConfig, sqrtStartPrice binary.Uint128, amountIn decimal.Decimal) (decimal.Decimal, binary.Uint128, error) {
+func getSwapAmountFromBaseToQuote(curve []LiquidityDistributionConfig, sqrtStartPrice binary.Uint128, amountIn decimal.Decimal) (decimal.Decimal, binary.Uint128, decimal.Decimal, error) {
 
 	if amountIn.IsZero() {
-		return decimal.Zero, sqrtStartPrice, nil
+		return N0, sqrtStartPrice, N0, nil
 	}
 
 	totalOutput := decimal.Zero
-	sqrtPrice := decimal.NewFromBigInt(sqrtStartPrice.BigInt(), 0)
+	currentSqrtPriceLocal := decimal.NewFromBigInt(sqrtStartPrice.BigInt(), 0)
 	amountLeft := amountIn
 
-	for i := range curve {
-		cp := curve[i]
-		currentSqrtPrice := decimal.NewFromBigInt(cp.SqrtPrice.BigInt(), 0)
-		currentLiquidity := decimal.NewFromBigInt(cp.Liquidity.BigInt(), 0)
+	// for i := range curve {
+	for i := len(curve) - 2; i >= 0; i-- {
 
-		if currentSqrtPrice.IsZero() || currentLiquidity.IsZero() {
+		if curve[i].SqrtPrice.BigInt().Cmp(big.NewInt(0)) == 0 || curve[i].Liquidity.BigInt().Cmp(big.NewInt(0)) == 0 {
 			continue
 		}
+		cp := curve[i]
+		currentSqrtPrice := decimal.NewFromBigInt(cp.SqrtPrice.BigInt(), 0)
+		cp1 := curve[i+1]
+		currentLiquidity := decimal.NewFromBigInt(cp1.Liquidity.BigInt(), 0)
 
-		if currentSqrtPrice.Cmp(sqrtPrice) < 0 {
-
-			if i+1 < len(curve) {
-				currentLiquidity = decimal.NewFromBigInt(curve[i+1].Liquidity.BigInt(), 0)
-			}
-
-			if currentLiquidity.IsZero() {
-				continue
-			}
-
-			maxAmountIn, err := getDeltaAmountBaseUnsigned(currentSqrtPrice, sqrtPrice, currentLiquidity, true)
+		if currentSqrtPrice.Cmp(currentSqrtPriceLocal) < 0 {
+			maxAmountIn, err := getDeltaAmountBaseUnsigned(
+				currentSqrtPrice,
+				currentSqrtPriceLocal,
+				currentLiquidity,
+				true,
+			)
 			if err != nil {
-				return decimal.Decimal{}, binary.Uint128{}, err
+				return decimal.Decimal{}, binary.Uint128{}, decimal.Decimal{}, err
 			}
 
 			if amountLeft.Cmp(maxAmountIn) < 0 {
 
-				nextSqrt, err := getNextSqrtPriceFromInput(sqrtPrice, currentLiquidity, amountLeft, true)
+				nextSqrt, err := getNextSqrtPriceFromInput(
+					currentSqrtPriceLocal,
+					currentLiquidity,
+					amountLeft,
+					true,
+				)
 				if err != nil {
-					return decimal.Decimal{}, binary.Uint128{}, err
+					return decimal.Decimal{}, binary.Uint128{}, decimal.Decimal{}, err
 				}
 
-				outputAmount := getDeltaAmountQuoteUnsigned(nextSqrt, sqrtPrice, currentLiquidity, true)
+				outputAmount := getDeltaAmountQuoteUnsigned(
+					nextSqrt,
+					currentSqrtPriceLocal,
+					currentLiquidity,
+					true,
+				)
 				totalOutput = totalOutput.Add(outputAmount)
-				sqrtPrice = nextSqrt
+				currentSqrtPriceLocal = nextSqrt
 				amountLeft = decimal.Zero
 				break
 
 			} else {
 
 				nextSqrt := currentSqrtPrice
-				outputAmount := getDeltaAmountQuoteUnsigned(nextSqrt, sqrtPrice, currentLiquidity, true)
+				outputAmount := getDeltaAmountQuoteUnsigned(
+					nextSqrt,
+					currentSqrtPriceLocal,
+					currentLiquidity,
+					true,
+				)
 				totalOutput = totalOutput.Add(outputAmount)
-				sqrtPrice = nextSqrt
+				currentSqrtPriceLocal = nextSqrt
 				amountLeft = amountLeft.Sub(maxAmountIn)
 
 			}
 		}
 	}
 
-	zero := decimal.Zero
+	zero := N0
 
-	if amountLeft.Cmp(zero) > 0 && decimal.NewFromBigInt(curve[0].Liquidity.BigInt(), 0).Cmp(zero) > 0 {
+	if amountLeft.Cmp(zero) > 0 {
 
-		nextSqrt, err := getNextSqrtPriceFromInput(sqrtPrice, decimal.NewFromBigInt(curve[0].Liquidity.BigInt(), 0), amountLeft, true)
+		nextSqrt, err := getNextSqrtPriceFromInput(
+			currentSqrtPriceLocal,
+			decimal.NewFromBigInt(curve[0].Liquidity.BigInt(), 0),
+			amountLeft,
+			true,
+		)
 		if err != nil {
-			return decimal.Decimal{}, binary.Uint128{}, err
+			return decimal.Decimal{}, binary.Uint128{}, decimal.Decimal{}, err
 		}
 
-		outputAmount := getDeltaAmountQuoteUnsigned(nextSqrt, sqrtPrice, decimal.NewFromBigInt(curve[0].Liquidity.BigInt(), 0), true)
+		outputAmount := getDeltaAmountQuoteUnsigned(
+			nextSqrt,
+			currentSqrtPriceLocal,
+			decimal.NewFromBigInt(curve[0].Liquidity.BigInt(), 0),
+			false,
+		)
 		totalOutput = totalOutput.Add(outputAmount)
-		sqrtPrice = nextSqrt
-
+		currentSqrtPriceLocal = nextSqrt
 	}
 
-	return totalOutput, u128.GenUint128FromString(sqrtPrice.String()), nil
+	return totalOutput, u128.GenUint128FromString(currentSqrtPriceLocal.String()), N0, nil
 }
 
 func GetSwapAmountFromQuote(configState *PoolConfig, amountIn decimal.Decimal, slippageBps uint64) (decimal.Decimal, error) {
@@ -158,13 +201,13 @@ func GetSwapAmountFromQuote(configState *PoolConfig, amountIn decimal.Decimal, s
 	baseFeeNumerator := decimal.NewFromUint64(uint64(configState.PoolFees.BaseFee.CliffFeeNumerator))
 
 	// tradeFeeNumerator = min(baseFeeNumerator, MAX_FEE_NUMERATOR)
-	tradeFeeNumerator := decimal.Min(baseFeeNumerator, decimal.NewFromBigInt(MAX_FEE_NUMERATOR, 0))
+	tradeFeeNumerator := decimal.Min(baseFeeNumerator, MAX_FEE_NUMERATOR)
 
 	// apply fees on input if needed
 	if feeMode.FeesOnInput {
 
 		// tradingFee = amountIn * tradeFeeNumerator / FEE_DENOMINATOR
-		tradingFee := inAmount.Mul(tradeFeeNumerator).Div(decimal.NewFromBigInt(FEE_DENOMINATOR, 0))
+		tradingFee := inAmount.Mul(tradeFeeNumerator).Div(FEE_DENOMINATOR)
 
 		// actualAmountIn = amountIn - tradingFee
 		inAmount = inAmount.Sub(tradingFee)
@@ -172,14 +215,14 @@ func GetSwapAmountFromQuote(configState *PoolConfig, amountIn decimal.Decimal, s
 	}
 
 	// calculate swap amount
-	amountOut, _, err := getSwapAmountFromQuoteToBase(configState.Curve[:], configState.SqrtStartPrice, inAmount)
+	amountOut, _, _, err := getSwapAmountFromQuoteToBase(configState.Curve[:], configState.SqrtStartPrice, inAmount, U128_MAX)
 	if err != nil {
 		return decimal.Decimal{}, err
 	}
 
 	if !feeMode.FeesOnInput {
 		// tradingFee = outputAmount * tradeFeeNumerator / FEE_DENOMINATOR
-		tradingFee := amountOut.Mul(tradeFeeNumerator).Div(decimal.NewFromBigInt(FEE_DENOMINATOR, 0))
+		tradingFee := amountOut.Mul(tradeFeeNumerator).Div(FEE_DENOMINATOR)
 
 		// actualAmountOut = outputAmount - tradingFee
 		amountOut = amountOut.Sub(tradingFee)
@@ -189,9 +232,9 @@ func GetSwapAmountFromQuote(configState *PoolConfig, amountIn decimal.Decimal, s
 	if slippageBps > 0 {
 
 		// slippageFactor = 10000 - slippageBps
-		slippageFactor := decimal.NewFromInt(10000).Sub(decimal.NewFromUint64(uint64(slippageBps)))
+		slippageFactor := N10000.Sub(decimal.NewFromUint64(uint64(slippageBps)))
 		// denominator = 10000
-		denominator := decimal.NewFromInt(10000)
+		denominator := N10000
 		// minAmountOut = amountOut * slippageFactor / denominator
 		minAmountOut := amountOut.Mul(slippageFactor).Div(denominator)
 
@@ -235,9 +278,9 @@ func SwapQuote(
 		return result, nil
 	}
 
-	slippageFactor := decimal.NewFromInt(10000).Sub(slippageBps)
+	slippageFactor := N10000.Sub(slippageBps)
 	// denominator = 10000
-	denominator := decimal.NewFromInt(10000)
+	denominator := N10000
 
 	// minAmountOut = amountOut * slippageFactor / denominator
 

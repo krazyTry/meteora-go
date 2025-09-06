@@ -4,9 +4,8 @@
 package dynamic_bonding_curve
 
 import (
-	"math/big"
-
-	"github.com/krazyTry/meteora-go/u128"
+	dmath "github.com/krazyTry/meteora-go/decimal_math"
+	"github.com/shopspring/decimal"
 )
 
 var (
@@ -22,19 +21,21 @@ var (
 )
 
 var (
-	MIN_FEE_NUMERATOR = new(big.Int).SetUint64(100_000)     // 0.0001%
-	MAX_FEE_NUMERATOR = new(big.Int).SetUint64(990_000_000) // 99%
-	FEE_DENOMINATOR   = new(big.Int).SetUint64(1_000_000_000)
-	BASIS_POINT_MAX   = new(big.Int).SetUint64(10000)
+	MIN_FEE_NUMERATOR = decimal.NewFromInt(100_000)     // 0.0001%
+	MAX_FEE_NUMERATOR = decimal.NewFromInt(990_000_000) // 99%
+	FEE_DENOMINATOR   = decimal.NewFromInt(1_000_000_000)
+	BASIS_POINT_MAX   = decimal.NewFromInt(10000)
 
 	MAX_FEE_BPS = int64(9900) // 99%
 	MIN_FEE_BPS = int64(1)    // 0.0001%
+	U16_MAX     = decimal.NewFromInt(65535)
+	U128_MAX, _ = decimal.NewFromString("340282366920938463463374607431768211455")
 
-	BIN_STEP_BPS_DEFAULT      = big.NewInt(1)
-	BIN_STEP_BPS_U128_DEFAULT = u128.GenUint128FromString("1844674407370955")
+	BIN_STEP_BPS_DEFAULT      = decimal.NewFromInt(1)
+	BIN_STEP_BPS_U128_DEFAULT = decimal.NewFromInt(1844674407370955)
 
-	MIN_SQRT_PRICE    = new(big.Int).SetUint64(4295048016)
-	MAX_SQRT_PRICE, _ = new(big.Int).SetString("79226673521066979257578248091", 10)
+	MIN_SQRT_PRICE    = decimal.NewFromInt(4295048016)
+	MAX_SQRT_PRICE, _ = decimal.NewFromString("79226673521066979257578248091")
 
 	DYNAMIC_FEE_FILTER_PERIOD_DEFAULT    = uint16(10)   // 10 seconds
 	DYNAMIC_FEE_DECAY_PERIOD_DEFAULT     = uint16(120)  // 120 seconds
@@ -45,8 +46,20 @@ var (
 
 	MAX_PRICE_CHANGE_BPS_DEFAULT = int64(1500) // 15%
 
-	RESOLUTION = int32(64)
-	ONE_Q64    = new(big.Int).Lsh(big.NewInt(1), uint(RESOLUTION))
+	N0     = decimal.Zero
+	N025   = decimal.NewFromFloat(0.25)
+	N1     = decimal.NewFromInt(1)
+	N2     = decimal.NewFromInt(2)
+	N3     = decimal.NewFromFloat(3)
+	N20    = decimal.NewFromInt(20)
+	N100   = decimal.NewFromInt(100)
+	N10000 = decimal.NewFromInt(10000)
+
+	N99_999_999_999  = decimal.NewFromInt(99_999_999_999)
+	N100_000_000_000 = decimal.NewFromInt(100_000_000_000)
+
+	Q64  = dmath.Lsh(N1, 64)
+	Q128 = dmath.Lsh(N1, 128)
 )
 
 type ActivationType uint8

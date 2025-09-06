@@ -98,11 +98,12 @@ func SwapQuote(
 	if poolState.PoolFees.DynamicFee.Initialized {
 		dynamicFeeParams = &cp_amm.DynamicFeeParams{
 			VolatilityAccumulator: poolState.PoolFees.DynamicFee.VolatilityAccumulator.BigInt(),
-			BinStep:               big.NewInt(int64(poolState.PoolFees.DynamicFee.BinStep)),
-			VariableFeeControl:    big.NewInt(int64(poolState.PoolFees.DynamicFee.VariableFeeControl)),
+			BinStep:               new(big.Int).SetUint64(uint64(poolState.PoolFees.DynamicFee.BinStep)),
+			VariableFeeControl:    new(big.Int).SetUint64(uint64(poolState.PoolFees.DynamicFee.VariableFeeControl)),
 		}
 	}
 
+	currentPoint.Set(big.NewInt(1756971292))
 	tradeFeeNumerator := cp_amm.GetFeeNumerator(
 		decimal.NewFromBigInt(currentPoint, 0),
 		decimal.NewFromUint64(poolState.ActivationPoint),

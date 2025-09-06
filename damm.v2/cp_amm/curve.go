@@ -2,13 +2,11 @@ package cp_amm
 
 import (
 	"errors"
-	"fmt"
-	"math"
 	"math/big"
 
-	"github.com/krazyTry/meteora-go/solana/token2022"
-
 	"github.com/gagliardetto/solana-go"
+	dmath "github.com/krazyTry/meteora-go/decimal_math"
+	"github.com/krazyTry/meteora-go/solana/token2022"
 	"github.com/shopspring/decimal"
 )
 
@@ -18,7 +16,7 @@ func pow(base, exp decimal.Decimal) decimal.Decimal {
 
 	// exp == 0 => return ONE
 	if exp.Sign() == 0 {
-		return decimal.NewFromBigInt(ONE, 0)
+		return N1
 	}
 
 	// 取绝对值
@@ -27,40 +25,55 @@ func pow(base, exp decimal.Decimal) decimal.Decimal {
 	}
 
 	// 如果过大 => 返回 0
-	if exp.Cmp(decimal.NewFromBigInt(MAX_EXPONENTIAL, 0)) > 0 {
-		return decimal.Zero //big.NewInt(0)
+	if exp.Cmp(MAX_EXPONENTIAL) > 0 {
+		return N0
 	}
 
-	squaredBase := base                     // new(big.Int).Set(base)
-	result := decimal.NewFromBigInt(ONE, 0) // new(big.Int).Set(ONE)
+	squaredBase := base // new(big.Int).Set(base)
+	result := N1        // new(big.Int).Set(ONE)
 
 	// 如果 base >= ONE
 	if squaredBase.Cmp(result) >= 0 {
-		squaredBase = decimal.NewFromBigInt(MAX, 0).Div(squaredBase) //new(big.Int).Div(MAX, squaredBase)
+		squaredBase = MAX.Div(squaredBase) //new(big.Int).Div(MAX, squaredBase)
 		invert = !invert
 	}
 
 	// 相当于循环 unrolled (展开)
-	bitChecks := []int64{
-		0x1, 0x2, 0x4, 0x8,
-		0x10, 0x20, 0x40, 0x80,
-		0x100, 0x200, 0x400, 0x800,
-		0x1000, 0x2000, 0x4000, 0x8000,
-		0x10000, 0x20000, 0x40000,
+	bitChecks := []decimal.Decimal{
+		decimal.NewFromInt(0x1),
+		decimal.NewFromInt(0x2),
+		decimal.NewFromInt(0x4),
+		decimal.NewFromInt(0x8),
+		decimal.NewFromInt(0x10),
+		decimal.NewFromInt(0x20),
+		decimal.NewFromInt(0x40),
+		decimal.NewFromInt(0x80),
+		decimal.NewFromInt(0x100),
+		decimal.NewFromInt(0x200),
+		decimal.NewFromInt(0x400),
+		decimal.NewFromInt(0x800),
+		decimal.NewFromInt(0x1000),
+		decimal.NewFromInt(0x2000),
+		decimal.NewFromInt(0x4000),
+		decimal.NewFromInt(0x8000),
+		decimal.NewFromInt(0x10000),
+		decimal.NewFromInt(0x20000),
+		decimal.NewFromInt(0x40000),
 	}
 
 	for _, mask := range bitChecks {
 		// if exp & mask != 0
-		if new(big.Int).And(exp.BigInt(), big.NewInt(mask)).Sign() != 0 {
+
+		if dmath.And(exp, mask).Sign() != 0 {
 			// 	tmp := new(big.Int).Mul(result, squaredBase)
 			// 	result.Rsh(tmp, SCALE_OFFSET)
-			result = decimal.NewFromBigInt(new(big.Int).Rsh(result.Mul(squaredBase).BigInt(), SCALE_OFFSET), 0)
+			result = dmath.Rsh(result.Mul(squaredBase), 64)
 		}
 
 		// squaredBase = (squaredBase * squaredBase) >> SCALE_OFFSET
 		// tmp := new(big.Int).Mul(squaredBase, squaredBase)
 		// squaredBase.Rsh(tmp, SCALE_OFFSET)
-		squaredBase = decimal.NewFromBigInt(new(big.Int).Rsh(squaredBase.Mul(squaredBase).BigInt(), SCALE_OFFSET), 0)
+		squaredBase = dmath.Rsh(squaredBase.Mul(squaredBase), 64)
 	}
 
 	// 如果结果为 0
@@ -70,7 +83,7 @@ func pow(base, exp decimal.Decimal) decimal.Decimal {
 
 	// 如果 invert == true
 	if invert {
-		result = decimal.NewFromBigInt(MAX, 0).Div(result) // new(big.Int).Div(MAX, result)
+		result = MAX.Div(result) // new(big.Int).Div(MAX, result)
 	}
 
 	return result
@@ -78,7 +91,7 @@ func pow(base, exp decimal.Decimal) decimal.Decimal {
 
 func mulDiv(x, y, denominator decimal.Decimal, roundUp bool) (decimal.Decimal, error) {
 	if denominator.IsZero() {
-		return decimal.Zero, errors.New("MulDiv: division by zero")
+		return N0, errors.New("MulDiv: division by zero")
 	}
 
 	// num = x * y
@@ -119,14 +132,14 @@ func getNextSqrtPrice(amount, sqrtPrice, liquidity decimal.Decimal, aToB bool) d
 		numerator := liquidity.Mul(sqrtPrice)
 
 		// (numerator + denominator - 1) / denominator
-		result = numerator.Add(denominator.Sub(decimal.NewFromInt(1))).Div(denominator)
+		result = numerator.Add(denominator.Sub(N1)).Div(denominator)
 	} else {
-		// quotient = (amount << (SCALE_OFFSET * 2)) / liquidity
-		quotient := decimal.NewFromBigInt(new(big.Int).Lsh(amount.BigInt(), SCALE_OFFSET*2), 0).Div(liquidity)
+		// quotient = (amount << 128) / liquidity
+		quotient := dmath.Lsh(amount, 128).Div(liquidity)
 
 		result = sqrtPrice.Add(quotient)
 	}
-	return result
+	return result.Floor()
 }
 
 // GetLiquidityDeltaFromAmountA Δa = L * (√P_upper - √P_lower) / (√P_upper * √P_lower)
@@ -134,48 +147,49 @@ func GetLiquidityDeltaFromAmountA(amountA, lowerSqrtPrice, upperSqrtPrice decima
 	product := amountA.Mul(lowerSqrtPrice)            //new(big.Int).Mul(amountA, lowerSqrtPrice)
 	product = product.Mul(upperSqrtPrice)             //product.Mul(product, upperSqrtPrice)                            // Q128.128
 	denominator := upperSqrtPrice.Sub(lowerSqrtPrice) //new(big.Int).Sub(upperSqrtPrice, lowerSqrtPrice) // Q64.64
-	return product.Div(denominator)                   //new(big.Int).Div(product, denominator)
+
+	return product.Div(denominator).Floor() //new(big.Int).Div(product, denominator)
 }
 
 // GetLiquidityDeltaFromAmountB Δb = L * (√P_upper - √P_lower)
 func GetLiquidityDeltaFromAmountB(amountB, lowerSqrtPrice, upperSqrtPrice decimal.Decimal) decimal.Decimal {
 	denominator := upperSqrtPrice.Sub(lowerSqrtPrice) //new(big.Int).Sub(upperSqrtPrice, lowerSqrtPrice)
-	product := decimal.NewFromBigInt(new(big.Int).Lsh(amountB.BigInt(), 128), 0)
+	// product := decimal.NewFromBigInt(new(big.Int).Lsh(amountB.BigInt(), 128), 0)
+	product := dmath.Lsh(amountB, 128)
 	return product.Div(denominator) //new(big.Int).Div(product, denominator)
 }
 
 // GetAmountAFromLiquidityDelta L = Δa * √P_upper * √P_lower / (√P_upper - √P_lower)
 func GetAmountAFromLiquidityDelta(liquidity, currentSqrtPrice, maxSqrtPrice decimal.Decimal, roundUp bool) decimal.Decimal {
 
-	product := liquidity.Mul(maxSqrtPrice.Sub(currentSqrtPrice)) // new(big.Int).Mul(liquidity, new(big.Int).Sub(maxSqrtPrice, currentSqrtPrice))
-	denominator := currentSqrtPrice.Mul(maxSqrtPrice)            // new(big.Int).Mul(currentSqrtPrice, maxSqrtPrice)
+	product := liquidity.Mul(maxSqrtPrice.Sub(currentSqrtPrice))
+	denominator := currentSqrtPrice.Mul(maxSqrtPrice)
 
 	if roundUp {
-		// (product + (denominator-1)) / denominator
-		return product.Add(denominator.Sub(decimal.NewFromInt(1))).Div(denominator)
-		// return new(big.Int).Div(new(big.Int).Add(product, new(big.Int).Sub(denominator, big.NewInt(1))), denominator)
+		return dmath.Quo(product.Add(denominator.Sub(N1)), denominator)
 	}
-	return product.Div(denominator) //new(big.Int).Div(product, denominator)
+	return dmath.Quo(product, denominator)
 }
 
 // GetAmountBFromLiquidityDelta L = Δb / (√P_upper - √P_lower)
 func GetAmountBFromLiquidityDelta(liquidity, currentSqrtPrice, minSqrtPrice decimal.Decimal, roundUp bool) decimal.Decimal {
-	one := decimal.NewFromBigInt(new(big.Int).Lsh(big.NewInt(1), 128), 0) // new(big.Int).Lsh(big.NewInt(1), 128)
-	deltaPrice := currentSqrtPrice.Sub(minSqrtPrice)                      // new(big.Int).Sub(currentSqrtPrice, minSqrtPrice)
-	result := liquidity.Mul(deltaPrice)                                   //new(big.Int).Mul(liquidity, deltaPrice)                     // Q128
+	// one := Q128                                      // new(big.Int).Lsh(big.NewInt(1), 128)
+	deltaPrice := currentSqrtPrice.Sub(minSqrtPrice) // new(big.Int).Sub(currentSqrtPrice, minSqrtPrice)
+	result := liquidity.Mul(deltaPrice)              //new(big.Int).Mul(liquidity, deltaPrice)                     // Q128
 
 	if roundUp {
 		// (result + (one-1) ) / one
-		return result.Add(one.Sub(decimal.NewFromInt(1))).Div(one)
-		// return new(big.Int).Div(new(big.Int).Add(result, new(big.Int).Sub(one, big.NewInt(1))), one)
+		return dmath.Quo(result.Add(Q128.Sub(N1)), Q128)
 	}
-	return decimal.NewFromBigInt(new(big.Int).Rsh(result.BigInt(), 128), 0)
+	// return decimal.NewFromBigInt(new(big.Int).Rsh(result.BigInt(), 128), 0)
+	return dmath.Rsh(result, 128).Floor()
 }
 
 // GetNextSqrtPriceFromAmountBRoundingUp √P' = √P - Δy / L
 func getNextSqrtPriceFromAmountBRoundingUp(sqrtPrice, liquidity, amount decimal.Decimal) (decimal.Decimal, error) {
-	quotient := decimal.NewFromBigInt(new(big.Int).Lsh(amount.BigInt(), 128), 0).Add(liquidity)
-	quotient = quotient.Sub(decimal.NewFromInt(1))
+	// quotient := decimal.NewFromBigInt(new(big.Int).Lsh(amount.BigInt(), 128), 0).Add(liquidity)
+	quotient := dmath.Lsh(amount, 128).Add(liquidity)
+	quotient = quotient.Sub(N1)
 	quotient = quotient.Div(liquidity)
 
 	result := sqrtPrice.Sub(quotient)
@@ -222,9 +236,9 @@ func getNextSqrtPriceFromOutput(sqrtPrice, liquidity, outAmount decimal.Decimal,
 func GetMinAmountWithSlippage(amount decimal.Decimal, slippageBps uint64) decimal.Decimal {
 	if slippageBps > 0 {
 
-		slippageFactor := decimal.NewFromInt(10000).Sub(decimal.NewFromUint64(slippageBps))
+		slippageFactor := N10000.Sub(decimal.NewFromUint64(slippageBps))
 		// denominator = 10000
-		denominator := decimal.NewFromInt(10000)
+		denominator := N10000
 
 		// minAmountOut = amountOut * slippageFactor / denominator
 		minAmountOut := amount.Mul(slippageFactor).Div(denominator)
@@ -248,45 +262,50 @@ func getPriceFromSqrtPrice(sqrtPrice decimal.Decimal, tokenADecimal, tokenBDecim
 	}
 
 	// / 2^128
-	denominator := new(big.Int).Lsh(big.NewInt(1), 128) // 2^128
-	price = price.Div(decimal.NewFromBigInt(denominator, 0))
+	// denominator := Q128 // 2^128
+	price = price.Div(Q128)
 
 	return price
 }
 
 // getSqrtPriceFromPrice computes sqrt(price / 10^(tokenADecimal - tokenBDecimal)) * 2^64
-func GetSqrtPriceFromPrice(price string, tokenADecimal, tokenBDecimal uint8) (*big.Int, error) {
-	decimalPrice, ok := new(big.Float).SetString(price)
-	if !ok {
-		return nil, fmt.Errorf("invalid price: %s", price)
-	}
+func GetSqrtPriceFromPrice(price decimal.Decimal, tokenADecimal, tokenBDecimal uint8) (decimal.Decimal, error) {
+	// decimalPrice, ok := new(big.Float).SetString(price)
+	// if !ok {
+	// 	return nil, fmt.Errorf("invalid price: %s", price)
+	// }
 
 	// 计算 10^(tokenADecimal - tokenBDecimal)
 	decDiff := tokenADecimal - tokenBDecimal
-	pow10 := new(big.Float).SetFloat64(math.Pow10(int(decDiff)))
+	// pow10 := new(big.Float).SetFloat64(math.Pow10(int(decDiff)))
+	pow10 := dmath.Pow10(int(decDiff))
 
 	// price / 10^(diff)
-	adjustedByDecimals := new(big.Float).Quo(decimalPrice, pow10)
+	// adjustedByDecimals := new(big.Float).Quo(decimalPrice, pow10)
+	adjustedByDecimals := price.Div(pow10)
 
 	// sqrt(adjustedByDecimals)
-	sqrtValue := new(big.Float).Sqrt(adjustedByDecimals)
+	// sqrtValue := new(big.Float).Sqrt(adjustedByDecimals)
+	sqrtValue := dmath.Sqrt(adjustedByDecimals, 60)
 
 	// sqrtValue * 2^64
-	scale := new(big.Float).SetInt(new(big.Int).Lsh(big.NewInt(1), 64))
-	sqrtValueQ64 := new(big.Float).Mul(sqrtValue, scale)
+	// scale := new(big.Float).SetInt(new(big.Int).Lsh(big.NewInt(1), 64))
+	// scale := Q64
+	// sqrtValueQ64 := new(big.Float).Mul(sqrtValue, scale)
+	sqrtValueQ64 := sqrtValue.Mul(Q64)
 
 	// floor
-	result := new(big.Int)
-	sqrtValueQ64.Int(result)
+	// result := new(big.Int)
+	// sqrtValueQ64.Int(result)
 
-	return result, nil
+	return sqrtValueQ64.Truncate(0), nil
 }
 
 // CalculateTransferFeeExcludedAmount
 func CalculateTransferFeeExcludedAmount(transferFeeConfig *token2022.TransferFeeConfig, transferFeeIncludedAmount decimal.Decimal, mint solana.PublicKey, currentEpoch uint64) (decimal.Decimal, decimal.Decimal, error) {
 
 	if transferFeeConfig == nil {
-		return transferFeeIncludedAmount, decimal.Zero, nil
+		return transferFeeIncludedAmount, N0, nil
 	}
 
 	transferFee := decimal.NewFromBigInt(token2022.CalculateFee(
@@ -301,11 +320,11 @@ func CalculateTransferFeeExcludedAmount(transferFeeConfig *token2022.TransferFee
 func CalculateTransferFeeIncludedAmount(transferFeeConfig *token2022.TransferFeeConfig, transferFeeExcludedAmount decimal.Decimal, mint solana.PublicKey, currentEpoch uint64) (decimal.Decimal, decimal.Decimal, error) {
 
 	if transferFeeExcludedAmount.IsZero() {
-		return decimal.Zero, decimal.Zero, nil
+		return N0, N0, nil
 	}
 
 	if transferFeeConfig == nil {
-		return transferFeeExcludedAmount, decimal.Zero, nil
+		return transferFeeExcludedAmount, N0, nil
 	}
 
 	epochFee := token2022.GetEpochFee(transferFeeConfig, currentEpoch)
@@ -331,7 +350,7 @@ func calculateInverseFee(transferFee token2022.TransferFee, postFeeAmount decima
 func calculatePreFeeAmount(transferFee token2022.TransferFee, postFeeAmount decimal.Decimal) decimal.Decimal {
 	// if (postFeeAmount.isZero())
 	if postFeeAmount.Sign() == 0 {
-		return decimal.Zero
+		return N0
 	}
 
 	if transferFee.BasisPoints == 0 {
@@ -348,7 +367,7 @@ func calculatePreFeeAmount(transferFee token2022.TransferFee, postFeeAmount deci
 
 	// numerator = postFeeAmount * ONE_IN_BASIS_POINTS
 	// oneInBasisPoints := ONE_IN_BASIS_POINTS
-	oneInBasisPoints := decimal.NewFromBigInt(ONE_IN_BASIS_POINTS, 0)
+	oneInBasisPoints := ONE_IN_BASIS_POINTS
 	// numerator := new(big.Int).Mul(postFeeAmount, oneInBasisPoints)
 	numerator := postFeeAmount.Mul(oneInBasisPoints)
 
@@ -360,7 +379,7 @@ func calculatePreFeeAmount(transferFee token2022.TransferFee, postFeeAmount deci
 	// rawPreFeeAmount := new(big.Int).Add(numerator, denominator)
 	rawPreFeeAmount := numerator.Add(denominator)
 	// rawPreFeeAmount.Sub(rawPreFeeAmount, big.NewInt(1))
-	rawPreFeeAmount = rawPreFeeAmount.Sub(decimal.NewFromInt(1))
+	rawPreFeeAmount = rawPreFeeAmount.Sub(N1)
 	// rawPreFeeAmount.Div(rawPreFeeAmount, denominator)
 	rawPreFeeAmount = rawPreFeeAmount.Div(denominator)
 

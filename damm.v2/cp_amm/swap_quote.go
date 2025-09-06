@@ -12,9 +12,9 @@ func GetLiquidityDelta(maxAmountTokenA, maxAmountTokenB, sqrtMaxPrice, sqrtMinPr
 	liquidityDeltaFromAmountB := GetLiquidityDeltaFromAmountB(maxAmountTokenB, sqrtMinPrice, sqrtPrice)
 
 	if liquidityDeltaFromAmountA.Cmp(liquidityDeltaFromAmountB) < 0 {
-		return liquidityDeltaFromAmountA
+		return liquidityDeltaFromAmountA.Floor()
 	}
-	return liquidityDeltaFromAmountB
+	return liquidityDeltaFromAmountB.Floor()
 }
 
 // DepositQuote
@@ -39,11 +39,31 @@ func GetDepositQuote(
 	)
 
 	if bAddBase {
-		liquidityDelta = GetLiquidityDeltaFromAmountA(actualAmountIn, decimal.NewFromBigInt(poolState.SqrtPrice.BigInt(), 0), decimal.NewFromBigInt(poolState.SqrtMaxPrice.BigInt(), 0))
-		amountOut = GetAmountBFromLiquidityDelta(liquidityDelta, decimal.NewFromBigInt(poolState.SqrtPrice.BigInt(), 0), decimal.NewFromBigInt(poolState.SqrtMinPrice.BigInt(), 0), true)
+		liquidityDelta = GetLiquidityDeltaFromAmountA(
+			actualAmountIn,
+			decimal.NewFromBigInt(poolState.SqrtPrice.BigInt(), 0),
+			decimal.NewFromBigInt(poolState.SqrtMaxPrice.BigInt(), 0),
+		)
+
+		amountOut = GetAmountBFromLiquidityDelta(
+			liquidityDelta,
+			decimal.NewFromBigInt(poolState.SqrtPrice.BigInt(), 0),
+			decimal.NewFromBigInt(poolState.SqrtMinPrice.BigInt(), 0),
+			true,
+		)
+
 	} else {
-		liquidityDelta = GetLiquidityDeltaFromAmountB(actualAmountIn, decimal.NewFromBigInt(poolState.SqrtMinPrice.BigInt(), 0), decimal.NewFromBigInt(poolState.SqrtPrice.BigInt(), 0))
-		amountOut = GetAmountAFromLiquidityDelta(liquidityDelta, decimal.NewFromBigInt(poolState.SqrtPrice.BigInt(), 0), decimal.NewFromBigInt(poolState.SqrtMaxPrice.BigInt(), 0), true)
+		liquidityDelta = GetLiquidityDeltaFromAmountB(
+			actualAmountIn,
+			decimal.NewFromBigInt(poolState.SqrtMinPrice.BigInt(), 0),
+			decimal.NewFromBigInt(poolState.SqrtPrice.BigInt(), 0),
+		)
+		amountOut = GetAmountAFromLiquidityDelta(
+			liquidityDelta,
+			decimal.NewFromBigInt(poolState.SqrtPrice.BigInt(), 0),
+			decimal.NewFromBigInt(poolState.SqrtMaxPrice.BigInt(), 0),
+			true,
+		)
 	}
 
 	return liquidityDelta, amountOut, nil

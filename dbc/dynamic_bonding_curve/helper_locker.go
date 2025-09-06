@@ -27,10 +27,7 @@ func DeriveBaseKeyForLocker(poolPDA solana.PublicKey) (solana.PublicKey, error) 
 }
 
 func DeriveEscrow(base solana.PublicKey) (solana.PublicKey, error) {
-	seeds := [][]byte{
-		[]byte("escrow"),
-		base.Bytes(),
-	}
+	seeds := [][]byte{[]byte("escrow"), base.Bytes()}
 
 	escrow, _, err := solana.FindProgramAddress(seeds, locker.ProgramID)
 	if err != nil {

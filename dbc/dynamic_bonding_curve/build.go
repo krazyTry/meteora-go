@@ -4,6 +4,7 @@ import (
 	"errors"
 	"math/big"
 
+	dmath "github.com/krazyTry/meteora-go/decimal_math"
 	"github.com/krazyTry/meteora-go/u128"
 
 	"github.com/shopspring/decimal"
@@ -68,7 +69,7 @@ type BuildCurveBaseParam struct {
 	PartnerLockedLpPercentage   uint8
 	CreatorLockedLpPercentage   uint8
 	CreatorTradingFeePercentage uint8
-	Leftover                    int
+	Leftover                    int64
 	TokenUpdateAuthority        TokenUpdateAuthorityOption
 	MigrationFee                MigrationFee
 	MigratedPoolFee             *MigratedPoolFee
@@ -128,19 +129,20 @@ func BuildCurve(param BuildCurveParam) (*ConfigParameters, error) {
 		param.MigratedPoolFee,
 	)
 
-	migrationBaseSupply := decimal.NewFromFloat(param.TotalTokenSupply).Mul(decimal.NewFromFloat(param.PercentageSupplyOnMigration)).Div(decimal.NewFromInt(100))
+	migrationBaseSupply := decimal.NewFromFloat(param.TotalTokenSupply).Mul(decimal.NewFromFloat(param.PercentageSupplyOnMigration)).Div(N100)
 
-	totalSupply := convertToLamports(param.TotalTokenSupply, param.TokenBaseDecimal)
+	totalSupply := convertToLamports(decimal.NewFromFloat(param.TotalTokenSupply), param.TokenBaseDecimal)
 
 	migrationQuoteAmount := getMigrationQuoteAmountFromMigrationQuoteThreshold(
 		decimal.NewFromFloat(param.MigrationQuoteThreshold),
 		param.MigrationFee.FeePercentage,
 	)
 
-	migrationPrice := migrationQuoteAmount.DivRound(migrationBaseSupply, 25)
+	migrationPrice := migrationQuoteAmount.DivRound(migrationBaseSupply, 38)
 
-	migrationQuoteThresholdInLamport := convertToLamports(param.MigrationQuoteThreshold, param.TokenQuoteDecimal)
-	totalLeftover := convertToLamports(param.Leftover, param.TokenBaseDecimal)
+	migrationQuoteThresholdInLamport := convertToLamports(decimal.NewFromFloat(param.MigrationQuoteThreshold), param.TokenQuoteDecimal)
+
+	totalLeftover := convertToLamports(decimal.NewFromInt(param.Leftover), param.TokenBaseDecimal)
 
 	migrateSqrtPrice := getSqrtPriceFromPrice(migrationPrice, param.TokenBaseDecimal, param.TokenQuoteDecimal)
 
@@ -161,6 +163,7 @@ func BuildCurve(param BuildCurveParam) (*ConfigParameters, error) {
 	}
 
 	sqrtStartPrice := firstCurve.SqrtStartPrice
+
 	curve := firstCurve.Curve
 
 	totalDynamicSupply, err := getTotalSupplyFromCurve(
@@ -178,7 +181,7 @@ func BuildCurve(param BuildCurveParam) (*ConfigParameters, error) {
 
 	remainingAmount := totalSupply.Sub(totalDynamicSupply)
 
-	lastLiquidity := getInitialLiquidityFromDeltaBase(remainingAmount, decimal.NewFromBigInt(MAX_SQRT_PRICE, 0), migrateSqrtPrice)
+	lastLiquidity := getInitialLiquidityFromDeltaBase(remainingAmount, MAX_SQRT_PRICE, migrateSqrtPrice)
 
 	if !lastLiquidity.IsZero() {
 		curve = append(curve, LiquidityDistributionParameters{
@@ -241,9 +244,9 @@ func BuildCurveWithMarketCap(param BuildCurveWithMarketCapParam) (*ConfigParamet
 		return nil, err
 	}
 
-	totalLeftover := convertToLamports(param.Leftover, param.TokenBaseDecimal)
+	totalLeftover := convertToLamports(decimal.NewFromInt(param.Leftover), param.TokenBaseDecimal)
 
-	totalSupply := convertToLamports(param.TotalTokenSupply, param.TokenBaseDecimal)
+	totalSupply := convertToLamports(decimal.NewFromFloat(param.TotalTokenSupply), param.TokenBaseDecimal)
 
 	percentageSupplyOnMigration := getPercentageSupplyOnMigration(
 		decimal.NewFromFloat(param.InitialMarketCap),
@@ -257,10 +260,12 @@ func BuildCurveWithMarketCap(param BuildCurveWithMarketCapParam) (*ConfigParamet
 		decimal.NewFromFloat(param.MigrationMarketCap),
 		percentageSupplyOnMigration,
 	)
+
 	migrationQuoteThreshold := getMigrationQuoteThresholdFromMigrationQuoteAmount(
 		migrationQuoteAmount,
 		param.MigrationFee.FeePercentage,
 	).InexactFloat64()
+
 	return BuildCurve(BuildCurveParam{
 		BuildCurveBaseParam:         param.BuildCurveBaseParam,
 		PercentageSupplyOnMigration: percentageSupplyOnMigration.InexactFloat64(),
@@ -294,9 +299,9 @@ func BuildCurveWithTwoSegments(param BuildCurveWithTwoSegmentsParam) (*ConfigPar
 		param.MigratedPoolFee,
 	)
 
-	migrationBaseSupply := decimal.NewFromFloat(param.TotalTokenSupply).Mul(decimal.NewFromInt(param.PercentageSupplyOnMigration)).Div(decimal.NewFromInt(100))
+	migrationBaseSupply := decimal.NewFromFloat(param.TotalTokenSupply).Mul(decimal.NewFromInt(param.PercentageSupplyOnMigration)).Div(N100)
 
-	totalSupply := convertToLamports(param.TotalTokenSupply, param.TokenBaseDecimal)
+	totalSupply := convertToLamports(decimal.NewFromFloat(param.TotalTokenSupply), param.TokenBaseDecimal)
 
 	migrationQuoteAmount := getMigrationQuoteAmount(
 		decimal.NewFromFloat(param.MigrationMarketCap),
@@ -308,11 +313,11 @@ func BuildCurveWithTwoSegments(param BuildCurveWithTwoSegmentsParam) (*ConfigPar
 	migrationPrice := migrationQuoteAmount.Div(migrationBaseSupply)
 
 	migrationQuoteThresholdInLamport := convertDecimalToBN(
-		migrationQuoteThreshold.Mul(decimal.NewFromInt(1).Shift(int32(param.TokenQuoteDecimal))),
+		migrationQuoteThreshold.Mul(N1.Shift(int32(param.TokenQuoteDecimal))),
 	)
 
 	migrationQuoteAmountInLamport := convertDecimalToBN(
-		migrationQuoteAmount.Mul(decimal.NewFromInt(1).Shift(int32(param.TokenQuoteDecimal))),
+		migrationQuoteAmount.Mul(N1.Shift(int32(param.TokenQuoteDecimal))),
 	)
 
 	migrateSqrtPrice := getSqrtPriceFromPrice(
@@ -320,52 +325,48 @@ func BuildCurveWithTwoSegments(param BuildCurveWithTwoSegmentsParam) (*ConfigPar
 		param.TokenBaseDecimal,
 		param.TokenQuoteDecimal,
 	)
+
 	migrationBaseAmount, err := getMigrationBaseToken(migrationQuoteAmountInLamport, migrateSqrtPrice, param.MigrationOption)
 	if err != nil {
 		return nil, err
 	}
+
 	totalVestingAmount := getTotalVestingAmount(&lockedVesting)
-	totalLeftover := convertToLamports(param.Leftover, param.TokenBaseDecimal)
+
+	totalLeftover := convertToLamports(decimal.NewFromInt(param.Leftover), param.TokenBaseDecimal)
+
 	swapAmount := totalSupply.Sub(migrationBaseAmount).Sub(totalVestingAmount).Sub(totalLeftover)
+
 	initialSqrtPrice := getSqrtPriceFromMarketCap(
 		param.InitialMarketCap,
 		param.TotalTokenSupply,
 		param.TokenBaseDecimal,
 		param.TokenQuoteDecimal,
 	)
-
-	midSqrtPriceDecimal1 := decimalSqrt(migrateSqrtPrice.Mul(initialSqrtPrice))
+	midSqrtPriceDecimal1 := dmath.Sqrt(migrateSqrtPrice.Mul(initialSqrtPrice), 64)
 
 	midSqrtPrice1 := midSqrtPriceDecimal1.Floor()
 
 	// mid_price2 = (p1 * p2^3)^(1/4)
 	numerator1 := initialSqrtPrice
 
-	numerator2 := migrateSqrtPrice.Pow(decimal.NewFromFloat(3))
+	numerator2 := dmath.Pow(migrateSqrtPrice, N3, 0) // migrateSqrtPrice.Pow(N3)
 
 	product1 := numerator1.Mul(numerator2)
 
-	midSqrtPriceDecimal2, err := nth(product1, 0.25, 2)
-	if err != nil {
-		return nil, err
-	}
-
+	midSqrtPriceDecimal2 := dmath.Pow(product1, N025, 2)
 	midSqrtPrice2 := midSqrtPriceDecimal2.Floor()
 
 	// mid_price3 = (p1^3 * p2)^(1/4)
-	numerator3 := initialSqrtPrice.Pow(decimal.NewFromInt(3))
+	numerator3 := initialSqrtPrice.Pow(N3)
 	numerator4 := migrateSqrtPrice
 	product2 := numerator3.Mul(numerator4)
 
-	midSqrtPriceDecimal3, err := nth(product2, 0.25, 2) // product2.Pow(decimal.NewFromFloat(0.25))
-	if err != nil {
-		return nil, err
-	}
-
+	midSqrtPriceDecimal3 := dmath.Pow(product2, N025, 2)
 	midSqrtPrice3 := midSqrtPriceDecimal3.Floor()
 
 	midPrices := []decimal.Decimal{midSqrtPrice1, midSqrtPrice2, midSqrtPrice3}
-	sqrtStartPrice := decimal.Zero
+	sqrtStartPrice := N0
 	var curve []LiquidityDistributionParameters
 
 	for _, mid := range midPrices {
@@ -482,73 +483,62 @@ func BuildCurveWithLiquidityWeights(param BuildCurveWithLiquidityWeightsParam) (
 		param.TokenQuoteDecimal,
 	)
 
-	// q = (pMax/pMin)^(1/16)
-
-	decimalSqrt16 := func(x decimal.Decimal) decimal.Decimal {
-		r := x
-		for i := 0; i < 4; i++ {
-			r = decimalSqrt(r)
-		}
-		return r
-	}
-
 	priceRatio := pMax.DivRound(pMin, 19)
 
-	qDecimal := decimalSqrt16(priceRatio).Truncate(19)
+	qDecimal := dmath.Pow(priceRatio, N1.Div(decimal.NewFromInt(16)), 20).Truncate(19) //decimalSqrt16(priceRatio).Truncate(19)
 
-	sqrtPrices := make([]decimal.Decimal, 0, 17)
+	sqrtPrices := make([]decimal.Decimal, 17)
 	currentPrice := pMin
 
-	for i := 0; i < 17; i++ {
-		sqrtPrices = append(sqrtPrices, currentPrice)
+	for i := range sqrtPrices {
+		sqrtPrices[i] = currentPrice
 		currentPrice = convertDecimalToBN(qDecimal.Mul(currentPrice))
 	}
 
-	totalSupply := convertToLamports(param.TotalTokenSupply, param.TokenBaseDecimal)
-	totalLeftover := convertToLamports(param.Leftover, param.TokenBaseDecimal)
+	totalSupply := convertToLamports(decimal.NewFromFloat(param.TotalTokenSupply), param.TokenBaseDecimal)
+	totalLeftover := convertToLamports(decimal.NewFromInt(param.Leftover), param.TokenBaseDecimal)
 	totalVestingAmount := getTotalVestingAmount(&lockedVesting)
 
 	totalSwapAndMigrationAmount := totalSupply.Sub(totalVestingAmount).Sub(totalLeftover)
 
 	// sum_{i=1..16} k_i * [ (pi - p_{i-1})/(pi*p_{i-1}) + (pi - p_{i-1}) * (1 - fee)/pMax^2 ]
-	sumFactor := decimal.Zero
-	pMaxDec := decimal.RequireFromString(pMax.String())
-	feeFactor := decimal.NewFromInt(int64(100 - param.MigrationFee.FeePercentage)).Div(decimal.NewFromInt(100))
+	sumFactor := N0
+	migrationFeeFactor := N100.Sub(decimal.NewFromUint64(uint64(param.MigrationFee.FeePercentage))).Div(N100)
 
 	for i := 1; i < 17; i++ {
-		pi := decimal.RequireFromString(sqrtPrices[i].String())
-
-		pim := decimal.RequireFromString(sqrtPrices[i-1].String())
 
 		k := decimal.NewFromFloat(param.LiquidityWeights[i-1])
+		pim := decimal.RequireFromString(sqrtPrices[i-1].String())
+
+		pi := decimal.RequireFromString(sqrtPrices[i].String())
 
 		// w1 := pi.Sub(pim).DivRound(truncateSig(pi.Mul(pim), 20), 38)
 		w1 := pi.Sub(pim).DivRound(pi.Mul(pim), 37)
 
 		// w2 := pi.Sub(pim).Mul(feeFactor).DivRound(truncateSig(pMaxDec.Mul(pMaxDec), 20), 39)
-		w2 := pi.Sub(pim).Mul(feeFactor).DivRound(pMaxDec.Mul(pMaxDec), 37)
+		w2 := pi.Sub(pim).Mul(migrationFeeFactor).DivRound(pMax.Mul(pMax), 37)
 
 		weight := k.Mul(w1.Add(w2))
 
-		sumFactor = sumFactor.Add(weight).Truncate(38)
+		sumFactor = sumFactor.Add(weight).RoundUp(37)
 	}
-	// l1 = (Swap_Amount + Base_Amount) / sumFactor
-	// l1 := truncateSig(totalSwapAndMigrationAmount.Div(sumFactor.RoundUp(36)).Floor(), 20)
-	l1 := totalSwapAndMigrationAmount.Div(sumFactor.RoundUp(36))
 
-	curve := make([]LiquidityDistributionParameters, 0, 16)
-	for i := 0; i < 16; i++ {
+	l1 := truncateSig(totalSwapAndMigrationAmount.Div(sumFactor.Truncate(36)).Floor(), 20)
+
+	curve := make([]LiquidityDistributionParameters, 16)
+	for i := range curve {
 		k := decimal.NewFromFloat(param.LiquidityWeights[i])
 		liq := truncateSig(convertDecimalToBN(l1.Mul(k)), 20)
+
 		sPrice := pMax
 		if i < 15 {
 			sPrice = sqrtPrices[i+1]
 		}
 
-		curve = append(curve, LiquidityDistributionParameters{
+		curve[i] = LiquidityDistributionParameters{
 			SqrtPrice: u128.GenUint128FromString(sPrice.String()),
 			Liquidity: u128.GenUint128FromString(liq.String()),
-		})
+		}
 	}
 
 	swapBaseAmount, err := getBaseTokenForSwap(pMin, pMax, curve)
@@ -564,12 +554,13 @@ func BuildCurveWithLiquidityWeights(param BuildCurveWithLiquidityWeightsParam) (
 
 	// quote = base * pMax^2 >> 128
 	migrationQuoteAmount := migrationAmount.Mul(pMax).Mul(pMax)
-	migrationQuoteAmount = decimal.NewFromBigInt(new(big.Int).Rsh(migrationQuoteAmount.BigInt(), 128), 0)
+	migrationQuoteAmount = dmath.Rsh(migrationQuoteAmount, 128)
 
 	mqThreshold := getMigrationQuoteThresholdFromMigrationQuoteAmount(
-		decimal.RequireFromString(migrationQuoteAmount.String()),
+		migrationQuoteAmount,
 		param.MigrationFee.FeePercentage,
 	).Round(8)
+
 	mqThresholdLamports := convertDecimalToBN(mqThreshold)
 
 	totalDynamicSupply, err := getTotalSupplyFromCurve(

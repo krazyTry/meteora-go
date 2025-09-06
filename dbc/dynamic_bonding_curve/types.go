@@ -995,8 +995,8 @@ func UnmarshalDynamicFeeConfig(buf []byte) (*DynamicFeeConfig, error) {
 type DynamicFeeParameters struct {
 	BinStep                  uint16         `json:"binStep"`
 	BinStepU128              binary.Uint128 `json:"binStepU128"`
-	FilterPeriod             uint16         `json:"filterPeriod"`
 	DecayPeriod              uint16         `json:"decayPeriod"`
+	FilterPeriod             uint16         `json:"filterPeriod"`
 	ReductionFactor          uint16         `json:"reductionFactor"`
 	MaxVolatilityAccumulator uint32         `json:"maxVolatilityAccumulator"`
 	VariableFeeControl       uint32         `json:"variableFeeControl"`

@@ -18,6 +18,7 @@ import (
 )
 
 func TestDbc(t *testing.T) {
+
 	// init
 	rpcClient, wsClient, pctx, cancel, err := testInit()
 	if err != nil {
@@ -168,7 +169,7 @@ func TestDbc(t *testing.T) {
 			ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
 			defer cancel1()
 			amountIn := new(big.Int).SetUint64(balance)
-			quote, poolState, configState, currentPoint, err := meteoraDBC.SellQuote(ctx1, baseMint, amountIn, 250)
+			quote, poolState, configState, currentPoint, err := meteoraDBC.SellQuote(ctx1, baseMint, amountIn, 250, false)
 			if err != nil {
 				t.Fatal("testMintBalance() fail")
 			}
@@ -217,7 +218,7 @@ func TestDbc(t *testing.T) {
 		ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
 		defer cancel1()
 		amountIn := new(big.Int).SetUint64(uint64(0.4 * 1e9))
-		minOutAmount, poolState, configState, currentPoint, err := meteoraDBC.BuyQuote(ctx1, baseMint, amountIn, 250)
+		minOutAmount, poolState, configState, currentPoint, err := meteoraDBC.BuyQuote(ctx1, baseMint, amountIn, 250, false)
 		if err != nil {
 			t.Fatal("dbc.BuyQuote() fail", err)
 		}
@@ -246,7 +247,7 @@ func TestDbc(t *testing.T) {
 		defer cancel1()
 
 		amountIn := new(big.Int).SetUint64(balance / 2) // uint64(100000 * 1e9)
-		quote, poolState, configState, currentPoint, err := meteoraDBC.SellQuote(ctx1, baseMint, amountIn, 250)
+		quote, poolState, configState, currentPoint, err := meteoraDBC.SellQuote(ctx1, baseMint, amountIn, 250, false)
 		if err != nil {
 			t.Fatal("dbc.SellQuote() fail", err)
 		}
@@ -271,7 +272,7 @@ func TestDbc(t *testing.T) {
 		ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
 		defer cancel1()
 		amountIn := new(big.Int).SetUint64(uint64(0.2 * 1e9))
-		minOutAmount, poolState, configState, currentPoint, err := meteoraDBC.BuyQuote(ctx1, baseMint, amountIn, 250)
+		minOutAmount, poolState, configState, currentPoint, err := meteoraDBC.BuyQuote(ctx1, baseMint, amountIn, 250, false)
 		if err != nil {
 			t.Fatal("dbc.BuyQuote() fail", err)
 		}
@@ -296,7 +297,7 @@ func TestDbc(t *testing.T) {
 		ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
 		defer cancel1()
 		amountIn := new(big.Int).SetUint64(balance) // uint64(100000 * 1e9)
-		quote, poolState, configState, currentPoint, err := meteoraDBC.SellQuote(ctx1, baseMint, amountIn, 250)
+		quote, poolState, configState, currentPoint, err := meteoraDBC.SellQuote(ctx1, baseMint, amountIn, 250, false)
 		if err != nil {
 			t.Fatal("dbc.SellQuote() fail", err)
 		}
@@ -416,7 +417,7 @@ func TestDbc(t *testing.T) {
 			ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
 			defer cancel1()
 			amountIn := new(big.Int).SetUint64(uint64(1 * 1e9))
-			minOutAmount, poolState, configState, currentPoint, err := meteoraDBC.BuyQuote(ctx1, baseMint, amountIn, 250)
+			minOutAmount, poolState, configState, currentPoint, err := meteoraDBC.BuyQuote(ctx1, baseMint, amountIn, 250, false)
 			if err != nil {
 				t.Fatal("dbc.BuyQuote() fail", err)
 			}
@@ -953,6 +954,7 @@ func testDBCBuildCurveCheck(t *testing.T) {
 	if _, err := testDBCBuildCurveWithLiquidityWeights(); err != nil {
 		t.Fatal("testDBCBuildCurveWithLiquidityWeights() fail", err)
 	}
+
 }
 
 func testDBCGenConfig() *dynamic_bonding_curve.ConfigParameters {
@@ -1035,7 +1037,7 @@ func testDBCBuildCurve() (*dynamic_bonding_curve.ConfigParameters, error) {
 				CliffDurationFromMigrationTime: 0,
 			},
 			BaseFeeParams: dynamic_bonding_curve.BaseFeeParams{
-				BaseFeeMode: dynamic_bonding_curve.BaseFeeModeFeeSchedulerLinear,
+				BaseFeeMode: dynamic_bonding_curve.BaseFeeModeFeeSchedulerExponential,
 				FeeSchedulerParam: &dynamic_bonding_curve.FeeSchedulerParams{
 					StartingFeeBps: 100,
 					EndingFeeBps:   100,

@@ -1,8 +1,9 @@
 package dynamic_bonding_curve
 
 import (
-	"math/big"
+	"fmt"
 
+	dmath "github.com/krazyTry/meteora-go/decimal_math"
 	"github.com/shopspring/decimal"
 )
 
@@ -13,7 +14,7 @@ func getFeeNumeratorOnLinearFeeScheduler(cliffFeeNumerator, reductionFactor deci
 	reduction := periodDecimal.Mul(reductionFactor)
 
 	if reduction.Cmp(cliffFeeNumerator) > 0 {
-		return decimal.Zero
+		return N0
 	}
 
 	return cliffFeeNumerator.Sub(reduction)
@@ -25,24 +26,71 @@ func getFeeNumeratorOnExponentialFeeScheduler(cliffFeeNumerator, reductionFactor
 		return cliffFeeNumerator
 	}
 
-	basisPointMax := decimal.NewFromBigInt(BASIS_POINT_MAX, 0)
-	oneQ64 := decimal.NewFromBigInt(new(big.Int).Lsh(big.NewInt(1), 64), 0) // 1 << 64
-
-	if periodDecimal.Equal(decimal.NewFromInt(1)) {
-		tmp := basisPointMax.Sub(reductionFactor) // basisPointMax - reductionFactor
-		tmp = tmp.Mul(cliffFeeNumerator)          // cliffFeeNumerator * (basisPointMax - reductionFactor)
-		tmp = tmp.Div(basisPointMax)              // / basisPointMax
-		return tmp
+	if periodDecimal.Equal(N1) {
+		return cliffFeeNumerator.Mul(BASIS_POINT_MAX.Sub(reductionFactor)).Div(BASIS_POINT_MAX)
 	}
 
-	// base = ONE_Q64 - (reductionFactor << 64) / BASIS_POINT_MAX
-	reductionFactorScaled := reductionFactor.Mul(oneQ64).Div(basisPointMax)
-	base := oneQ64.Sub(reductionFactorScaled)
+	base := Q64.Sub(dmath.Lsh(reductionFactor, 64).Div(BASIS_POINT_MAX))
 
 	// result = base ^ period
 	result := base.Pow(periodDecimal)
 
-	// final fee: cliffFeeNumerator * result >> 64 → * result / ONE_Q64
-	finalFee := cliffFeeNumerator.Mul(result).Div(oneQ64)
+	finalFee := cliffFeeNumerator.Mul(dmath.Rsh(result, 64))
 	return finalFee
+}
+
+// 对应 TS 的 getBaseFeeNumeratorByPeriod
+func getBaseFeeNumeratorByPeriod(
+	cliffFeeNumerator decimal.Decimal,
+	numberOfPeriod decimal.Decimal,
+	period decimal.Decimal,
+	reductionFactor decimal.Decimal,
+	feeSchedulerMode BaseFeeMode,
+) (decimal.Decimal, error) {
+
+	// min(period, numberOfPeriod)
+	periodValue := period
+	if periodValue.Cmp(numberOfPeriod) > 0 {
+		periodValue = numberOfPeriod
+	}
+
+	if periodValue.Cmp(U16_MAX) > 0 {
+		return decimal.Decimal{}, fmt.Errorf("math overflow: periodNumber=%v > %v", periodValue, U16_MAX)
+	}
+
+	switch feeSchedulerMode {
+	case BaseFeeModeFeeSchedulerLinear:
+		return getFeeNumeratorOnLinearFeeScheduler(cliffFeeNumerator, reductionFactor, periodValue), nil
+
+	case BaseFeeModeFeeSchedulerExponential:
+		return getFeeNumeratorOnExponentialFeeScheduler(cliffFeeNumerator, reductionFactor, periodValue), nil
+	default:
+		return decimal.Decimal{}, fmt.Errorf("invalid fee scheduler mode: %d", feeSchedulerMode)
+	}
+}
+
+func getBaseFeeNumerator7(
+	cliffFeeNumerator decimal.Decimal,
+	numberOfPeriod decimal.Decimal,
+	periodFrequency decimal.Decimal,
+	reductionFactor decimal.Decimal,
+	feeSchedulerMode BaseFeeMode,
+	currentPoint decimal.Decimal,
+	activationPoint decimal.Decimal,
+) (decimal.Decimal, error) {
+
+	if periodFrequency.IsZero() {
+		return cliffFeeNumerator, nil
+	}
+
+	period := currentPoint.Sub(activationPoint).Div(periodFrequency)
+
+	// 调用之前的函数
+	return getBaseFeeNumeratorByPeriod(
+		cliffFeeNumerator,
+		numberOfPeriod,
+		period,
+		reductionFactor,
+		feeSchedulerMode,
+	)
 }

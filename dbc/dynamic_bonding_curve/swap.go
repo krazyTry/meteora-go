@@ -12,19 +12,9 @@ type QuoteResult struct {
 	AmountOut        *big.Int
 	MinimumAmountOut *big.Int
 	NextSqrtPrice    binary.Uint128
-	Fee              FeeBreakdown
-	Price            PriceInfo
-}
-
-type FeeBreakdown struct {
-	Trading  *big.Int
-	Protocol *big.Int
-	Referral *big.Int
-}
-
-type PriceInfo struct {
-	BeforeSwap binary.Uint128
-	AfterSwap  binary.Uint128
+	Trading          *big.Int
+	Protocol         *big.Int
+	Referral         *big.Int
 }
 
 func getSwapResult(
@@ -36,33 +26,55 @@ func getSwapResult(
 	currentPoint decimal.Decimal,
 ) (*QuoteResult, error) {
 
-	actualProtocolFee := big.NewInt(0)
-	actualTradingFee := big.NewInt(0)
-	actualReferralFee := big.NewInt(0)
+	var (
+		actualProtocolFee decimal.Decimal
+		actualTradingFee  decimal.Decimal
+		actualReferralFee decimal.Decimal
+	)
+
+	tradeFeeNumerator, err := getTotalFeeNumeratorFromIncludedFeeAmount(
+		configState.PoolFees,
+		poolState.VolatilityTracker,
+		currentPoint,
+		decimal.NewFromUint64(poolState.ActivationPoint),
+		amountIn,
+		tradeDirection,
+	)
+
+	if err != nil {
+		return nil, err
+	}
 
 	var actualAmountIn decimal.Decimal
 
 	// apply fees on input
 	if feeMode.FeesOnInput {
 
-		feeResultAmount, feeResultTradingFee, feeResultProtocolFee, feeResultReferralFee, err := getFeeOnAmount(
+		// feeResultAmount, feeResultTradingFee, feeResultProtocolFee, feeResultReferralFee, err := getFeeOnAmount1(
+		// 	amountIn,
+		// 	configState.PoolFees,
+		// 	feeMode.HasReferral,
+		// 	currentPoint,
+		// 	decimal.NewFromBigInt(new(big.Int).SetUint64(poolState.ActivationPoint), 0),
+		// 	poolState.VolatilityTracker,
+		// 	tradeDirection,
+		// )
+
+		amountAfterFee, updatedProtocolFee, referralFee, updatedTradingFee, err := getFeeOnAmount(
+			tradeFeeNumerator,
 			amountIn,
 			configState.PoolFees,
 			feeMode.HasReferral,
-			currentPoint,
-			decimal.NewFromBigInt(new(big.Int).SetUint64(poolState.ActivationPoint), 0),
-			poolState.VolatilityTracker,
-			tradeDirection,
 		)
 
 		if err != nil {
 			return nil, err
 		}
 
-		actualProtocolFee.Set(feeResultProtocolFee.BigInt())
-		actualTradingFee.Set(feeResultTradingFee.BigInt())
-		actualReferralFee.Set(feeResultReferralFee.BigInt())
-		actualAmountIn = feeResultAmount
+		actualProtocolFee = updatedProtocolFee
+		actualTradingFee = updatedTradingFee
+		actualReferralFee = referralFee
+		actualAmountIn = amountAfterFee
 	} else {
 		actualAmountIn = amountIn
 	}
@@ -71,13 +83,12 @@ func getSwapResult(
 	var (
 		outputAmount  decimal.Decimal
 		nextSqrtPrice binary.Uint128
-		err           error
 	)
 
 	if tradeDirection == TradeDirectionBaseToQuote {
-		outputAmount, nextSqrtPrice, err = getSwapAmountFromBaseToQuote(configState.Curve[:], poolState.SqrtPrice, actualAmountIn)
+		outputAmount, nextSqrtPrice, _, err = getSwapAmountFromBaseToQuote(configState.Curve[:], poolState.SqrtPrice, actualAmountIn)
 	} else {
-		outputAmount, nextSqrtPrice, err = getSwapAmountFromQuoteToBase(configState.Curve[:], poolState.SqrtPrice, actualAmountIn)
+		outputAmount, nextSqrtPrice, _, err = getSwapAmountFromQuoteToBase(configState.Curve[:], poolState.SqrtPrice, actualAmountIn, U128_MAX)
 	}
 	if err != nil {
 		return nil, err
@@ -88,38 +99,40 @@ func getSwapResult(
 	if feeMode.FeesOnInput {
 		actualAmountOut = outputAmount
 	} else {
-		feeResultAmount, feeResultTradingFee, feeResultProtocolFee, feeResultReferralFee, err := getFeeOnAmount(
+
+		// feeResultAmount, feeResultTradingFee, feeResultProtocolFee, feeResultReferralFee, err := getFeeOnAmount(
+		// 	outputAmount,
+		// 	configState.PoolFees,
+		// 	feeMode.HasReferral,
+		// 	currentPoint,
+		// 	decimal.NewFromUint64(poolState.ActivationPoint),
+		// 	poolState.VolatilityTracker,
+		// 	tradeDirection,
+		// )
+		amountAfterFee, updatedProtocolFee, referralFee, updatedTradingFee, err := getFeeOnAmount(
+			tradeFeeNumerator,
 			outputAmount,
 			configState.PoolFees,
 			feeMode.HasReferral,
-			currentPoint,
-			decimal.NewFromBigInt(new(big.Int).SetUint64(poolState.ActivationPoint), 0),
-			poolState.VolatilityTracker,
-			tradeDirection,
 		)
+
 		if err != nil {
 			return nil, err
 		}
 
-		actualProtocolFee.Set(feeResultProtocolFee.BigInt())
-		actualTradingFee.Set(feeResultTradingFee.BigInt())
-		actualReferralFee.Set(feeResultReferralFee.BigInt())
-		actualAmountOut = feeResultAmount
+		actualProtocolFee = updatedProtocolFee
+		actualTradingFee = updatedTradingFee
+		actualReferralFee = referralFee
+		actualAmountOut = amountAfterFee
 	}
 
 	return &QuoteResult{
 		AmountOut:        actualAmountOut.BigInt(),
 		MinimumAmountOut: actualAmountOut.BigInt(),
 		NextSqrtPrice:    nextSqrtPrice,
-		Fee: FeeBreakdown{
-			Trading:  actualTradingFee,
-			Protocol: actualProtocolFee,
-			Referral: actualReferralFee,
-		},
-		Price: PriceInfo{
-			BeforeSwap: poolState.SqrtPrice,
-			AfterSwap:  nextSqrtPrice,
-		},
+		Trading:          actualTradingFee.BigInt(),
+		Protocol:         actualProtocolFee.BigInt(),
+		Referral:         actualReferralFee.BigInt(),
 	}, nil
 }
 

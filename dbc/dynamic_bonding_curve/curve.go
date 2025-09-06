@@ -3,94 +3,32 @@ package dynamic_bonding_curve
 import (
 	"errors"
 	"fmt"
-	"math"
 	"math/big"
+
+	dmath "github.com/krazyTry/meteora-go/decimal_math"
 
 	"github.com/krazyTry/meteora-go/u128"
 
 	"github.com/shopspring/decimal"
 )
 
-// nth uses the Newton-Raphson algorithm to calculate the y-th root
-// Returns a decimal.Decimal, keeping scale decimal places
-func nth(x decimal.Decimal, y float64, scale int32) (decimal.Decimal, error) {
-
-	n := int64(1.0 / y)
-
-	if n <= 0 {
-		return decimal.Decimal{}, errors.New("n must be positive")
-	}
-	if x.IsNegative() && n%2 == 0 {
-		return decimal.Decimal{}, errors.New("cannot take even root of negative number")
-	}
-	if x.IsZero() {
-		return decimal.Zero, nil
-	}
-
-	f, _ := x.Float64()
-	initGuess := decimal.NewFromFloat(math.Pow(f, 1/float64(n)))
-
-	guess := initGuess
-	last := decimal.Zero
-
-	maxIter := 200
-	epsilon := decimal.New(1, -int32(scale)) // 10^-scale
-
-	for i := 0; i < maxIter; i++ {
-		// guess = ((n-1)*guess + x/(guess^(n-1))) / n
-		guessPow := guess.Pow(decimal.NewFromInt(n - 1))
-		if guessPow.IsZero() {
-			return decimal.Decimal{}, errors.New("division by zero in iteration")
-		}
-
-		term1 := guess.Mul(decimal.NewFromInt(n - 1))
-		term2 := x.Div(guessPow)
-		next := term1.Add(term2).Div(decimal.NewFromInt(n))
-
-		if next.Sub(guess).Abs().LessThan(epsilon) {
-			return next.Round(int32(scale)), nil
-		}
-		last = guess
-		guess = next
-	}
-
-	return last.Round(int32(scale)), nil
-}
-
 func mulDiv(x, y, denominator decimal.Decimal, roundUp bool) (decimal.Decimal, error) {
-	one := decimal.NewFromInt(1)
 
 	if denominator.IsZero() {
-		return decimal.Zero, errors.New("MulDivDecimal: division by zero")
+		return N0, errors.New("MulDivDecimal: division by zero")
 	}
 
-	if denominator.Equal(one) || x.IsZero() || y.IsZero() {
+	if denominator.Equal(N1) || x.IsZero() || y.IsZero() {
 		return x.Mul(y), nil
 	}
 
 	prod := x.Mul(y)
 
 	if roundUp {
-		// (x*y + (denominator - 1)) / denominator
-		return prod.Add(denominator.Sub(one)).Div(denominator).Floor(), nil
-		// return prod.Add(denominator.Sub(one)).Div(denominator), nil
+		return prod.Add(denominator.Sub(N1)).Div(denominator).Floor(), nil
 	} else {
-		//  x*y / denominator
-		// return prod.DivRound(denominator, 48), nil
-		return prod.Div(denominator).Ceil(), nil
-		// return prod.Div(denominator), nil
+		return prod.Div(denominator).Floor(), nil
 	}
-}
-
-func decimalSqrt(x decimal.Decimal) decimal.Decimal {
-	if x.Sign() < 0 {
-		panic("sqrt on negative decimal")
-	}
-	// f, _ := new(big.Float).SetString(x.String())
-	// s := new(big.Float).Sqrt(f)
-	s := new(big.Float).SetPrec(200).Sqrt(x.BigFloat().SetPrec(200))
-	out, _ := decimal.NewFromString(s.Text('f', -1))
-	return out
 }
 
 func truncateSig(d decimal.Decimal, sig int) decimal.Decimal {
@@ -99,7 +37,7 @@ func truncateSig(d decimal.Decimal, sig int) decimal.Decimal {
 
 func getDeltaAmountBaseUnsigned(lowerSqrtPrice, upperSqrtPrice, liquidity decimal.Decimal, roundUp bool) (decimal.Decimal, error) {
 	if liquidity.IsZero() {
-		return decimal.Zero, nil
+		return N0, nil
 	}
 
 	if lowerSqrtPrice.IsZero() || upperSqrtPrice.IsZero() {
@@ -123,15 +61,12 @@ func getDeltaAmountQuoteUnsigned(lowerSqrtPrice, upperSqrtPrice, liquidity decim
 	// prod = liquidity * deltaSqrtPrice
 	prod := liquidity.Mul(deltaSqrtPrice)
 
-	// denominator = 1 << (RESOLUTION*2)
-	denominator := decimal.NewFromInt(2).Pow(decimal.NewFromInt(int64(RESOLUTION * 2)))
-
 	if roundUp {
 		// numerator = prod + denominator - 1 (ceiling division)
-		numerator := prod.Add(denominator).Sub(decimal.NewFromInt(1))
-		return numerator.DivRound(denominator, 48).Floor()
+		numerator := prod.Add(Q128).Sub(N1)
+		return numerator.DivRound(Q128, 38).Floor()
 	} else {
-		return prod.DivRound(denominator, 48).Floor()
+		return prod.DivRound(Q128, 38).Floor()
 	}
 }
 
@@ -146,7 +81,6 @@ func getNextSqrtPriceFromAmountBaseRoundingUp(sqrtPrice, liquidity, amount decim
 	// denominator = liquidity + product
 	denominator := liquidity.Add(product)
 
-	// nextSqrtPrice = liquidity * sqrtPrice / denominator, 向上舍入
 	return mulDiv(liquidity, sqrtPrice, denominator, true)
 }
 
@@ -155,12 +89,11 @@ func getNextSqrtPriceFromAmountQuoteRoundingDown(sqrtPrice, liquidity, amount de
 		return sqrtPrice
 	}
 
-	shifted := amount.Mul(decimal.NewFromInt(2).Pow(decimal.NewFromInt(int64(RESOLUTION * 2))))
+	shifted := amount.Mul(Q128)
 
-	quotient := shifted.Div(liquidity).Floor()
+	quotient := shifted.Div(liquidity)
 
-	// nextSqrtPrice = sqrtPrice + quotient
-	return sqrtPrice.Add(quotient)
+	return sqrtPrice.Add(quotient).Floor()
 }
 
 func getNextSqrtPriceFromInput(sqrtPrice, liquidity, amountIn decimal.Decimal, baseForQuote bool) (decimal.Decimal, error) {
@@ -177,8 +110,8 @@ func getNextSqrtPriceFromInput(sqrtPrice, liquidity, amountIn decimal.Decimal, b
 
 // getInitialLiquidityFromDeltaBase calculates initial liquidity given base amount and price ranges.
 func getInitialLiquidityFromDeltaBase(baseAmount, sqrtMaxPrice, sqrtPrice decimal.Decimal) decimal.Decimal {
-	if baseAmount.Equal(decimal.Zero) {
-		return decimal.Zero
+	if baseAmount.IsZero() {
+		return N0
 	}
 
 	// priceDelta = sqrtMaxPrice - sqrtPrice
@@ -188,7 +121,7 @@ func getInitialLiquidityFromDeltaBase(baseAmount, sqrtMaxPrice, sqrtPrice decima
 	prod := baseAmount.Mul(sqrtPrice).Mul(sqrtMaxPrice)
 
 	// liquidity = prod / priceDelta
-	liquidity := prod.DivRound(priceDelta, 48).Floor()
+	liquidity := prod.DivRound(priceDelta, 38).Floor()
 
 	return liquidity
 }
@@ -198,24 +131,8 @@ func convertDecimalToBN(value decimal.Decimal) decimal.Decimal {
 }
 
 // ConvertToLamports
-func convertToLamports(amount any, tokenDecimal TokenDecimal) decimal.Decimal {
-	var amt decimal.Decimal
-
-	switch v := amount.(type) {
-	case string:
-		amt, _ = decimal.NewFromString(v)
-	case float64:
-		amt = decimal.NewFromFloat(v)
-	case int64:
-		amt = decimal.NewFromInt(v)
-	case int:
-		amt = decimal.NewFromInt(int64(v))
-	default:
-		panic("unsupported amount type")
-	}
-
-	valueInLamports := amt.Mul(decimal.New(1, int32(tokenDecimal)))
-
+func convertToLamports(amount decimal.Decimal, tokenDecimal TokenDecimal) decimal.Decimal {
+	valueInLamports := amount.Mul(decimal.New(1, int32(tokenDecimal)))
 	return convertDecimalToBN(valueInLamports)
 }
 
@@ -223,13 +140,9 @@ func getSqrtPriceFromPrice(decimalPrice decimal.Decimal, tokenADecimal, tokenBDe
 
 	decimalsAdjustment := decimal.New(1, int32(tokenADecimal)-int32(tokenBDecimal)) // 10^(tokenADecimal - tokenBDecimal)
 
-	adjusted := decimalPrice.DivRound(decimalsAdjustment, 25)
+	adjusted := decimalPrice.Div(decimalsAdjustment)
 
-	sqrtAdjusted := decimalSqrt(adjusted)
-
-	q64 := sqrtAdjusted.Mul(decimal.NewFromInt(2).Pow(decimal.NewFromInt(64)))
-
-	return q64.Floor()
+	return dmath.Sqrt(adjusted, 70).Mul(Q64).Floor()
 }
 
 func getMigrationBaseToken(
@@ -242,28 +155,24 @@ func getMigrationBaseToken(
 		// price = sqrtMigrationPrice^2
 		price := sqrtMigrationPrice.Mul(sqrtMigrationPrice)
 
-		// quote = migrationQuoteAmount << 128 -> migrationQuoteAmount * 2^128
-		twoPow128 := decimal.NewFromInt(2).Pow(decimal.NewFromInt(128))
-		quote := migrationQuoteAmount.Mul(twoPow128)
+		// quote = migrationQuoteAmount << 128
+		quote := dmath.Lsh(migrationQuoteAmount, 128)
 
 		// divmod: div = ceil(quote / price)
-		div := quote.Div(price).Ceil()
-
-		return div, nil
+		return quote.Div(price).Ceil(), nil
 	case MigrationOptionMETDAMMV2:
-
 		liquidity, err := getInitialLiquidityFromDeltaQuote(
 			migrationQuoteAmount,
-			decimal.NewFromBigInt(MIN_SQRT_PRICE, 0),
+			MIN_SQRT_PRICE,
 			sqrtMigrationPrice,
 		)
 		if err != nil {
-			return decimal.Zero, err
+			return N0, err
 		}
 
 		baseAmount, err := getDeltaAmountBaseUnsigned(
 			sqrtMigrationPrice,
-			decimal.NewFromBigInt(MAX_SQRT_PRICE, 0),
+			MAX_SQRT_PRICE,
 			liquidity,
 			true,
 		)
@@ -283,15 +192,16 @@ func getMigrationBaseToken(
 func getInitialLiquidityFromDeltaQuote(quoteAmount, sqrtMinPrice, sqrtPrice decimal.Decimal) (decimal.Decimal, error) {
 	// priceDelta = sqrtPrice - sqrtMinPrice
 	priceDelta := sqrtPrice.Sub(sqrtMinPrice)
+
 	if priceDelta.IsZero() {
-		return decimal.Zero, errors.New("price delta cannot be zero")
+		return N0, errors.New("price delta cannot be zero")
 	}
 
-	// quoteAmountShifted = quoteAmount << 128 -> quoteAmount * 2^128
-	quoteAmountShifted := quoteAmount.Mul(decimal.NewFromInt(2).Pow(decimal.NewFromInt(128)))
+	// quoteAmountShifted = quoteAmount << 128
+	quoteAmountShifted := dmath.Lsh(quoteAmount, 128)
 
 	// liquidity = quoteAmountShifted / priceDelta
-	liquidity := quoteAmountShifted.DivRound(priceDelta, 48).Floor()
+	liquidity := quoteAmountShifted.DivRound(priceDelta, 38).Floor()
 	return liquidity, nil
 }
 
@@ -302,8 +212,7 @@ func getTotalVestingAmount(lockedVesting *LockedVesting) decimal.Decimal {
 	numberOfPeriod := decimal.NewFromUint64(lockedVesting.NumberOfPeriod)
 	cliffUnlockAmount := decimal.NewFromUint64(lockedVesting.CliffUnlockAmount)
 
-	totalVesting := amountPerPeriod.Mul(numberOfPeriod).Add(cliffUnlockAmount)
-	return totalVesting
+	return amountPerPeriod.Mul(numberOfPeriod).Add(cliffUnlockAmount)
 }
 
 // CurveStep
@@ -326,7 +235,7 @@ func getFirstCurve(
 	migrationFeePercentDecimal := decimal.NewFromUint64(uint64(migrationFeePercent))
 
 	// denominator = swapAmount * (1 - migrationFeePercent/100)
-	denominator := swapAmount.Mul(decimal.NewFromInt(100).Sub(migrationFeePercentDecimal)).Div(decimal.NewFromInt(100))
+	denominator := swapAmount.Mul(N1.Sub(migrationFeePercentDecimal.Div(N100)))
 
 	// sqrtStartPrice = migrationSqrtPrice * migrationBaseAmount / denominator
 	sqrtStartPriceDecimal := migrationSqrtPrice.Mul(migrationBaseAmount).Div(denominator)
@@ -370,13 +279,13 @@ func getSwapAmountWithBuffer(
 	curve []LiquidityDistributionParameters,
 ) (decimal.Decimal, error) {
 	// buffer = swapBaseAmount * 0.25
-	buffer := swapBaseAmount.Mul(decimal.NewFromFloat(0.25))
+	buffer := swapBaseAmount.Mul(N025)
 	swapAmountBuffer := swapBaseAmount.Add(buffer)
 
 	// maxBaseAmountOnCurve = getBaseTokenForSwap(...)
-	maxBaseAmountOnCurve, err := getBaseTokenForSwap(sqrtStartPrice, decimal.NewFromBigInt(MAX_SQRT_PRICE, 0), curve)
+	maxBaseAmountOnCurve, err := getBaseTokenForSwap(sqrtStartPrice, MAX_SQRT_PRICE, curve)
 	if err != nil {
-		return decimal.Zero, err
+		return N0, err
 	}
 
 	if swapAmountBuffer.Cmp(maxBaseAmountOnCurve) > 0 {
@@ -394,24 +303,24 @@ func getPercentageSupplyOnMigration(
 	totalTokenSupply decimal.Decimal,
 ) decimal.Decimal {
 
-	sqrtRatio := decimalSqrt(initialMarketCap.DivRound(migrationMarketCap, 21)).Truncate(21)
+	sqrtRatio := dmath.Sqrt(initialMarketCap.Div(migrationMarketCap), 60)
 
 	totalVestingAmount := getTotalVestingAmount(lockedVesting)
 
-	vestingPercentage := totalVestingAmount.Mul(decimal.NewFromInt(100)).Div(totalTokenSupply)
+	vestingPercentage := totalVestingAmount.Mul(N100).Div(totalTokenSupply)
 
-	leftoverPercentage := totalLeftover.Mul(decimal.NewFromInt(100)).Div(totalTokenSupply)
+	leftoverPercentage := totalLeftover.Mul(N100).Div(totalTokenSupply)
 
-	numerator := decimal.NewFromInt(100).Mul(sqrtRatio).Sub(vestingPercentage.Add(leftoverPercentage).Mul(sqrtRatio)).Round(18)
+	numerator := N100.Mul(sqrtRatio).Sub(vestingPercentage.Add(leftoverPercentage).Mul(sqrtRatio))
 
-	denominator := decimal.NewFromInt(1).Add(sqrtRatio).Round(18)
+	denominator := N1.Add(sqrtRatio)
 
 	return numerator.DivRound(denominator, 13)
 }
 
 // GetMigrationQuoteAmount
 func getMigrationQuoteAmount(migrationMarketCap decimal.Decimal, percentageSupplyOnMigration decimal.Decimal) decimal.Decimal {
-	return migrationMarketCap.Mul(percentageSupplyOnMigration).DivRound(decimal.NewFromInt(100), 18)
+	return migrationMarketCap.Mul(percentageSupplyOnMigration).DivRound(N100, 18)
 }
 
 func getBaseTokenForSwap(
@@ -471,32 +380,32 @@ func getDynamicFeeParams(baseFeeBps, maxPriceChangeBps int64) *DynamicFeeParamet
 	}
 
 	priceRatio := decimal.NewFromInt(maxPriceChangeBps).
-		Div(decimal.NewFromInt(BASIS_POINT_MAX.Int64())).
+		Div(BASIS_POINT_MAX).
 		Add(decimal.NewFromInt(1))
 
 	// Q64: sqrt(priceRatio) * 2^64
-	sqrtPriceRatioQ64 := decimalSqrt(priceRatio).Round(19).Mul(decimal.NewFromInt(2).Pow(decimal.NewFromInt(64))).Floor()
+	sqrtPriceRatioQ64 := dmath.Sqrt(priceRatio, 200).Round(19).Mul(Q64).Floor()
 	// 2️⃣ deltaBinId = (sqrtPriceRatioQ64 - ONE_Q64) / BIN_STEP_BPS_U128_DEFAULT * 2
-	deltaBinId := sqrtPriceRatioQ64.Sub(decimal.NewFromBigInt(ONE_Q64, 0)).Div(decimal.NewFromBigInt(BIN_STEP_BPS_U128_DEFAULT.BigInt(), 0)).Floor().Mul(decimal.NewFromInt(2))
+	deltaBinId := sqrtPriceRatioQ64.Sub(Q64).Div(decimal.NewFromBigInt(BIN_STEP_BPS_U128_DEFAULT.BigInt(), 0)).Floor().Mul(N2)
 	// 3️⃣ maxVolatilityAccumulator = deltaBinId * BASIS_POINT_MAX
-	maxVolatilityAccumulator := deltaBinId.Mul(decimal.NewFromBigInt(BASIS_POINT_MAX, 0))
+	maxVolatilityAccumulator := deltaBinId.Mul(BASIS_POINT_MAX)
 	// 4️⃣ squareVfaBin = (maxVolatilityAccumulator * BIN_STEP_BPS_DEFAULT)^2
-	squareVfaBin := maxVolatilityAccumulator.Mul(decimal.NewFromBigInt(BIN_STEP_BPS_DEFAULT, 0)).Pow(decimal.NewFromInt(2))
+	squareVfaBin := maxVolatilityAccumulator.Mul(BIN_STEP_BPS_DEFAULT).Pow(N2)
 	// baseFeeNumerator
 	baseFeeNumerator := bpsToFeeNumerator(baseFeeBps)
 
 	// maxDynamicFeeNumerator = baseFeeNumerator * 20 / 100
-	maxDynamicFeeNumerator := baseFeeNumerator.Mul(decimal.NewFromInt(20)).Div(decimal.NewFromInt(100))
+	maxDynamicFeeNumerator := baseFeeNumerator.Mul(decimal.NewFromInt(20)).Div(N100)
 
 	// vFee = maxDynamicFeeNumerator * 100_000_000_000 - 99_999_999_999
-	vFee := maxDynamicFeeNumerator.Mul(decimal.NewFromInt(100_000_000_000)).Sub(decimal.NewFromInt(99_999_999_999))
+	vFee := maxDynamicFeeNumerator.Mul(N100_000_000_000).Sub(N99_999_999_999)
 
 	// variableFeeControl = vFee / squareVfaBin
 	variableFeeControl := vFee.Div(squareVfaBin).Floor()
 
 	return &DynamicFeeParameters{
-		BinStep:                  uint16(BIN_STEP_BPS_DEFAULT.Int64()),
-		BinStepU128:              BIN_STEP_BPS_U128_DEFAULT,
+		BinStep:                  uint16(BIN_STEP_BPS_DEFAULT.BigInt().Int64()),
+		BinStepU128:              u128.GenUint128FromString(BIN_STEP_BPS_U128_DEFAULT.String()),
 		FilterPeriod:             DYNAMIC_FEE_FILTER_PERIOD_DEFAULT,
 		DecayPeriod:              DYNAMIC_FEE_DECAY_PERIOD_DEFAULT,
 		ReductionFactor:          DYNAMIC_FEE_REDUCTION_FACTOR_DEFAULT,
@@ -507,7 +416,7 @@ func getDynamicFeeParams(baseFeeBps, maxPriceChangeBps int64) *DynamicFeeParamet
 
 // bpsToFeeNumerator
 func bpsToFeeNumerator(bps int64) decimal.Decimal {
-	return decimal.NewFromInt(bps).Mul(decimal.NewFromBigInt(FEE_DENOMINATOR, 0)).Div(decimal.NewFromBigInt(BASIS_POINT_MAX, 0))
+	return decimal.NewFromInt(bps).Mul(FEE_DENOMINATOR).Div(BASIS_POINT_MAX)
 }
 
 type TwoCurveResult struct {
@@ -524,10 +433,10 @@ func getTwoCurve(
 	p2 := migrationSqrtPrice
 
 	// a1 = 1/p0 - 1/p1
-	a1 := decimal.NewFromInt(1).DivRound(p0, 36).Sub(decimal.NewFromInt(1).DivRound(p1, 37))
+	a1 := N1.DivRound(p0, 36).Sub(N1.DivRound(p1, 37))
 
 	// b1 = 1/p1 - 1/p2
-	b1 := decimal.NewFromInt(1).DivRound(p1, 37).Sub(decimal.NewFromInt(1).DivRound(p2, 37))
+	b1 := N1.DivRound(p1, 37).Sub(N1.DivRound(p2, 37))
 
 	c1 := swapAmount
 
@@ -537,7 +446,7 @@ func getTwoCurve(
 	// b2 = p2 - p1
 	b2 := p2.Sub(p1)
 
-	c2 := truncateSig(migrationQuoteThreshold.Mul(truncateSig(decimal.NewFromInt(2).Pow(decimal.NewFromInt(128)), 20)), 20)
+	c2 := truncateSig(migrationQuoteThreshold.Mul(truncateSig(Q128, 20)), 20)
 
 	// l0 = (c1*b2 - c2*b1) / (a1*b2 - a2*b1)
 	numeratorL0 := truncateSig(c1.Mul(b2).Sub(c2.Mul(b1)).Floor(), 20)
@@ -595,11 +504,11 @@ func getLockedVestingParams(
 
 	if totalLockedVestingAmount == cliffUnlockAmount {
 		return LockedVesting{
-			AmountPerPeriod:                convertToLamports(1, tokenBaseDecimal).BigInt().Uint64(),
-			CliffDurationFromMigrationTime: big.NewInt(cliffDurationFromMigrationTime).Uint64(),
+			AmountPerPeriod:                convertToLamports(N1, tokenBaseDecimal).BigInt().Uint64(),
+			CliffDurationFromMigrationTime: uint64(cliffDurationFromMigrationTime),
 			Frequency:                      1,
 			NumberOfPeriod:                 1,
-			CliffUnlockAmount:              convertToLamports(totalLockedVestingAmount-1, tokenBaseDecimal).BigInt().Uint64(),
+			CliffUnlockAmount:              convertToLamports(decimal.NewFromInt(totalLockedVestingAmount-1), tokenBaseDecimal).BigInt().Uint64(),
 		}, nil
 	}
 
@@ -626,11 +535,11 @@ func getLockedVestingParams(
 	periodFrequency := totalVestingDuration / numberOfVestingPeriod
 
 	return LockedVesting{
-		AmountPerPeriod:                convertToLamports(roundedAmountPerPeriod, tokenBaseDecimal).BigInt().Uint64(),
+		AmountPerPeriod:                convertToLamports(decimal.NewFromInt(roundedAmountPerPeriod), tokenBaseDecimal).BigInt().Uint64(),
 		CliffDurationFromMigrationTime: uint64(cliffDurationFromMigrationTime),
 		Frequency:                      uint64(periodFrequency),
 		NumberOfPeriod:                 uint64(numberOfVestingPeriod),
-		CliffUnlockAmount:              convertToLamports(adjustedCliffUnlockAmount, tokenBaseDecimal).BigInt().Uint64(),
+		CliffUnlockAmount:              convertToLamports(decimal.NewFromInt(adjustedCliffUnlockAmount), tokenBaseDecimal).BigInt().Uint64(),
 	}, nil
 }
 
@@ -638,21 +547,16 @@ func getMigrationQuoteAmountFromMigrationQuoteThreshold(
 	migrationQuoteThreshold decimal.Decimal,
 	migrationFeePercent uint8,
 ) decimal.Decimal {
-	migrationQuoteAmount := migrationQuoteThreshold.
-		Mul(decimal.NewFromInt(100).Sub(decimal.NewFromUint64(uint64(migrationFeePercent)))).
-		Div(decimal.NewFromInt(100))
-	return migrationQuoteAmount
+	return migrationQuoteThreshold.Mul(N100.Sub(decimal.NewFromUint64(uint64(migrationFeePercent)))).Div(N100)
 }
 
 func getMigrationQuoteThresholdFromMigrationQuoteAmount(
 	migrationQuoteAmount decimal.Decimal,
 	migrationFeePercent uint8,
 ) decimal.Decimal {
-	migrationQuoteThreshold := migrationQuoteAmount.
-		Mul(decimal.NewFromInt(100)).
-		Div(decimal.NewFromInt(100).Sub(decimal.NewFromUint64(uint64(migrationFeePercent))))
-
-	return migrationQuoteThreshold
+	return migrationQuoteAmount.
+		Mul(N100).
+		Div(N100.Sub(decimal.NewFromUint64(uint64(migrationFeePercent))))
 }
 
 func getBaseFeeParams(baseFeeParams BaseFeeParams, tokenQuoteDecimal TokenDecimal, activationType ActivationType) (BaseFeeParameters, error) {
@@ -692,18 +596,18 @@ func getRateLimiterParams(
 	if feeIncrementBps > MAX_FEE_BPS {
 		panic(fmt.Sprintf("Fee increment (%d bps) exceeds maximum allowed value of %d bps", feeIncrementBps, MAX_FEE_BPS))
 	}
-	if feeIncrementNumerator.Cmp(decimal.NewFromBigInt(FEE_DENOMINATOR, 0)) >= 0 {
+	if feeIncrementNumerator.Cmp(FEE_DENOMINATOR) >= 0 {
 		panic("Fee increment numerator must be less than FEE_DENOMINATOR")
 	}
 
-	deltaNumerator := decimal.NewFromBigInt(MAX_FEE_NUMERATOR, 0).Sub(cliffFeeNumerator)
+	deltaNumerator := MAX_FEE_NUMERATOR.Sub(cliffFeeNumerator)
 	maxIndex := deltaNumerator.Div(feeIncrementNumerator)
-	if maxIndex.Cmp(decimal.NewFromInt(1)) < 0 {
+	if maxIndex.Cmp(N1) < 0 {
 		panic("Fee increment is too large for the given base fee")
 	}
 
-	if cliffFeeNumerator.Cmp(decimal.NewFromBigInt(MIN_FEE_NUMERATOR, 0)) < 0 ||
-		cliffFeeNumerator.Cmp(decimal.NewFromBigInt(MAX_FEE_NUMERATOR, 0)) > 0 {
+	if cliffFeeNumerator.Cmp(MIN_FEE_NUMERATOR) < 0 ||
+		cliffFeeNumerator.Cmp(MAX_FEE_NUMERATOR) > 0 {
 		panic("Base fee must be between 0.01% and 99%")
 	}
 
@@ -774,10 +678,8 @@ func getFeeSchedulerParams(
 	if baseFeeMode == BaseFeeModeFeeSchedulerLinear {
 		reductionFactor = maxBaseFeeNumerator.Sub(minBaseFeeNumerator).Div(decimal.NewFromUint64(uint64(numberOfPeriod)))
 	} else {
-		// FeeSchedulerExponential
-		ratio := minBaseFeeNumerator.InexactFloat64() / maxBaseFeeNumerator.InexactFloat64()
-		decayBase := math.Pow(ratio, 1.0/float64(numberOfPeriod))
-		reductionFactor = decimal.NewFromInt(int64(float64(BASIS_POINT_MAX.Int64()) * (1 - decayBase)))
+		decayBase := dmath.Pow(minBaseFeeNumerator.Div(maxBaseFeeNumerator), N1.DivRound(decimal.NewFromUint64(uint64(numberOfPeriod)), 18), 18)
+		reductionFactor = BASIS_POINT_MAX.Mul(N1.Sub(decayBase))
 	}
 
 	return BaseFeeParameters{
@@ -829,24 +731,24 @@ func getTotalSupplyFromCurve(
 
 	sqrtMigrationPrice, err := getMigrationThresholdPrice(migrationQuoteThreshold, sqrtStartPrice, curve)
 	if err != nil {
-		return decimal.Zero, err
+		return N0, err
 	}
 
 	swapBaseAmount, err := getBaseTokenForSwap(sqrtStartPrice, sqrtMigrationPrice, curve)
 	if err != nil {
-		return decimal.Zero, err
+		return N0, err
 	}
 
 	swapBaseAmountBuffer, err := getSwapAmountWithBuffer(swapBaseAmount, sqrtStartPrice, curve)
 	if err != nil {
-		return decimal.Zero, err
+		return N0, err
 	}
 
 	migrationQuoteAmount := getMigrationQuoteAmountFromMigrationQuoteThreshold(migrationQuoteThreshold, migrationFeePercent)
 
 	migrationBaseAmount, err := getMigrationBaseToken(convertDecimalToBN(migrationQuoteAmount), sqrtMigrationPrice, migrationOption)
 	if err != nil {
-		return decimal.Zero, err
+		return N0, err
 	}
 
 	totalVestingAmount := getTotalVestingAmount(lockedVesting)
@@ -865,7 +767,7 @@ func getMigrationThresholdPrice(
 	nextSqrtPrice := sqrtStartPrice
 
 	if len(curve) == 0 {
-		return decimal.Zero, errors.New("curve is empty")
+		return N0, errors.New("curve is empty")
 	}
 
 	totalAmount := getDeltaAmountQuoteUnsigned(nextSqrtPrice, decimal.NewFromBigInt(curve[0].SqrtPrice.BigInt(), 0), decimal.NewFromBigInt(curve[0].Liquidity.BigInt(), 0), true)
@@ -875,7 +777,7 @@ func getMigrationThresholdPrice(
 		var err error
 		nextSqrtPrice, err = getNextSqrtPriceFromInput(nextSqrtPrice, decimal.NewFromBigInt(curve[0].Liquidity.BigInt(), 0), migrationThreshold, false)
 		if err != nil {
-			return decimal.Zero, err
+			return N0, err
 		}
 
 	} else {
@@ -890,9 +792,9 @@ func getMigrationThresholdPrice(
 				var err error
 				nextSqrtPrice, err = getNextSqrtPriceFromInput(nextSqrtPrice, decimal.NewFromBigInt(curve[i].Liquidity.BigInt(), 0), amountLeft, false)
 				if err != nil {
-					return decimal.Zero, err
+					return N0, err
 				}
-				amountLeft = decimal.Zero
+				amountLeft = N0
 				break
 			} else {
 				amountLeft = amountLeft.Sub(maxAmount)
@@ -901,7 +803,7 @@ func getMigrationThresholdPrice(
 		}
 
 		if !amountLeft.IsZero() {
-			return decimal.Zero, errors.New("Not enough liquidity, migrationThreshold: " + migrationThreshold.String() + "  amountLeft: " + amountLeft.String())
+			return N0, errors.New("Not enough liquidity, migrationThreshold: " + migrationThreshold.String() + "  amountLeft: " + amountLeft.String())
 		}
 	}
 

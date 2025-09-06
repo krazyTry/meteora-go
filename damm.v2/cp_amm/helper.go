@@ -3,9 +3,9 @@ package cp_amm
 import (
 	"bytes"
 	"encoding/binary"
-	"math/big"
 
 	"github.com/gagliardetto/solana-go"
+	dmath "github.com/krazyTry/meteora-go/decimal_math"
 	"github.com/shopspring/decimal"
 )
 
@@ -61,10 +61,7 @@ func DeriveCustomizablePoolAddress(baseMint, quoteMint solana.PublicKey) (solana
 }
 
 func DerivePositionNftAccount(positionNftMint solana.PublicKey) (solana.PublicKey, error) {
-	seeds := [][]byte{
-		[]byte("position_nft_account"),
-		positionNftMint.Bytes(),
-	}
+	seeds := [][]byte{[]byte("position_nft_account"), positionNftMint.Bytes()}
 	pda, _, err := solana.FindProgramAddress(seeds, ProgramID)
 	if err != nil {
 		return solana.PublicKey{}, err
@@ -143,7 +140,8 @@ func IsVestingComplete(cliffPoint, periodFrequency, numberOfPeriods, currentPoin
 // initialPoolTokenAmount = tokenAmount * 10^decimals
 func GetInitialPoolTokenAmount(amount decimal.Decimal, decimals uint8) decimal.Decimal {
 	// 10^decimals
-	scale := decimal.NewFromBigInt(new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(decimals)), nil), 0)
+	// scale := decimal.NewFromBigInt(new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(decimals)), nil), 0)
+	scale := dmath.Exp(N10, decimal.NewFromUint64(uint64(decimals)), decimal.NullDecimal{})
 	// tokenAmount * 10^decimals
 	// result := new(big.Int).Mul(amount, scale)
 

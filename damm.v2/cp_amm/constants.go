@@ -6,7 +6,8 @@ package cp_amm
 import (
 	"math/big"
 
-	"github.com/krazyTry/meteora-go/u128"
+	dmath "github.com/krazyTry/meteora-go/decimal_math"
+	"github.com/shopspring/decimal"
 )
 
 var (
@@ -19,43 +20,48 @@ var (
 )
 
 var (
-	SCALE_OFFSET uint = 64
-
-	ONE = new(big.Int).Lsh(big.NewInt(1), uint(SCALE_OFFSET))
-
-	RESOLUTION = int32(64)
-	ONE_Q64    = new(big.Int).Lsh(big.NewInt(1), uint(RESOLUTION))
-
-	LIQUIDITY_SCALE uint = 128
-
 	DYNAMIC_FEE_FILTER_PERIOD_DEFAULT    uint16 = 10
 	DYNAMIC_FEE_DECAY_PERIOD_DEFAULT     uint16 = 120
 	DYNAMIC_FEE_REDUCTION_FACTOR_DEFAULT uint16 = 5000 // 50%
 
-	BASIS_POINT_MAX = big.NewInt(10_000)
+	BASIS_POINT_MAX = decimal.NewFromInt(10_000)
 
-	MAX_FEE_NUMERATOR = big.NewInt(500_000_000)
+	MAX_FEE_NUMERATOR = decimal.NewFromInt(500_000_000)
 
-	FEE_DENOMINATOR = big.NewInt(1_000_000_000)
+	FEE_DENOMINATOR = decimal.NewFromInt(1_000_000_000)
 
 	MAX_FEE_BASIS_POINTS uint16 = 10000
 
-	ONE_IN_BASIS_POINTS = big.NewInt(int64(MAX_FEE_BASIS_POINTS))
+	ONE_IN_BASIS_POINTS = decimal.NewFromUint64(uint64(MAX_FEE_BASIS_POINTS))
 
-	U64_MAX = uint64(18446744073709551615)
+	BIN_STEP_BPS_DEFAULT = decimal.NewFromInt(1)
 
-	BIN_STEP_BPS_DEFAULT = big.NewInt(1)
 	// bin_step << 64 / BASIS_POINT_MAX
-	BIN_STEP_BPS_U128_DEFAULT = u128.GenUint128FromString("1844674407370955")
+	BIN_STEP_BPS_U128_DEFAULT = decimal.NewFromInt(1844674407370955)
 
-	MIN_SQRT_PRICE    = new(big.Int).SetUint64(4295048016)
+	MIN_SQRT_PRICE    = big.NewInt(4295048016)
 	MAX_SQRT_PRICE, _ = new(big.Int).SetString("79226673521066979257578248091", 10)
 
 	MAX_PRICE_CHANGE_BPS_DEFAULT = 1500 // 15%
 
-	MAX_EXPONENTIAL = new(big.Int).SetUint64(0x80000)
+	MAX_EXPONENTIAL = decimal.NewFromInt(0x80000)
 
-	MAX = new(big.Int).Sub(new(big.Int).Exp(big.NewInt(2), big.NewInt(128), nil), big.NewInt(1)) // 2^128 - 1
+	N0     = decimal.Zero
+	N1     = decimal.NewFromInt(1)
+	N2     = decimal.NewFromInt(2)
+	N10    = decimal.NewFromInt(10)
+	N20    = decimal.NewFromInt(20)
+	N100   = decimal.NewFromInt(100)
+	N128   = decimal.NewFromInt(128)
+	N10000 = decimal.NewFromInt(10000)
+
+	N99_999_999_999  = decimal.NewFromInt(99_999_999_999)
+	N100_000_000_000 = decimal.NewFromInt(100_000_000_000)
+
+	MAX = dmath.Exp(N2, N128, decimal.NullDecimal{}).Sub(N1) // 2^128 - 1
+
+	Q64  = dmath.Lsh(N1, 64)
+	Q128 = dmath.Lsh(N1, 128)
 )
 
 type TokenType uint8

@@ -83,6 +83,57 @@ func TestDammV2(t *testing.T) {
 	}
 
 	// {
+	// baseMint := solana.MustPublicKeyFromBase58("EAeMX1T6Jzm7jMm7bVsfu7kLyZSxpEhdmtRUyMXJfaNC")
+	// z, _ := decimal.NewFromString("79226673521066979257578248091")
+	// y, _ := decimal.NewFromString("18446744073709551616")
+
+	// liquidityDelta := cp_amm.GetLiquidityDelta(
+	// 	decimal.NewFromInt(1000000),
+	// 	decimal.NewFromInt(1),
+	// 	z,                              // cp_amm.MAX_SQRT_PRICE,
+	// 	decimal.NewFromInt(4295048016), // cp_amm.MIN_SQRT_PRICE,
+	// 	y,
+	// )
+	// fmt.Println(liquidityDelta)
+
+	// ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
+	// defer cancel1()
+
+	// amountIn := new(big.Int).SetUint64(uint64(0.2 * 1e9))
+	// minOutAmount, _, err := meteoraDammV2.BuyQuote(ctx1, baseMint, amountIn, 250)
+	// if err != nil {
+	// 	t.Fatal("BuyQuote fail", err)
+	// }
+	// fmt.Println(minOutAmount)
+
+	// ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
+	// defer cancel1()
+	// amountIn := new(big.Int).SetUint64(1_000_000 * 1e9)
+	// quote, _, err := meteoraDammV2.GetDepositQuote(ctx1, baseMint, false, amountIn)
+	// if err != nil {
+	// 	t.Fatal("meteoraDammV2.GetDepositQuote fail", err)
+	// }
+	// fmt.Println(quote)
+
+	// initSqrtPrice, err := cp_amm.GetSqrtPriceFromPrice(decimal.NewFromFloat(1.0), 9, 9)
+	// if err != nil {
+	// 	t.Fatal("GetSqrtPriceFromPrice", err)
+	// }
+	// fmt.Println(initSqrtPrice)
+
+	// ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
+	// defer cancel1()
+	// baseMint := solana.MustPublicKeyFromBase58("9EpFqwBgu9JkxZYEaG1suWzVeA4YR14bkci2gJHU896y")
+	// liquidityDelta, _ := new(big.Int).SetString("18446744078004599633000037588", 10)
+	// quote, _, err := meteoraDammV2.GetWithdrawQuote(ctx1, baseMint, liquidityDelta)
+	// if err != nil {
+	// 	t.Fatal("meteoraDammV2.GetWithdrawQuote fail", err)
+	// }
+	// fmt.Println(quote)
+	// }
+	// return
+
+	// {
 	// 	ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
 	// 	defer cancel1()
 	// 	cfg, err := meteoraDammV2.GetConfig(ctx1, solana.MustPublicKeyFromBase58("82p7sVzQWZfCrmStPhsG8BYKwheQkUiXSs2wiqdhwNxr"))

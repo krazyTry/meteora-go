@@ -7,10 +7,10 @@ import (
 // getMaxIndex
 func getMaxIndex(cliffFeeNumerator, feeIncrementBps decimal.Decimal) decimal.Decimal {
 	// deltaNumerator = MAX_FEE_NUMERATOR - cliffFeeNumerator
-	deltaNumerator := decimal.NewFromBigInt(MAX_FEE_NUMERATOR, 0).Sub(cliffFeeNumerator)
+	deltaNumerator := MAX_FEE_NUMERATOR.Sub(cliffFeeNumerator)
 
 	// feeIncrementNumerator = feeIncrementBps * FEE_DENOMINATOR / BASIS_POINT_MAX
-	feeIncrementNumerator := feeIncrementBps.Mul(decimal.NewFromBigInt(FEE_DENOMINATOR, 0)).Div(decimal.NewFromBigInt(BASIS_POINT_MAX, 0))
+	feeIncrementNumerator := feeIncrementBps.Mul(FEE_DENOMINATOR).Div(BASIS_POINT_MAX)
 
 	return deltaNumerator.Div(feeIncrementNumerator)
 }
@@ -29,30 +29,28 @@ func getFeeNumeratorOnRateLimiter(
 	b := diff.Mod(referenceAmount)
 
 	maxIndex := getMaxIndex(cliffFeeNumerator, feeIncrementBps)
-	i := feeIncrementBps.Mul(decimal.NewFromBigInt(FEE_DENOMINATOR, 0)).Div(decimal.NewFromBigInt(BASIS_POINT_MAX, 0))
+	i := feeIncrementBps.Mul(FEE_DENOMINATOR).Div(BASIS_POINT_MAX)
 
 	x0 := referenceAmount
-	one := decimal.NewFromInt(1)
-	two := decimal.NewFromInt(2)
 
 	var tradingFeeNumerator decimal.Decimal
 
 	if a.Cmp(maxIndex) < 0 {
 		numerator1 := c.Add(c.Mul(a))
-		tmp := i.Mul(a).Mul(a.Add(one)).Div(two)
+		tmp := i.Mul(a).Mul(a.Add(N1)).Div(N2)
 		numerator1 = numerator1.Add(tmp)
 
-		numerator2 := c.Add(i.Mul(a.Add(one)))
+		numerator2 := c.Add(i.Mul(a.Add(N1)))
 
 		firstFee := x0.Mul(numerator1)
 		secondFee := b.Mul(numerator2)
 		tradingFeeNumerator = firstFee.Add(secondFee)
 	} else {
 		numerator1 := c.Add(c.Mul(maxIndex))
-		tmp := i.Mul(maxIndex).Mul(maxIndex.Add(one)).Div(two)
+		tmp := i.Mul(maxIndex).Mul(maxIndex.Add(N1)).Div(N2)
 		numerator1 = numerator1.Add(tmp)
 
-		numerator2 := decimal.NewFromBigInt(MAX_FEE_NUMERATOR, 0)
+		numerator2 := MAX_FEE_NUMERATOR
 		firstFee := x0.Mul(numerator1)
 
 		d := a.Sub(maxIndex)
@@ -62,12 +60,14 @@ func getFeeNumeratorOnRateLimiter(
 		tradingFeeNumerator = firstFee.Add(secondFee)
 	}
 
-	tradingFee := tradingFeeNumerator.Add(decimal.NewFromBigInt(FEE_DENOMINATOR, 0).Sub(one)).Div(decimal.NewFromBigInt(FEE_DENOMINATOR, 0))
+	tradingFee := tradingFeeNumerator.Add(FEE_DENOMINATOR.Sub(N1)).Div(FEE_DENOMINATOR)
 
-	feeNumerator := tradingFee.Mul(decimal.NewFromBigInt(FEE_DENOMINATOR, 0)).Div(inputAmount).Ceil()
+	feeNumerator := tradingFee.Mul(FEE_DENOMINATOR).Div(inputAmount).Ceil()
 
-	if feeNumerator.Cmp(decimal.NewFromBigInt(MAX_FEE_NUMERATOR, 0)) > 0 {
-		feeNumerator = decimal.NewFromBigInt(MAX_FEE_NUMERATOR, 0)
-	}
-	return feeNumerator
+	// if feeNumerator.Cmp(MAX_FEE_NUMERATOR) > 0 {
+	// 	feeNumerator = MAX_FEE_NUMERATOR
+	// }
+	// return feeNumerator
+
+	return decimal.Max(feeNumerator, MAX_FEE_NUMERATOR)
 }

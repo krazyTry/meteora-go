@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"math/big"
-	"strconv"
 
 	"github.com/gagliardetto/solana-go"
 	computebudget "github.com/gagliardetto/solana-go/programs/compute-budget"
@@ -23,7 +22,7 @@ func CreateCustomizablePoolInstruction(
 	payer solana.PublicKey,
 	poolCreator solana.PublicKey,
 	positionNft solana.PublicKey,
-	initialPrice int, // 1 base token = 1 quote token
+	initialPrice float64, // 1 base token = 1 quote token
 	baseMint solana.PublicKey,
 	quoteMint solana.PublicKey,
 	baseAmount *big.Int,
@@ -55,7 +54,7 @@ func CreateCustomizablePoolInstruction(
 	initialPoolTokenBaseAmount := cp_amm.GetInitialPoolTokenAmount(decimal.NewFromBigInt(baseAmount, 0), tokenBaseDecimals)
 	initialPoolTokenQuoteAmount := cp_amm.GetInitialPoolTokenAmount(decimal.NewFromBigInt(quoteAmount, 0), tokenQuoteDecimals)
 
-	initSqrtPrice, err := cp_amm.GetSqrtPriceFromPrice(strconv.Itoa(initialPrice), tokenBaseDecimals, tokenQuoteDecimals)
+	initSqrtPrice, err := cp_amm.GetSqrtPriceFromPrice(decimal.NewFromFloat(initialPrice), tokenBaseDecimals, tokenQuoteDecimals)
 	if err != nil {
 		return nil, solana.PublicKey{}, err
 	}
@@ -65,7 +64,7 @@ func CreateCustomizablePoolInstruction(
 		initialPoolTokenQuoteAmount,
 		decimal.NewFromBigInt(sqrtMaxPrice, 0), // cp_amm.MAX_SQRT_PRICE,
 		decimal.NewFromBigInt(sqrtMinPrice, 0), // cp_amm.MIN_SQRT_PRICE,
-		decimal.NewFromBigInt(initSqrtPrice, 0),
+		initSqrtPrice,
 	)
 
 	position, err := cp_amm.DerivePositionAddress(positionNft)
@@ -161,8 +160,8 @@ func CreateCustomizablePoolInstruction(
 		// Params:
 		&cp_amm.InitializeCustomizablePoolParameters{
 			PoolFees:        poolFees,
-			SqrtMinPrice:    u128.GenUint128FromString(cp_amm.MIN_SQRT_PRICE.String()),
-			SqrtMaxPrice:    u128.GenUint128FromString(cp_amm.MAX_SQRT_PRICE.String()),
+			SqrtMinPrice:    u128.GenUint128FromString(sqrtMinPrice.String()),
+			SqrtMaxPrice:    u128.GenUint128FromString(sqrtMaxPrice.String()),
 			HasAlphaVault:   hasAlphaVault,
 			Liquidity:       u128.GenUint128FromString(liquidityDelta.String()),
 			SqrtPrice:       u128.GenUint128FromString(initSqrtPrice.String()),
@@ -242,7 +241,7 @@ func CreateCustomizablePoolInstruction(
 func (m *DammV2) CreateCustomizablePool(
 	ctx context.Context,
 	payer *solana.Wallet,
-	initialPrice int, // 1 base token = 1 quote token
+	initialPrice float64, // 1 base token = 1 quote token
 	baseMint solana.PublicKey,
 	quoteMint solana.PublicKey,
 	baseAmount *big.Int,
@@ -336,7 +335,7 @@ func CreatePoolInstruction(
 	config solana.PublicKey,
 	configState *cp_amm.Config,
 	positionNft solana.PublicKey,
-	initialPrice int,
+	initialPrice float64,
 	baseMint solana.PublicKey,
 	quoteMint solana.PublicKey,
 	baseAmount *big.Int,
@@ -363,7 +362,7 @@ func CreatePoolInstruction(
 	initialPoolTokenBaseAmount := cp_amm.GetInitialPoolTokenAmount(decimal.NewFromBigInt(baseAmount, 0), tokenBaseDecimals)
 	initialPoolTokenQuoteAmount := cp_amm.GetInitialPoolTokenAmount(decimal.NewFromBigInt(quoteAmount, 0), tokenQuoteDecimals)
 
-	initSqrtPrice, err := cp_amm.GetSqrtPriceFromPrice(strconv.Itoa(initialPrice), tokenBaseDecimals, tokenQuoteDecimals)
+	initSqrtPrice, err := cp_amm.GetSqrtPriceFromPrice(decimal.NewFromFloat(initialPrice), tokenBaseDecimals, tokenQuoteDecimals)
 	if err != nil {
 		return nil, solana.PublicKey{}, err
 	}
@@ -373,7 +372,7 @@ func CreatePoolInstruction(
 		initialPoolTokenQuoteAmount,
 		decimal.NewFromBigInt(configState.SqrtMaxPrice.BigInt(), 0),
 		decimal.NewFromBigInt(configState.SqrtMinPrice.BigInt(), 0),
-		decimal.NewFromBigInt(initSqrtPrice, 0),
+		initSqrtPrice,
 	)
 
 	position, err := cp_amm.DerivePositionAddress(positionNft)
@@ -545,7 +544,7 @@ func (m *DammV2) CreatePool(
 	ctx context.Context,
 	payer *solana.Wallet,
 	configIndex uint64,
-	initialPrice int,
+	initialPrice float64,
 	baseMint solana.PublicKey,
 	quoteMint solana.PublicKey,
 	baseAmount *big.Int,
@@ -615,7 +614,7 @@ func CreateCustomizablePoolWithDynamicConfigInstruction(
 	configState *cp_amm.Config,
 	positionNft solana.PublicKey,
 	poolCreatorAuthority solana.PublicKey,
-	initialPrice int, // 1 base token = 1 quote token
+	initialPrice float64, // 1 base token = 1 quote token
 	baseMint solana.PublicKey,
 	quoteMint solana.PublicKey,
 	baseAmount *big.Int,
@@ -646,7 +645,7 @@ func CreateCustomizablePoolWithDynamicConfigInstruction(
 	initialPoolTokenBaseAmount := cp_amm.GetInitialPoolTokenAmount(decimal.NewFromBigInt(baseAmount, 0), tokenBaseDecimals)
 	initialPoolTokenQuoteAmount := cp_amm.GetInitialPoolTokenAmount(decimal.NewFromBigInt(quoteAmount, 0), tokenQuoteDecimals)
 
-	initSqrtPrice, err := cp_amm.GetSqrtPriceFromPrice(strconv.Itoa(initialPrice), tokenBaseDecimals, tokenQuoteDecimals)
+	initSqrtPrice, err := cp_amm.GetSqrtPriceFromPrice(decimal.NewFromFloat(initialPrice), tokenBaseDecimals, tokenQuoteDecimals)
 	if err != nil {
 		return nil, solana.PublicKey{}, err
 	}
@@ -656,7 +655,7 @@ func CreateCustomizablePoolWithDynamicConfigInstruction(
 		initialPoolTokenQuoteAmount,
 		decimal.NewFromBigInt(configState.SqrtMaxPrice.BigInt(), 0),
 		decimal.NewFromBigInt(configState.SqrtMinPrice.BigInt(), 0),
-		decimal.NewFromBigInt(initSqrtPrice, 0),
+		initSqrtPrice,
 	)
 
 	position, err := cp_amm.DerivePositionAddress(positionNft)
@@ -835,7 +834,7 @@ func (m *DammV2) CreateCustomizablePoolWithDynamicConfig(
 	payer *solana.Wallet,
 	configIndex uint64,
 	poolCreatorAuthority *solana.Wallet,
-	initialPrice int, // 1 base token = 1 quote token
+	initialPrice float64, // 1 base token = 1 quote token
 	baseMint solana.PublicKey,
 	quoteMint solana.PublicKey,
 	baseAmount *big.Int,

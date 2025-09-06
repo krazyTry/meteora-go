@@ -34,11 +34,7 @@ func DeriveDbcPoolPDA(quoteMint, baseMint, config solana.PublicKey) (solana.Publ
 
 // Derives the dbc token vault address
 func DeriveTokenVaultPDA(pool, mint solana.PublicKey) (solana.PublicKey, error) {
-	seed := [][]byte{
-		[]byte("token_vault"),
-		mint.Bytes(),
-		pool.Bytes(),
-	}
+	seed := [][]byte{[]byte("token_vault"), mint.Bytes(), pool.Bytes()}
 	pda, _, err := solana.FindProgramAddress(seed, ProgramID)
 	if err != nil {
 		// log.Fatalf("find vault PDA: %v", err)
@@ -112,10 +108,7 @@ func DeriveMintMetadataPDA(mint solana.PublicKey) (solana.PublicKey, error) {
 
 // Derives the DAMM V1 migration metadata PDA
 func DeriveDammV1MigrationMetadataPDA(pool solana.PublicKey) (solana.PublicKey, error) {
-	seeds := [][]byte{
-		[]byte("meteora"),
-		pool.Bytes(),
-	}
+	seeds := [][]byte{[]byte("meteora"), pool.Bytes()}
 	pda, _, err := solana.FindProgramAddress(seeds, ProgramID)
 	if err != nil {
 		// log.Fatalf("find DAMM V1 migration metadata PDA: %v", err)

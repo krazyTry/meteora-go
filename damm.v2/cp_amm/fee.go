@@ -3,9 +3,9 @@ package cp_amm
 import (
 	"errors"
 	"fmt"
-	"math"
 	"math/big"
 
+	dmath "github.com/krazyTry/meteora-go/decimal_math"
 	"github.com/krazyTry/meteora-go/u128"
 
 	"github.com/shopspring/decimal"
@@ -25,14 +25,17 @@ func getBaseFeeNumerator(
 		feeNumerator = cliffFeeNumerator.Sub(period.Mul(reductionFactor))
 	} else { // Exponential
 		// bps = (reductionFactor << SCALE_OFFSET) / BASIS_POINT_MAX
-		bps := decimal.NewFromBigInt(new(big.Int).Lsh(reductionFactor.BigInt(), SCALE_OFFSET), 0).Div(decimal.NewFromBigInt(BASIS_POINT_MAX, 0)).Floor()
+		// bps := decimal.NewFromBigInt(new(big.Int).Lsh(reductionFactor.BigInt(), SCALE_OFFSET), 0).Div(decimal.NewFromBigInt(BASIS_POINT_MAX, 0)).Floor()
+		bps := dmath.Lsh(reductionFactor, 64).Div(BASIS_POINT_MAX).Floor()
 
 		// base = ONE - bps
-		base := decimal.NewFromBigInt(ONE, 0).Sub(bps)
+		base := N1.Sub(bps)
 
 		result := pow(base, period)
+
 		// feeNumerator = (cliffFeeNumerator * result) >> SCALE_OFFSET
-		feeNumerator = decimal.NewFromBigInt(new(big.Int).Rsh(cliffFeeNumerator.Mul(result).BigInt(), SCALE_OFFSET), 0)
+		// feeNumerator = decimal.NewFromBigInt(new(big.Int).Rsh(cliffFeeNumerator.Mul(result).BigInt(), SCALE_OFFSET), 0)
+		feeNumerator = dmath.Rsh(cliffFeeNumerator.Mul(result), 64)
 	}
 
 	return feeNumerator
@@ -45,7 +48,7 @@ func getDynamicFeeNumerator(
 	variableFeeControl decimal.Decimal,
 ) decimal.Decimal {
 	if variableFeeControl.IsZero() {
-		return decimal.Zero
+		return N0
 	}
 
 	// squareVfaBin = (volatilityAccumulator * binStep)^2
@@ -56,10 +59,10 @@ func getDynamicFeeNumerator(
 	vFee := variableFeeControl.Mul(squareVfaBin)
 
 	// vFee + 99_999_999_999
-	vFee = vFee.Add(decimal.NewFromInt(99_999_999_999))
+	vFee = vFee.Add(N99_999_999_999)
 
 	// divide by 100_000_000_000
-	result := vFee.Div(decimal.NewFromInt(100_000_000_000))
+	result := vFee.Div(N100_000_000_000)
 
 	return result
 }
@@ -110,8 +113,8 @@ func GetFeeNumerator(
 		feeNumerator = feeNumerator.Add(dynamicFeeNumerator.Floor())
 	}
 
-	if feeNumerator.Cmp(decimal.NewFromBigInt(MAX_FEE_NUMERATOR, 0)) > 0 {
-		feeNumerator = decimal.NewFromBigInt(MAX_FEE_NUMERATOR, 0)
+	if feeNumerator.Cmp(MAX_FEE_NUMERATOR) > 0 {
+		feeNumerator = MAX_FEE_NUMERATOR
 	}
 
 	return feeNumerator
@@ -146,7 +149,7 @@ func GetSwapAmount(
 	totalFee := decimal.Zero
 
 	if feeMode.FeeOnInput {
-		fee, err := mulDiv(actualInAmount, tradeFeeNumerator, decimal.NewFromBigInt(FEE_DENOMINATOR, 0), true)
+		fee, err := mulDiv(actualInAmount, tradeFeeNumerator, FEE_DENOMINATOR, true)
 		if err != nil {
 			return decimal.Decimal{}, decimal.Decimal{}, decimal.Decimal{}, err
 		}
@@ -168,7 +171,7 @@ func GetSwapAmount(
 	if feeMode.FeeOnInput {
 		amountOut = outAmount
 	} else {
-		fee, err := mulDiv(outAmount, tradeFeeNumerator, decimal.NewFromBigInt(FEE_DENOMINATOR, 0), true)
+		fee, err := mulDiv(outAmount, tradeFeeNumerator, FEE_DENOMINATOR, true)
 		if err != nil {
 			return decimal.Decimal{}, decimal.Decimal{}, decimal.Decimal{}, err
 		}
@@ -188,7 +191,7 @@ func GetPriceImpact(
 ) (decimal.Decimal, error) {
 
 	if amountIn.IsZero() {
-		return decimal.Zero, nil
+		return N0, nil
 	}
 	if amountOut.IsZero() {
 		return decimal.Decimal{}, errors.New("amountOut must be greater than 0")
@@ -203,20 +206,20 @@ func GetPriceImpact(
 	if !aToB {
 		expDiff = int32(tokenADecimal) - int32(tokenBDecimal)
 	}
-	adjustFactor := decimal.NewFromInt(10).Pow(decimal.NewFromInt(int64(expDiff)))
+	adjustFactor := decimal.New(1, int32(expDiff)) // 10^expDiff
 
-	executionPrice = executionPrice.Mul(adjustFactor)
+	executionPrice = executionPrice.Mul(adjustFactor).Round(13)
 
 	var actualExecutionPrice decimal.Decimal
 	if aToB {
 		// 0.94999998999999999996
-		actualExecutionPrice = decimal.NewFromInt(1).DivRound(executionPrice, 20)
+		actualExecutionPrice = N1.DivRound(executionPrice, 20)
 	} else {
 		actualExecutionPrice = executionPrice
 	}
 	// priceImpact = |execution_price - spot_price| / spot_price * 100
 	diff := actualExecutionPrice.Sub(spotPrice).Abs()
-	priceImpact := diff.DivRound(spotPrice, 20).Mul(decimal.NewFromInt(100))
+	priceImpact := diff.Div(spotPrice).Mul(N100)
 
 	return priceImpact, nil
 }
@@ -271,8 +274,8 @@ func CalculateUnClaimFee(poolState *Pool, positionState *Position) (decimal.Deci
 	// feeA := new(big.Int).Rsh(new(big.Int).Mul(totalPositionLiquidity, feeAPerTokenStored), LIQUIDITY_SCALE)
 	// feeB := new(big.Int).Rsh(new(big.Int).Mul(totalPositionLiquidity, feeBPerTokenStored), LIQUIDITY_SCALE)
 
-	feeA := decimal.NewFromBigInt(new(big.Int).Rsh(totalPositionLiquidity.Mul(feeAPerTokenStored).BigInt(), LIQUIDITY_SCALE), 0)
-	feeB := decimal.NewFromBigInt(new(big.Int).Rsh(totalPositionLiquidity.Mul(feeBPerTokenStored).BigInt(), LIQUIDITY_SCALE), 0)
+	feeA := decimal.NewFromBigInt(new(big.Int).Rsh(totalPositionLiquidity.Mul(feeAPerTokenStored).BigInt(), 128), 0)
+	feeB := decimal.NewFromBigInt(new(big.Int).Rsh(totalPositionLiquidity.Mul(feeBPerTokenStored).BigInt(), 128), 0)
 
 	// return new(big.Int).Add(new(big.Int).SetUint64(positionState.FeeAPending), feeA),
 	// 	new(big.Int).Add(new(big.Int).SetUint64(positionState.FeeBPending), feeB)
@@ -295,20 +298,20 @@ func CalculateUnClaimReward(poolState *Pool, positionState *Position) []decimal.
 func bpsToFeeNumerator(bps int64) decimal.Decimal {
 	bpsBig := decimal.NewFromInt(bps) //big.NewInt(bps)
 	// numerator = bps * FEE_DENOMINATOR / BASIS_POINT_MAX
-	numerator := bpsBig.Mul(decimal.NewFromBigInt(FEE_DENOMINATOR, 0))   //new(big.Int).Mul(bpsBig, FEE_DENOMINATOR)
-	numerator = numerator.Div(decimal.NewFromBigInt(BASIS_POINT_MAX, 0)) // numerator.Div(numerator, BASIS_POINT_MAX)
+	numerator := bpsBig.Mul(FEE_DENOMINATOR)   //new(big.Int).Mul(bpsBig, FEE_DENOMINATOR)
+	numerator = numerator.Div(BASIS_POINT_MAX) // numerator.Div(numerator, BASIS_POINT_MAX)
 	return numerator
 }
 
 // feeNumeratorToBps converts a fee numerator back to basis points (bps).
 // @param feeNumerator - The fee numerator to convert
 // @returns The equivalent value in basis points [1-10_000]
-func feeNumeratorToBps(feeNumerator *big.Int) int64 {
+func feeNumeratorToBps(feeNumerator decimal.Decimal) int64 {
 	// bps = feeNumerator * BASIS_POINT_MAX / FEE_DENOMINATOR
-	result := new(big.Int).Mul(feeNumerator, BASIS_POINT_MAX)
-	result.Div(result, FEE_DENOMINATOR)
+	result := feeNumerator.Mul(BASIS_POINT_MAX)
+	result.Div(FEE_DENOMINATOR)
 
-	return result.Int64()
+	return result.BigInt().Int64()
 }
 
 // getBaseFeeParams
@@ -361,12 +364,19 @@ func GetBaseFeeParams(
 
 	var reductionFactor decimal.Decimal
 	if feeSchedulerMode == FeeSchedulerModeLinear {
-		totalReduction := maxBaseFeeNumerator.Sub(minBaseFeeNumerator)                  //new(big.Int).Sub(maxBaseFeeNumerator, minBaseFeeNumerator)
-		reductionFactor = totalReduction.Div(decimal.NewFromInt(int64(numberOfPeriod))) //new(big.Int).Div(totalReduction, big.NewInt(int64(numberOfPeriod)))
+		// totalReduction := maxBaseFeeNumerator.Sub(minBaseFeeNumerator)                  //new(big.Int).Sub(maxBaseFeeNumerator, minBaseFeeNumerator)
+		// reductionFactor = totalReduction.Div(decimal.NewFromInt(int64(numberOfPeriod))) //new(big.Int).Div(totalReduction, big.NewInt(int64(numberOfPeriod)))
+
+		reductionFactor = maxBaseFeeNumerator.Sub(minBaseFeeNumerator).Div(decimal.NewFromUint64(uint64(numberOfPeriod)))
+
 	} else {
-		ratio := float64(minBaseFeeNumerator.BigInt().Int64()) / float64(maxBaseFeeNumerator.BigInt().Int64())
-		decayBase := math.Pow(ratio, 1.0/float64(numberOfPeriod))
-		reductionFactor = decimal.NewFromInt(int64(float64(BASIS_POINT_MAX.Int64()) * (1 - decayBase)))
+		// ratio := float64(minBaseFeeNumerator.BigInt().Int64()) / float64(maxBaseFeeNumerator.BigInt().Int64())
+		// decayBase := math.Pow(ratio, 1.0/float64(numberOfPeriod))
+		// reductionFactor = decimal.NewFromInt(int64(float64(BASIS_POINT_MAX.Int64()) * (1 - decayBase)))
+
+		decayBase := dmath.Pow(minBaseFeeNumerator.Div(maxBaseFeeNumerator), N1.DivRound(decimal.NewFromUint64(uint64(numberOfPeriod)), 18), 18)
+		reductionFactor = BASIS_POINT_MAX.Mul(N1.Sub(decayBase))
+
 	}
 
 	return &BaseFeeParameters{
@@ -391,32 +401,32 @@ func GetDynamicFeeParams(baseFeeBps int64, maxPriceChangeBps int) (*DynamicFeePa
 
 	// priceRatio = maxPriceChangeBps / BASIS_POINT_MAX + 1
 	priceRatio := decimal.NewFromInt(int64(maxPriceChangeBps)).
-		Div(decimal.NewFromInt(BASIS_POINT_MAX.Int64())).
-		Add(decimal.NewFromInt(1))
+		Div(BASIS_POINT_MAX).
+		Add(N1)
 	// Q64: sqrt(priceRatio) * 2^64
-	sqrtPriceRatioQ64 := decimalSqrt(priceRatio).Round(19).Mul(decimal.NewFromInt(2).Pow(decimal.NewFromInt(64))).Floor()
+	sqrtPriceRatioQ64 := decimalSqrt(priceRatio).Round(19).Mul(Q64).Floor()
 	// 2️⃣ deltaBinId = (sqrtPriceRatioQ64 - ONE_Q64) / BIN_STEP_BPS_U128_DEFAULT * 2
-	deltaBinId := sqrtPriceRatioQ64.Sub(decimal.NewFromBigInt(ONE_Q64, 0)).Div(decimal.NewFromBigInt(BIN_STEP_BPS_U128_DEFAULT.BigInt(), 0)).Floor().Mul(decimal.NewFromInt(2))
+	deltaBinId := sqrtPriceRatioQ64.Sub(Q64).Div(BIN_STEP_BPS_U128_DEFAULT).Floor().Mul(N2)
 	// 3️⃣ maxVolatilityAccumulator = deltaBinId * BASIS_POINT_MAX
-	maxVolatilityAccumulator := deltaBinId.Mul(decimal.NewFromBigInt(BASIS_POINT_MAX, 0))
+	maxVolatilityAccumulator := deltaBinId.Mul(BASIS_POINT_MAX)
 	// 4️⃣ squareVfaBin = (maxVolatilityAccumulator * BIN_STEP_BPS_DEFAULT)^2
-	squareVfaBin := maxVolatilityAccumulator.Mul(decimal.NewFromBigInt(BIN_STEP_BPS_DEFAULT, 0)).Pow(decimal.NewFromInt(2))
+	squareVfaBin := maxVolatilityAccumulator.Mul(BIN_STEP_BPS_DEFAULT).Pow(N2)
 	// baseFeeNumerator
 	baseFeeNumerator := bpsToFeeNumerator(baseFeeBps)
 
 	// maxDynamicFeeNumerator = baseFeeNumerator * 20% (除以100)
-	maxDynamicFeeNumerator := baseFeeNumerator.Mul(decimal.NewFromInt(20))       //new(big.Int).Mul(baseFeeNumerator, big.NewInt(20))
-	maxDynamicFeeNumerator = maxDynamicFeeNumerator.Div(decimal.NewFromInt(100)) //maxDynamicFeeNumerator.Div(maxDynamicFeeNumerator, big.NewInt(100))
+	maxDynamicFeeNumerator := baseFeeNumerator.Mul(N20)       //new(big.Int).Mul(baseFeeNumerator, big.NewInt(20))
+	maxDynamicFeeNumerator = maxDynamicFeeNumerator.Div(N100) //maxDynamicFeeNumerator.Div(maxDynamicFeeNumerator, big.NewInt(100))
 
 	// vFee = maxDynamicFeeNumerator * 1e11 - 99999999999
-	vFee := maxDynamicFeeNumerator.Mul(decimal.NewFromInt(100_000_000_000)) //new(big.Int).Mul(maxDynamicFeeNumerator, big.NewInt(100_000_000_000))
-	vFee = vFee.Sub(decimal.NewFromInt(99_999_999_999))                     // vFee.Sub(vFee, big.NewInt(99_999_999_999))
+	vFee := maxDynamicFeeNumerator.Mul(N100_000_000_000) //new(big.Int).Mul(maxDynamicFeeNumerator, big.NewInt(100_000_000_000))
+	vFee = vFee.Sub(N99_999_999_999)                     // vFee.Sub(vFee, big.NewInt(99_999_999_999))
 
 	// variableFeeControl = vFee / squareVfaBin
 	variableFeeControl := vFee.Div(squareVfaBin) // new(big.Int).Div(vFee, squareVfaBin)
 
 	return &DynamicFeeParameters{
-		BinStep:                  uint16(BIN_STEP_BPS_DEFAULT.Int64()),
+		BinStep:                  uint16(BIN_STEP_BPS_DEFAULT.BigInt().Int64()),
 		BinStepU128:              u128.GenUint128FromString(BIN_STEP_BPS_U128_DEFAULT.String()),
 		FilterPeriod:             DYNAMIC_FEE_FILTER_PERIOD_DEFAULT,
 		DecayPeriod:              DYNAMIC_FEE_DECAY_PERIOD_DEFAULT,

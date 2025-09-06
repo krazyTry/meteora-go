@@ -20,12 +20,8 @@ func DeriveDammV2PoolPDA(config, tokenAMint, tokenBMint solana.PublicKey) (solan
 		secondKey = tokenAMint
 	}
 
-	seeds := [][]byte{
-		[]byte("pool"),
-		config.Bytes(),
-		firstKey.Bytes(),
-		secondKey.Bytes(),
-	}
+	seeds := [][]byte{[]byte("pool"), config.Bytes(), firstKey.Bytes(), secondKey.Bytes()}
+
 	pda, _, err := solana.FindProgramAddress(seeds, cp_amm.ProgramID)
 	if err != nil {
 		return solana.PublicKey{}, err
