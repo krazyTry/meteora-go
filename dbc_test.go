@@ -51,15 +51,19 @@ func TestDbc(t *testing.T) {
 	}
 
 	config := solana.NewWallet()
+	// config = &solana.Wallet{PrivateKey: solana.MustPrivateKeyFromBase58("3nUKWprxN5qtQ1EqboXgaZncHPZTUT8y1EdnhSYfWRYev7BwdmUJhLjYdnkRouivGGYt1gu7jjPv8Qa1x4up9ocL")}
 	fmt.Printf("config address:%s(%s)\n", config.PublicKey(), config.PrivateKey)
 
 	poolCreator := solana.NewWallet()
+	// poolCreator = &solana.Wallet{PrivateKey: solana.MustPrivateKeyFromBase58("2sDd4jKUwcfUVxkhfJY9JrKCJn2tYh9pBDwPQEwF41xN13hzMaL1iJ3QUgiPmMFez44LUUSAgXGZ7yCTd9kPxJY4")}
 	fmt.Printf("poolCreator address:%s(%s)\n", poolCreator.PublicKey(), poolCreator.PrivateKey)
 
 	poolPartner := solana.NewWallet()
+	// poolPartner = &solana.Wallet{PrivateKey: solana.MustPrivateKeyFromBase58("66Sq63JTSnqhECNYciiL3yUv6LErRED3j69ahs2RpTrqjgdbYu9gHgg3bjoKwYYNbq2wrcpN7w5R73ZbdCb7JtMJ")}
 	fmt.Printf("poolPartner address:%s(%s)\n", poolPartner.PublicKey(), poolPartner.PrivateKey)
 
 	leftoverReceiver := solana.NewWallet()
+	// leftoverReceiver = &solana.Wallet{PrivateKey: solana.MustPrivateKeyFromBase58("43twn5bdq43h5QeSaJWRy41HjHm2s1y1pqn4EptD9uMJD6co6mBgkwiF2QB5hNaYETUvZjZweRiL33CvWQrk2UYR")}
 	fmt.Printf("leftoverReceiver address:%s(%s)\n", leftoverReceiver.PublicKey(), leftoverReceiver.PrivateKey)
 
 	{
@@ -118,7 +122,7 @@ func TestDbc(t *testing.T) {
 
 		fmt.Println("try to create token mint address:", baseMint)
 		amountIn := new(big.Int).SetUint64(uint64(0.1 * 1e9))
-		sig, err := meteoraDBC.CreatePoolWithFirstBuy(ctx1, mintWallet, ownerWallet, name, symbol, uri, amountIn, 250)
+		sig, err := meteoraDBC.CreatePoolWithFirstBuy(ctx1, ownerWallet, mintWallet, name, symbol, uri, amountIn, 250)
 		if err != nil {
 			t.Fatal("dbc.CreatePoolWithFirstBuy fail", err)
 		}
@@ -190,6 +194,7 @@ func TestDbc(t *testing.T) {
 
 	// Generate new token information
 	mintWallet := solana.NewWallet()
+	// mintWallet = &solana.Wallet{PrivateKey: solana.MustPrivateKeyFromBase58("5242H5ijH7p754wzbPSqxrS9m9xvRECnW1LvNzaDaqNGX8z61ecyxAo5G8vkM1WidkUE5JyjkKPeih7DutcdSCdG")}
 	baseMint := mintWallet.PublicKey()
 	fmt.Printf("new token mint address:%s(%s)\n", baseMint, mintWallet.PrivateKey)
 
@@ -197,9 +202,9 @@ func TestDbc(t *testing.T) {
 		fmt.Println("try to create token mint address:", baseMint)
 		ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
 		defer cancel1()
-		sig, err := meteoraDBC.CreatePool(ctx1, mintWallet, payer, name, symbol, uri)
+		sig, err := meteoraDBC.CreatePool(ctx1, payer, mintWallet, name, symbol, uri)
 		if err != nil {
-			t.Fatal("dbc.CreatePool() fail")
+			t.Fatal("dbc.CreatePool() fail", err)
 		}
 		fmt.Println("create token success Success sig:", sig)
 
@@ -596,10 +601,13 @@ func TestDbc(t *testing.T) {
 				}
 			}
 		}
-
 		fmt.Println("claim fee completed")
 
 		fmt.Println("dbc closing work completed 66%")
+	}
+
+	if err = dammV2.Init(); err != nil {
+		t.Fatal("dammV2.Init() fail", err)
 	}
 
 	meteoraDammV2, err := dammV2.NewDammV2(wsClient, rpcClient, poolCreator)
@@ -619,6 +627,7 @@ func TestDbc(t *testing.T) {
 				}
 				balance = bal
 			}
+
 			{
 				fmt.Println("try to sell all surplus address:", baseMint)
 				ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
@@ -629,10 +638,15 @@ func TestDbc(t *testing.T) {
 				if err != nil {
 					t.Fatal("cpAmm.BuyQuote fail", err)
 				}
+				fmt.Println("poolState.Address", poolState.Address)
+
+				fmt.Println("quote.SwapInAmount", quote.SwapInAmount)
+				fmt.Println("quote.SwapOutAmount", quote.SwapOutAmount)
+				fmt.Println("quote.MinSwapOutAmount", quote.MinSwapOutAmount)
 
 				sig, err := meteoraDammV2.Sell(ctx1, leftoverReceiver, nil, poolState.Address, poolState.Pool, amountIn, quote.MinSwapOutAmount)
 				if err != nil {
-					t.Fatal("cpAmm.Sell fail", err)
+					t.Fatal("meteoraDammV2.Sell fail", err)
 				}
 				fmt.Println("sell surplus completed Success sig:", sig)
 			}
@@ -682,6 +696,7 @@ func TestDbc(t *testing.T) {
 		if err != nil {
 			t.Fatal("cpAmm.BuyQuote() fail", err)
 		}
+		fmt.Println("poolState", poolState.Address)
 		fmt.Printf("buy token address:%s expected:%v minimum:%v\n", baseMint, minOutAmount.SwapOutAmount, minOutAmount.MinSwapOutAmount)
 		sig, err := meteoraDammV2.Buy(ctx1, ownerWallet, nil, poolState.Address, poolState.Pool, amountIn, minOutAmount.MinSwapOutAmount)
 		if err != nil {

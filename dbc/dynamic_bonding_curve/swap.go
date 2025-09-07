@@ -50,16 +50,6 @@ func getSwapResult(
 	// apply fees on input
 	if feeMode.FeesOnInput {
 
-		// feeResultAmount, feeResultTradingFee, feeResultProtocolFee, feeResultReferralFee, err := getFeeOnAmount1(
-		// 	amountIn,
-		// 	configState.PoolFees,
-		// 	feeMode.HasReferral,
-		// 	currentPoint,
-		// 	decimal.NewFromBigInt(new(big.Int).SetUint64(poolState.ActivationPoint), 0),
-		// 	poolState.VolatilityTracker,
-		// 	tradeDirection,
-		// )
-
 		amountAfterFee, updatedProtocolFee, referralFee, updatedTradingFee, err := getFeeOnAmount(
 			tradeFeeNumerator,
 			amountIn,
@@ -100,15 +90,6 @@ func getSwapResult(
 		actualAmountOut = outputAmount
 	} else {
 
-		// feeResultAmount, feeResultTradingFee, feeResultProtocolFee, feeResultReferralFee, err := getFeeOnAmount(
-		// 	outputAmount,
-		// 	configState.PoolFees,
-		// 	feeMode.HasReferral,
-		// 	currentPoint,
-		// 	decimal.NewFromUint64(poolState.ActivationPoint),
-		// 	poolState.VolatilityTracker,
-		// 	tradeDirection,
-		// )
 		amountAfterFee, updatedProtocolFee, referralFee, updatedTradingFee, err := getFeeOnAmount(
 			tradeFeeNumerator,
 			outputAmount,

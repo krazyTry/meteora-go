@@ -103,6 +103,7 @@ func CreatePoolInstruction(
 			return nil, err
 		}
 	}
+
 	return []solana.Instruction{createPoolIx}, nil
 }
 
@@ -358,8 +359,8 @@ func CreatePoolWithFirstBuInstruction(
 
 func (m *DBC) CreatePoolWithFirstBuy(
 	ctx context.Context,
-	baseMint *solana.Wallet,
 	payerAndBuyer *solana.Wallet,
+	baseMint *solana.Wallet,
 	name string,
 	symbol string,
 	uri string,

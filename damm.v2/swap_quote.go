@@ -103,7 +103,7 @@ func SwapQuote(
 		}
 	}
 
-	currentPoint.Set(big.NewInt(1756971292))
+	// currentPoint.Set(big.NewInt(1756971292))
 	tradeFeeNumerator := cp_amm.GetFeeNumerator(
 		decimal.NewFromBigInt(currentPoint, 0),
 		decimal.NewFromUint64(poolState.ActivationPoint),

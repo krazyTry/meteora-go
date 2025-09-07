@@ -62,16 +62,20 @@ func TestDammV2(t *testing.T) {
 	leftoverReceiver := &solana.Wallet{PrivateKey: solana.MustPrivateKeyFromBase58("hxQbRSBAyaSyfNnV4vGBaPvGP8G25WFLoQFGhEtCsN9Cvcfdhk12ybHLuWCkngGdzttCBAdwvZX183XCSLb9fqd")}
 	fmt.Printf("leftoverReceiver address:%s(%s)\n", leftoverReceiver.PublicKey(), leftoverReceiver.PrivateKey)
 
-	// {
-	// 	fmt.Println("transfer a little sol to poolPartner")
-	// 	ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
-	// 	defer cancel1()
-	// 	if _, err = testTransferSOL(ctx1, rpcClient, wsClient, payer, poolPartner.PublicKey(), 0.1*1e9); err != nil {
-	// 		t.Fatal("testTransferSOL fail", err)
-	// 	}
-	// }
+	{
+		fmt.Println("transfer a little sol to poolPartner")
+		ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
+		defer cancel1()
+		if _, err = testTransferSOL(ctx1, rpcClient, wsClient, payer, poolPartner.PublicKey(), 0.1*1e9); err != nil {
+			t.Fatal("testTransferSOL fail", err)
+		}
+	}
 
 	fmt.Printf("\n\n")
+
+	if err = dammV2.Init(); err != nil {
+		t.Fatal("dammV2.Init() fail", err)
+	}
 
 	meteoraDammV2, err := dammV2.NewDammV2(
 		wsClient,
@@ -83,164 +87,163 @@ func TestDammV2(t *testing.T) {
 	}
 
 	// {
-	// baseMint := solana.MustPublicKeyFromBase58("EAeMX1T6Jzm7jMm7bVsfu7kLyZSxpEhdmtRUyMXJfaNC")
-	// z, _ := decimal.NewFromString("79226673521066979257578248091")
-	// y, _ := decimal.NewFromString("18446744073709551616")
+	// 	baseMint := solana.MustPublicKeyFromBase58("EAeMX1T6Jzm7jMm7bVsfu7kLyZSxpEhdmtRUyMXJfaNC")
+	// 	z, _ := decimal.NewFromString("79226673521066979257578248091")
+	// 	y, _ := decimal.NewFromString("18446744073709551616")
 
-	// liquidityDelta := cp_amm.GetLiquidityDelta(
-	// 	decimal.NewFromInt(1000000),
-	// 	decimal.NewFromInt(1),
-	// 	z,                              // cp_amm.MAX_SQRT_PRICE,
-	// 	decimal.NewFromInt(4295048016), // cp_amm.MIN_SQRT_PRICE,
-	// 	y,
-	// )
-	// fmt.Println(liquidityDelta)
+	// 	liquidityDelta := cp_amm.GetLiquidityDelta(
+	// 		decimal.NewFromInt(1000000),
+	// 		decimal.NewFromInt(1),
+	// 		z,                              // cp_amm.MAX_SQRT_PRICE,
+	// 		decimal.NewFromInt(4295048016), // cp_amm.MIN_SQRT_PRICE,
+	// 		y,
+	// 	)
+	// 	fmt.Println(liquidityDelta)
 
-	// ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
-	// defer cancel1()
+	// 	ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
+	// 	defer cancel1()
 
-	// amountIn := new(big.Int).SetUint64(uint64(0.2 * 1e9))
-	// minOutAmount, _, err := meteoraDammV2.BuyQuote(ctx1, baseMint, amountIn, 250)
-	// if err != nil {
-	// 	t.Fatal("BuyQuote fail", err)
-	// }
-	// fmt.Println(minOutAmount)
+	// 	amountIn := new(big.Int).SetUint64(uint64(0.2 * 1e9))
+	// 	minOutAmount, _, err := meteoraDammV2.BuyQuote(ctx1, baseMint, amountIn, 250)
+	// 	if err != nil {
+	// 		t.Fatal("BuyQuote fail", err)
+	// 	}
+	// 	fmt.Println(minOutAmount)
 
-	// ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
-	// defer cancel1()
-	// amountIn := new(big.Int).SetUint64(1_000_000 * 1e9)
-	// quote, _, err := meteoraDammV2.GetDepositQuote(ctx1, baseMint, false, amountIn)
-	// if err != nil {
-	// 	t.Fatal("meteoraDammV2.GetDepositQuote fail", err)
-	// }
-	// fmt.Println(quote)
+	// 	ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
+	// 	defer cancel1()
+	// 	amountIn := new(big.Int).SetUint64(1_000_000 * 1e9)
+	// 	quote, _, err := meteoraDammV2.GetDepositQuote(ctx1, baseMint, false, amountIn)
+	// 	if err != nil {
+	// 		t.Fatal("meteoraDammV2.GetDepositQuote fail", err)
+	// 	}
+	// 	fmt.Println(quote)
 
-	// initSqrtPrice, err := cp_amm.GetSqrtPriceFromPrice(decimal.NewFromFloat(1.0), 9, 9)
-	// if err != nil {
-	// 	t.Fatal("GetSqrtPriceFromPrice", err)
-	// }
-	// fmt.Println(initSqrtPrice)
+	// 	initSqrtPrice, err := cp_amm.GetSqrtPriceFromPrice(decimal.NewFromFloat(1.0), 9, 9)
+	// 	if err != nil {
+	// 		t.Fatal("GetSqrtPriceFromPrice", err)
+	// 	}
+	// 	fmt.Println(initSqrtPrice)
 
-	// ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
-	// defer cancel1()
-	// baseMint := solana.MustPublicKeyFromBase58("9EpFqwBgu9JkxZYEaG1suWzVeA4YR14bkci2gJHU896y")
-	// liquidityDelta, _ := new(big.Int).SetString("18446744078004599633000037588", 10)
-	// quote, _, err := meteoraDammV2.GetWithdrawQuote(ctx1, baseMint, liquidityDelta)
-	// if err != nil {
-	// 	t.Fatal("meteoraDammV2.GetWithdrawQuote fail", err)
-	// }
-	// fmt.Println(quote)
+	// 	ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
+	// 	defer cancel1()
+	// 	baseMint := solana.MustPublicKeyFromBase58("9EpFqwBgu9JkxZYEaG1suWzVeA4YR14bkci2gJHU896y")
+	// 	liquidityDelta, _ := new(big.Int).SetString("18446744078004599633000037588", 10)
+	// 	quote, _, err := meteoraDammV2.GetWithdrawQuote(ctx1, baseMint, liquidityDelta)
+	// 	if err != nil {
+	// 		t.Fatal("meteoraDammV2.GetWithdrawQuote fail", err)
+	// 	}
+	// 	fmt.Println(quote)
 	// }
 	// return
 
-	// {
-	// 	ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
-	// 	defer cancel1()
-	// 	cfg, err := meteoraDammV2.GetConfig(ctx1, solana.MustPublicKeyFromBase58("82p7sVzQWZfCrmStPhsG8BYKwheQkUiXSs2wiqdhwNxr"))
-	// 	if err != nil {
-	// 		t.Fatal("GetConfig fail", err)
-	// 	}
-	// 	fmt.Println("===========================")
-	// 	fmt.Println("print config info")
-	// 	fmt.Println("cfg.Index", cfg.Index)
-	// 	fmt.Println("cfg.VaultConfigKey", cfg.VaultConfigKey)
-	// 	fmt.Println("cfg.PoolFees", cfg.PoolFees)
-	// 	fmt.Println("cfg.PoolFees.BaseFeeConfig", cfg.PoolFees.BaseFee)
-	// 	fmt.Println("cfg.PoolFees.DynamicFeeConfig", cfg.PoolFees.DynamicFee)
-	// 	fmt.Println("cfg.SqrtMinPrice", cfg.SqrtMinPrice)
-	// 	fmt.Println("cfg.SqrtMaxPrice", cfg.SqrtMaxPrice)
-	// 	fmt.Println("cfg.ConfigType", cfg.ConfigType)
-	// 	fmt.Println("cfg.PoolCreatorAuthority", cfg.PoolCreatorAuthority)
-	// 	fmt.Println("===========================")
-	// }
+	{
+		ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
+		defer cancel1()
+		cfg, err := meteoraDammV2.GetConfig(ctx1, solana.MustPublicKeyFromBase58("82p7sVzQWZfCrmStPhsG8BYKwheQkUiXSs2wiqdhwNxr"))
+		if err != nil {
+			t.Fatal("GetConfig fail", err)
+		}
+		fmt.Println("===========================")
+		fmt.Println("print config info")
+		fmt.Println("cfg.Index", cfg.Index)
+		fmt.Println("cfg.VaultConfigKey", cfg.VaultConfigKey)
+		fmt.Println("cfg.PoolFees", cfg.PoolFees)
+		fmt.Println("cfg.PoolFees.BaseFeeConfig", cfg.PoolFees.BaseFee)
+		fmt.Println("cfg.PoolFees.DynamicFeeConfig", cfg.PoolFees.DynamicFee)
+		fmt.Println("cfg.SqrtMinPrice", cfg.SqrtMinPrice)
+		fmt.Println("cfg.SqrtMaxPrice", cfg.SqrtMaxPrice)
+		fmt.Println("cfg.ConfigType", cfg.ConfigType)
+		fmt.Println("cfg.PoolCreatorAuthority", cfg.PoolCreatorAuthority)
+		fmt.Println("===========================")
+	}
 
-	// {
-	// 	mintWallet := solana.NewWallet()
-	// 	baseMint := mintWallet.PublicKey()
-	// 	fmt.Printf("new token mint address:%s(%s)\n", baseMint, mintWallet.PrivateKey)
+	{
+		mintWallet := solana.NewWallet()
+		baseMint := mintWallet.PublicKey()
+		fmt.Printf("new token mint address:%s(%s)\n", baseMint, mintWallet.PrivateKey)
 
-	// 	testCreateTokenMint(t, ctx, rpcClient, wsClient, mintWallet, payer, poolCreator)
+		testCreateTokenMint(t, ctx, rpcClient, wsClient, mintWallet, payer, poolCreator)
 
-	// 	{
-	// 		fmt.Println("ready CreatePool")
-	// 		ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
-	// 		defer cancel1()
-	// 		baseAmount := big.NewInt(1_000_000)
-	// 		quoteAmount := big.NewInt(1) // SOL
-	// 		sig, _, _, err := meteoraDammV2.CreatePool(
-	// 			ctx1,
-	// 			payer,
-	// 			0,
-	// 			1, // 1 base token = 1 quote token
-	// 			baseMint,
-	// 			solana.WrappedSol,
-	// 			baseAmount,
-	// 			quoteAmount,
-	// 			nil,
-	// 			true,
-	// 		)
-	// 		if err != nil {
-	// 			t.Fatal("meteoraDammV2.CreatePool fail", err)
-	// 		}
-	// 		fmt.Println("success CreatePool sig:", sig)
-	// 	}
-	// 	testCpAmmPoolCheck(t, ctx, meteoraDammV2, baseMint)
-	// }
+		{
+			fmt.Println("ready CreatePool")
+			ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
+			defer cancel1()
+			baseAmount := big.NewInt(1_000_000)
+			quoteAmount := big.NewInt(1) // SOL
+			sig, _, _, err := meteoraDammV2.CreatePool(
+				ctx1,
+				payer,
+				0,
+				1, // 1 base token = 1 quote token
+				baseMint,
+				solana.WrappedSol,
+				baseAmount,
+				quoteAmount,
+				nil,
+				true,
+			)
+			if err != nil {
+				t.Fatal("meteoraDammV2.CreatePool fail", err)
+			}
+			fmt.Println("success CreatePool sig:", sig)
+		}
+		testCpAmmPoolCheck(t, ctx, meteoraDammV2, baseMint)
+	}
 
-	// {
-	// 	poolCreatorAuthority := solana.NewWallet()
-	// 	fmt.Printf("poolCreatorAuthority address:%s(%s)\n", poolCreatorAuthority.PublicKey(), poolCreatorAuthority.PrivateKey)
+	{
+		poolCreatorAuthority := solana.NewWallet()
+		fmt.Printf("poolCreatorAuthority address:%s(%s)\n", poolCreatorAuthority.PublicKey(), poolCreatorAuthority.PrivateKey)
 
-	// 	mintWallet := solana.NewWallet()
-	// 	mintWallet = &solana.Wallet{PrivateKey: solana.MustPrivateKeyFromBase58("5SBchR7A6ysnjDdMeaLoxPNpn1wFL1xCCzJAdCBAr3cLesrPru3HprVwTRrtyGp9DuUpQksUdaAtWSanFWVK8QsS")}
-	// 	baseMint := mintWallet.PublicKey()
-	// 	fmt.Printf("new token mint address:%s(%s)\n", baseMint, mintWallet.PrivateKey)
+		mintWallet := solana.NewWallet()
+		mintWallet = &solana.Wallet{PrivateKey: solana.MustPrivateKeyFromBase58("5SBchR7A6ysnjDdMeaLoxPNpn1wFL1xCCzJAdCBAr3cLesrPru3HprVwTRrtyGp9DuUpQksUdaAtWSanFWVK8QsS")}
+		baseMint := mintWallet.PublicKey()
+		fmt.Printf("new token mint address:%s(%s)\n", baseMint, mintWallet.PrivateKey)
 
-	// 	// testCreateTokenMint(t, ctx, rpcClient, wsClient, mintWallet, payer, poolCreator)
+		// testCreateTokenMint(t, ctx, rpcClient, wsClient, mintWallet, payer, poolCreator)
 
-	// 	{
-	// 		fmt.Println("准备创建 CreateCustomizablePoolWithDynamicConfig")
-	// 		ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
-	// 		defer cancel1()
-	// 		baseAmount := big.NewInt(1_000_000)
-	// 		quoteAmount := big.NewInt(1) // SOL
-	// 		sig, _, _, err := meteoraDammV2.CreateCustomizablePoolWithDynamicConfig(
-	// 			ctx1,
-	// 			payer,
-	// 			1,
-	// 			poolCreatorAuthority,
-	// 			1, // 1 base token = 1 quote token
-	// 			baseMint,
-	// 			solana.WrappedSol,
-	// 			baseAmount,
-	// 			quoteAmount,
-	// 			false,
-	// 			cp_amm.ActivationTypeTimestamp,
-	// 			cp_amm.CollectFeeModeBothToken,
-	// 			nil,
-	// 			true,
-	// 			5000, // 50%
-	// 			25,   // 0.25%
-	// 			cp_amm.FeeSchedulerModeExponential,
-	// 			60,   // 60 peridos
-	// 			3600, // 60 * 60
-	// 			true,
-	// 		)
-	// 		if err != nil {
-	// 			t.Fatal("meteoraDammV2.CreateCustomizablePoolWithDynamicConfig fail", err)
-	// 		}
-	// 		fmt.Println("创建完成 CreateCustomizablePoolWithDynamicConfig sig:", sig)
-	// 	}
-	// 	testCpAmmPoolCheck(t, ctx, meteoraDammV2, baseMint)
-	// }
+		{
+			fmt.Println("准备创建 CreateCustomizablePoolWithDynamicConfig")
+			ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
+			defer cancel1()
+			baseAmount := big.NewInt(1_000_000)
+			quoteAmount := big.NewInt(1) // SOL
+			sig, _, _, err := meteoraDammV2.CreateCustomizablePoolWithDynamicConfig(
+				ctx1,
+				payer,
+				1,
+				poolCreatorAuthority,
+				1, // 1 base token = 1 quote token
+				baseMint,
+				solana.WrappedSol,
+				baseAmount,
+				quoteAmount,
+				false,
+				cp_amm.ActivationTypeTimestamp,
+				cp_amm.CollectFeeModeBothToken,
+				nil,
+				true,
+				5000, // 50%
+				25,   // 0.25%
+				cp_amm.FeeSchedulerModeExponential,
+				60,   // 60 peridos
+				3600, // 60 * 60
+				true,
+			)
+			if err != nil {
+				t.Fatal("meteoraDammV2.CreateCustomizablePoolWithDynamicConfig fail", err)
+			}
+			fmt.Println("创建完成 CreateCustomizablePoolWithDynamicConfig sig:", sig)
+		}
+		testCpAmmPoolCheck(t, ctx, meteoraDammV2, baseMint)
+	}
 
 	mintWallet := solana.NewWallet()
-	// mintWallet = &solana.Wallet{PrivateKey: solana.MustPrivateKeyFromBase58("44GPzCjwy2DGa1puue6VK1GxXuKRMYfch1W8WByrj64fGaKkEvdH2mtsEMQCbsHr37KqKMdC3k88syyuykhHqyzM")}
+	// mintWallet = &solana.Wallet{PrivateKey: solana.MustPrivateKeyFromBase58("2M7C27qQShC6kTWUogfBAXW9SGyZaM7LBLvVDTQNJSe1r4sKJu8EnDzi3FDo7FTeX9n1dTtgZWLKo4CW7XjCj3C7")}
 	baseMint := mintWallet.PublicKey()
 	fmt.Printf("new token mint address:%s(%s)\n", baseMint, mintWallet.PrivateKey)
 
 	{
-
 		testCreateTokenMint(t, ctx, rpcClient, wsClient, mintWallet, payer, poolPartner)
 
 		{
@@ -331,12 +334,14 @@ func TestDammV2(t *testing.T) {
 		ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
 		defer cancel1()
 		amountIn := new(big.Int).SetUint64(uint64(0.2 * 1e9))
-		minOutAmount, poolState, err := meteoraDammV2.BuyQuote(ctx1, baseMint, amountIn, 250)
+		quote, poolState, err := meteoraDammV2.BuyQuote(ctx1, baseMint, amountIn, 250)
 		if err != nil {
 			t.Fatal("cpAmm.BuyQuote() fail", err)
 		}
-		fmt.Printf("buy token address:%s expected:%v minimum:%v\n", baseMint, minOutAmount.SwapOutAmount, minOutAmount.MinSwapOutAmount)
-		sig, err := meteoraDammV2.Buy(ctx1, ownerWallet, nil, poolState.Address, poolState.Pool, amountIn, minOutAmount.MinSwapOutAmount)
+		fmt.Println("minOutAmount", quote)
+		// return
+		fmt.Printf("buy token address:%s expected:%v minimum:%v\n", baseMint, quote.SwapOutAmount, quote.MinSwapOutAmount)
+		sig, err := meteoraDammV2.Buy(ctx1, ownerWallet, nil, poolState.Address, poolState.Pool, amountIn, quote.MinSwapOutAmount)
 		if err != nil {
 			t.Fatal("cpAmm.Buy() fail", err)
 		}
@@ -627,7 +632,7 @@ func testCpAmmPoolCheck(t *testing.T, ctx context.Context, cpamm *dammV2.DammV2,
 
 	pool, err := cpamm.GetPoolByBaseMint(ctx1, baseMint)
 	if err != nil {
-		t.Fatal("cpamm.GetPoolByBaseMint() fail")
+		t.Fatal("cpamm.GetPoolByBaseMint() fail", err)
 	}
 
 	if pool == nil {
