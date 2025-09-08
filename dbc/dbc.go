@@ -22,6 +22,8 @@ var (
 
 	dammPoolAuthority  solana.PublicKey
 	dammEventAuthority solana.PublicKey
+
+	transferFee = uint64(5000) // 0.000005 SOL
 )
 
 func Init() error {

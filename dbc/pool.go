@@ -115,6 +115,21 @@ func (m *DBC) CreatePool(
 	symbol string,
 	uri string,
 ) (string, error) {
+
+	rentExemptFee, err := solanago.GetRentExempt(ctx, m.rpcClient)
+	if err != nil {
+		return "", err
+	}
+
+	lamportsSOL, err := solanago.SOLBalance(ctx, m.rpcClient, payer.PublicKey())
+	if err != nil {
+		return "", err
+	}
+
+	if lamportsSOL < rentExemptFee+transferFee {
+		return "", fmt.Errorf("buyer sol must be greater than %v", (rentExemptFee+transferFee)/1e9)
+	}
+
 	configState, err := m.GetConfig(ctx, m.config.PublicKey())
 	if err != nil {
 		return "", err
@@ -369,14 +384,26 @@ func (m *DBC) CreatePoolWithFirstBuy(
 	slippageBps uint64, // 250 = 2.5%
 ) (string, error) {
 
-	t := new(big.Int).Sub(amountIn, new(big.Int).SetUint64(2039280)) // minimum rent-exempt balance for WSOL account
-	// amountIn = uint64(1e6)
-	if t.Cmp(big.NewInt(1e6)) < 0 {
-		return "", fmt.Errorf("amountIn must be greater than 1e6 + 2039280")
-	}
-
 	payer := payerAndBuyer
 	buyer := payerAndBuyer
+
+	rentExemptFee, err := solanago.GetRentExempt(ctx, m.rpcClient)
+	if err != nil {
+		return "", err
+	}
+
+	lamportsSOL, err := solanago.SOLBalance(ctx, m.rpcClient, buyer.PublicKey())
+	if err != nil {
+		return "", err
+	}
+
+	if lamportsSOL < rentExemptFee+transferFee {
+		return "", fmt.Errorf("buyer sol must be greater than %v", (rentExemptFee+transferFee)/1e9)
+	}
+
+	if amountIn.Cmp(new(big.Int).SetUint64(lamportsSOL+1)) < 0 {
+		return "", fmt.Errorf("amountIn must be greater than %v SOL", (rentExemptFee+transferFee+1)/1e9)
+	}
 
 	configState, err := m.GetConfig(ctx, m.config.PublicKey())
 	if err != nil {
@@ -399,7 +426,7 @@ func (m *DBC) CreatePoolWithFirstBuy(
 		symbol,
 		uri,
 		buyer.PublicKey(),
-		amountIn,
+		new(big.Int).Sub(amountIn, new(big.Int).SetUint64(rentExemptFee+transferFee)),
 		slippageBps,
 	)
 	if err != nil {

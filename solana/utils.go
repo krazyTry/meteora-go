@@ -11,7 +11,70 @@ import (
 	"github.com/gagliardetto/solana-go/rpc"
 	sendandconfirmtransaction "github.com/gagliardetto/solana-go/rpc/sendAndConfirmTransaction"
 	"github.com/gagliardetto/solana-go/rpc/ws"
+	"github.com/tidwall/gjson"
 )
+
+func GetRentExempt(ctx context.Context, rpcClient *rpc.Client) (uint64, error) {
+	lamports, err := rpcClient.GetMinimumBalanceForRentExemption(
+		ctx,
+		165, // SPL Token account 固定大小为 165 bytes
+		rpc.CommitmentFinalized,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return lamports, nil
+}
+
+func SOLBalance(ctx context.Context, rpcClient *rpc.Client, wallet solana.PublicKey) (uint64, error) {
+	balanceResult, err := rpcClient.GetBalance(ctx, wallet, rpc.CommitmentFinalized)
+	if err != nil {
+		return 0, err
+	}
+	return balanceResult.Value, nil
+}
+
+func MintBalance(ctx context.Context, rpcClient *rpc.Client, wallet, baseMint solana.PublicKey) (uint64, error) {
+	resp, err := rpcClient.GetTokenAccountsByOwner(ctx, wallet, &rpc.GetTokenAccountsConfig{
+		ProgramId: &solana.TokenProgramID,
+	}, &rpc.GetTokenAccountsOpts{
+		Encoding:   solana.EncodingJSONParsed,
+		Commitment: rpc.CommitmentFinalized,
+	})
+	if err != nil {
+		return 0, err
+	}
+	/*
+		{
+			"parsed": {
+				"info": {
+					"isNative": false,
+					"mint": "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
+					"owner": "5HfLhj117ucm2FoqjfcSeZMf91CuJbzxZ9BeRRpZWN6m",
+					"state": "initialized",
+					"tokenAmount": {
+						"amount": "0",
+						"decimals": 6,
+						"uiAmount": 0.0,
+						"uiAmountString": "0"
+					}
+				},
+				"type": "account"
+			},
+			"program": "spl-token",
+			"space": 165
+		}
+	*/
+	for _, v := range resp.Value {
+		mint := gjson.GetBytes(v.Account.Data.GetRawJSON(), "parsed.info.mint").String()
+		if mint != baseMint.String() {
+			continue
+		}
+		amount := gjson.GetBytes(v.Account.Data.GetRawJSON(), "parsed.info.tokenAmount.amount").Uint()
+		return amount, nil
+	}
+	return 0, nil
+}
 
 func CurrenPoint(ctx context.Context, rpcClient *rpc.Client, activationType uint8) (*big.Int, error) {
 	var (

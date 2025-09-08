@@ -13,48 +13,6 @@ import (
 	solanago "github.com/krazyTry/meteora-go/solana"
 )
 
-func cpAmmSwap(
-	m *DammV2,
-	cpammPool solana.PublicKey,
-	baseMint solana.PublicKey, // tokenAMint solana.PublicKey,
-	quoteMint solana.PublicKey, // tokenBMint solana.PublicKey,
-	baseVault solana.PublicKey, // tokenAVault solana.PublicKey,
-	quoteVault solana.PublicKey, // tokenBVault solana.PublicKey,
-	payer solana.PublicKey,
-	referralTokenAccount solana.PublicKey,
-	inputTokenAccount solana.PublicKey,
-	outputTokenAccount solana.PublicKey,
-	tokenBaseProgram solana.PublicKey, // tokenAProgram solana.PublicKey,
-	tokenQuoteProgram solana.PublicKey, // tokenBProgram solana.PublicKey,
-	amountIn uint64,
-	minOut uint64,
-) (solana.Instruction, error) {
-
-	return cp_amm.NewSwapInstruction(
-		// Params:
-		cp_amm.SwapParameters{
-			AmountIn:         amountIn,
-			MinimumAmountOut: minOut,
-		},
-
-		// Accounts:
-		poolAuthority,
-		cpammPool,
-		inputTokenAccount,
-		outputTokenAccount,
-		baseVault,
-		quoteVault,
-		baseMint,
-		quoteMint,
-		payer,
-		tokenBaseProgram,
-		tokenQuoteProgram,
-		referralTokenAccount,
-		eventAuthority,
-		cp_amm.ProgramID,
-	)
-}
-
 func SwapInstruction(
 	ctx context.Context,
 	rpcClient *rpc.Client,
@@ -261,7 +219,34 @@ func (m *DammV2) Buy(
 	amountIn *big.Int,
 	minimumAmountOut *big.Int,
 ) (string, error) {
-	return m.Swap(ctx, buyer, buyer, referrer, poolAddress, poolState, false, amountIn, minimumAmountOut)
+	rentExemptFee, err := solanago.GetRentExempt(ctx, m.rpcClient)
+	if err != nil {
+		return "", err
+	}
+
+	lamportsSOL, err := solanago.SOLBalance(ctx, m.rpcClient, buyer.PublicKey())
+	if err != nil {
+		return "", err
+	}
+
+	if lamportsSOL < rentExemptFee+transferFee {
+		return "", fmt.Errorf("buyer sol must be greater than %v", (rentExemptFee+transferFee)/1e9)
+	}
+
+	if amountIn.Cmp(new(big.Int).SetUint64(lamportsSOL+1)) < 0 {
+		return "", fmt.Errorf("amountIn must be greater than %v SOL", (rentExemptFee+transferFee+1)/1e9)
+	}
+	return m.Swap(
+		ctx,
+		buyer,
+		buyer,
+		referrer,
+		poolAddress,
+		poolState,
+		false,
+		new(big.Int).Sub(amountIn, new(big.Int).SetUint64(rentExemptFee+transferFee)),
+		minimumAmountOut,
+	)
 }
 
 func SellInstruction(
@@ -286,5 +271,38 @@ func (m *DammV2) Sell(
 	amountIn *big.Int,
 	minimumAmountOut *big.Int,
 ) (string, error) {
-	return m.Swap(ctx, seller, seller, referrer, poolAddress, poolState, true, amountIn, minimumAmountOut)
+	lamportsMINT, err := solanago.MintBalance(ctx, m.rpcClient, seller.PublicKey(), poolState.TokenAMint)
+	if err != nil {
+		return "", err
+	}
+
+	if amountIn.Cmp(new(big.Int).SetUint64(lamportsMINT)) > 0 {
+		return "", fmt.Errorf("insufficient token balance")
+	}
+
+	rentExemptFee, err := solanago.GetRentExempt(ctx, m.rpcClient)
+	if err != nil {
+		return "", err
+	}
+
+	lamportsSOL, err := solanago.SOLBalance(ctx, m.rpcClient, seller.PublicKey())
+	if err != nil {
+		return "", err
+	}
+
+	if lamportsSOL < rentExemptFee+transferFee {
+		return "", fmt.Errorf("seller sol must be greater than %v", (rentExemptFee+transferFee)/1e9)
+	}
+
+	return m.Swap(
+		ctx,
+		seller,
+		seller,
+		referrer,
+		poolAddress,
+		poolState,
+		true,
+		amountIn,
+		minimumAmountOut,
+	)
 }

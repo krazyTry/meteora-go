@@ -79,9 +79,6 @@ func SwapInstruction(
 	// TODO 逻辑复杂 值得优化
 	switch {
 	case inputMint.Equals(solana.WrappedSol):
-		if amountIn.Cmp(big.NewInt(0)) <= 0 {
-			return nil, fmt.Errorf("amountIn must be greater than 0")
-		}
 
 		totalAmount := amountIn.Uint64() // + rentExemptAmount
 
@@ -274,6 +271,24 @@ func (m *DBC) Buy(
 	minimumAmountOut *big.Int,
 	currentPoint *big.Int,
 ) (string, error) {
+	rentExemptFee, err := solanago.GetRentExempt(ctx, m.rpcClient)
+	if err != nil {
+		return "", err
+	}
+
+	lamportsSOL, err := solanago.SOLBalance(ctx, m.rpcClient, buyer.PublicKey())
+	if err != nil {
+		return "", err
+	}
+
+	if lamportsSOL < rentExemptFee+transferFee {
+		return "", fmt.Errorf("buyer sol must be greater than %v", (rentExemptFee+transferFee)/1e9)
+	}
+
+	if amountIn.Cmp(new(big.Int).SetUint64(lamportsSOL+1)) < 0 {
+		return "", fmt.Errorf("amountIn must be greater than %v SOL", (rentExemptFee+transferFee+1)/1e9)
+	}
+
 	return m.Swap(
 		ctx,
 		buyer,
@@ -283,7 +298,7 @@ func (m *DBC) Buy(
 		poolState,
 		configState,
 		false,
-		amountIn,
+		new(big.Int).Sub(amountIn, new(big.Int).SetUint64(rentExemptFee+transferFee)),
 		minimumAmountOut,
 		currentPoint,
 	)
@@ -328,6 +343,29 @@ func (m *DBC) Sell(
 	minimumAmountOut *big.Int,
 	currentPoint *big.Int,
 ) (string, error) {
+	lamportsMINT, err := solanago.MintBalance(ctx, m.rpcClient, seller.PublicKey(), poolState.BaseMint)
+	if err != nil {
+		return "", err
+	}
+
+	if amountIn.Cmp(new(big.Int).SetUint64(lamportsMINT)) > 0 {
+		return "", fmt.Errorf("insufficient token balance")
+	}
+
+	rentExemptFee, err := solanago.GetRentExempt(ctx, m.rpcClient)
+	if err != nil {
+		return "", err
+	}
+
+	lamportsSOL, err := solanago.SOLBalance(ctx, m.rpcClient, seller.PublicKey())
+	if err != nil {
+		return "", err
+	}
+
+	if lamportsSOL < rentExemptFee+transferFee {
+		return "", fmt.Errorf("seller sol must be greater than %v", (rentExemptFee+transferFee)/1e9)
+	}
+
 	return m.Swap(
 		ctx,
 		seller,
