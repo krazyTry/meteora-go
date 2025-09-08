@@ -1,14 +1,15 @@
-package dbc
+package dammV2
 
 import (
 	"context"
+	"fmt"
 	"math/big"
 
 	"github.com/gagliardetto/solana-go"
 	solanago "github.com/krazyTry/meteora-go/solana"
 )
 
-func (m *DBC) Transfer(
+func (m *DammV2) Transfer(
 	ctx context.Context,
 	payer *solana.Wallet,
 	sender *solana.Wallet,
@@ -17,14 +18,12 @@ func (m *DBC) Transfer(
 	amount *big.Int,
 ) (string, error) {
 
-	poolState, err := m.GetPoolByBaseMint(ctx, baseMint)
+	tokens, err := solanago.GetMultipleToken(ctx, m.rpcClient, baseMint)
 	if err != nil {
 		return "", err
 	}
-
-	configState, err := m.GetConfig(ctx, poolState.Config)
-	if err != nil {
-		return "", err
+	if tokens[0] == nil {
+		return "", fmt.Errorf("baseMint error")
 	}
 
 	instructions, err := solanago.TransferInstruction(
@@ -34,7 +33,7 @@ func (m *DBC) Transfer(
 		sender.PublicKey(),
 		receiver.PublicKey(),
 		baseMint,
-		uint8(configState.TokenDecimal),
+		tokens[0].Decimals,
 		amount,
 	)
 
