@@ -19,12 +19,12 @@ func ClaimPartnerTradingFeeInstruction(
 	poolAddress solana.PublicKey,
 	poolState *dbc.VirtualPool,
 	configState *dbc.PoolConfig,
-	claimBaseForQuote bool,
+	claimBase bool,
 	maxAmount uint64,
 ) ([]solana.Instruction, error) {
 	var maxAmountBase, maxAmountQuote uint64
 
-	if claimBaseForQuote {
+	if claimBase {
 		maxAmountBase = maxAmount
 	} else {
 		maxAmountQuote = maxAmount
@@ -103,7 +103,7 @@ func (m *DBC) ClaimPartnerTradingFee(
 	ctx context.Context,
 	payer *solana.Wallet,
 	baseMint solana.PublicKey,
-	claimBaseForQuote bool,
+	claimBase bool,
 	maxAmount uint64,
 ) (string, error) {
 
@@ -129,7 +129,7 @@ func (m *DBC) ClaimPartnerTradingFee(
 		poolState.Address,
 		poolState.VirtualPool,
 		configState,
-		claimBaseForQuote,
+		claimBase,
 		maxAmount,
 	)
 	if err != nil {
@@ -166,12 +166,12 @@ func ClaimCreatorTradingFeeInstruction(
 	poolAddress solana.PublicKey,
 	poolState *dbc.VirtualPool,
 	configState *dbc.PoolConfig,
-	claimBaseForQuote bool,
+	claimBase bool,
 	maxAmount uint64,
 ) ([]solana.Instruction, error) {
 	var maxAmountBase, maxAmountQuote uint64
 
-	if claimBaseForQuote {
+	if claimBase {
 		maxAmountBase = maxAmount
 	} else {
 		maxAmountQuote = maxAmount
@@ -250,7 +250,7 @@ func (m *DBC) ClaimCreatorTradingFee(
 	ctx context.Context,
 	payer *solana.Wallet,
 	baseMint solana.PublicKey,
-	claimBaseForQuote bool,
+	claimBase bool,
 	maxAmount uint64,
 ) (string, error) {
 
@@ -276,7 +276,7 @@ func (m *DBC) ClaimCreatorTradingFee(
 		poolState.Address,
 		poolState.VirtualPool,
 		configState,
-		claimBaseForQuote,
+		claimBase,
 		maxAmount,
 	)
 	if err != nil {
