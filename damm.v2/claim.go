@@ -70,7 +70,7 @@ func ClaimPositionFeeInstruction(
 			tokenBaseAccount,
 			owner,
 			owner,
-			[]solana.PublicKey{},
+			nil,
 		).Build()
 		instructions = append(instructions, unwrapIx)
 	case quoteMint.Equals(solana.WrappedSol):
@@ -78,7 +78,7 @@ func ClaimPositionFeeInstruction(
 			tokenQuoteAccount,
 			owner,
 			owner,
-			[]solana.PublicKey{},
+			nil,
 		).Build()
 		instructions = append(instructions, unwrapIx)
 	}
@@ -194,7 +194,7 @@ func ClaimRewardInstruction(
 			userTokenAccount,
 			owner,
 			owner,
-			[]solana.PublicKey{},
+			nil,
 		).Build()
 		instructions = append(instructions, unwrapIx)
 	}

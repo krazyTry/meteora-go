@@ -231,7 +231,7 @@ func ClaimCreatorTradingFeeInstruction(
 			tokenBaseAccount,
 			poolCreator,
 			poolCreator,
-			[]solana.PublicKey{},
+			nil,
 		).Build()
 
 		instructions = append(instructions, closeWSOLIx)
@@ -240,7 +240,7 @@ func ClaimCreatorTradingFeeInstruction(
 			tokenQuoteAccount,
 			poolCreator,
 			poolCreator,
-			[]solana.PublicKey{},
+			nil,
 		).Build()
 
 		instructions = append(instructions, closeWSOLIx)

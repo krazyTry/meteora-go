@@ -146,7 +146,7 @@ func SwapInstruction(
 			inputTokenAccount,
 			owner,
 			owner,
-			[]solana.PublicKey{},
+			nil,
 		).Build()
 		instructions = append(instructions, unwrapIx)
 	case outputMint.Equals(solana.WrappedSol):
@@ -154,7 +154,7 @@ func SwapInstruction(
 			outputTokenAccount,
 			owner,
 			owner,
-			[]solana.PublicKey{},
+			nil,
 		).Build()
 		instructions = append(instructions, unwrapIx)
 	}
@@ -164,7 +164,7 @@ func SwapInstruction(
 			referralTokenAccount,
 			referrer,
 			referrer,
-			[]solana.PublicKey{},
+			nil,
 		).Build()
 		instructions = append(instructions, unwrapIx)
 	}

@@ -10,7 +10,6 @@ import (
 
 	binary "github.com/gagliardetto/binary"
 	"github.com/gagliardetto/solana-go"
-	associatedtokenaccount "github.com/gagliardetto/solana-go/programs/associated-token-account"
 	"github.com/gagliardetto/solana-go/rpc"
 	sendandconfirmtransaction "github.com/gagliardetto/solana-go/rpc/sendAndConfirmTransaction"
 	"github.com/gagliardetto/solana-go/rpc/ws"
@@ -175,37 +174,6 @@ func GetCurrentEpoch(ctx context.Context, rpcClient *rpc.Client) (uint64, error)
 		return 0, err
 	}
 	return epochInfo.Epoch, nil
-}
-
-func PrepareTokenATA(
-	ctx context.Context,
-	rpcClient *rpc.Client,
-	owner solana.PublicKey,
-	tokenMint solana.PublicKey,
-	payer solana.PublicKey,
-	instructions *[]solana.Instruction,
-) (solana.PublicKey, error) {
-	tokenATA, _, err := solana.FindAssociatedTokenAddress(
-		owner,
-		tokenMint,
-	)
-
-	if err != nil {
-		return solana.PublicKey{}, err
-	}
-
-	exists, err := GetAccountInfo(ctx, rpcClient, tokenATA)
-	if err != nil && err != rpc.ErrNotFound {
-		return solana.PublicKey{}, err
-	}
-
-	if exists == nil {
-		ix := associatedtokenaccount.NewCreateInstruction(
-			payer, owner, tokenMint,
-		).Build()
-		*instructions = append(*instructions, ix)
-	}
-	return tokenATA, nil
 }
 
 func GetMultipleToken(ctx context.Context, rpcClient *rpc.Client, tokens ...solana.PublicKey) ([]*Token, error) {

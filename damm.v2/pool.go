@@ -203,7 +203,7 @@ func CreateCustomizablePoolInstruction(
 			baseTokenAccount,
 			payer,
 			payer,
-			[]solana.PublicKey{},
+			nil,
 		).Build()
 		instructions = append(instructions, unwrapIx)
 	}
@@ -213,7 +213,7 @@ func CreateCustomizablePoolInstruction(
 			quoteTokenAccount,
 			payer,
 			payer,
-			[]solana.PublicKey{},
+			nil,
 		).Build()
 		instructions = append(instructions, unwrapIx)
 	}
@@ -506,7 +506,7 @@ func CreatePoolInstruction(
 			baseTokenAccount,
 			payer,
 			payer,
-			[]solana.PublicKey{},
+			nil,
 		).Build()
 		instructions = append(instructions, unwrapIx)
 	}
@@ -516,7 +516,7 @@ func CreatePoolInstruction(
 			quoteTokenAccount,
 			payer,
 			payer,
-			[]solana.PublicKey{},
+			nil,
 		).Build()
 		instructions = append(instructions, unwrapIx)
 	}
@@ -796,7 +796,7 @@ func CreateCustomizablePoolWithDynamicConfigInstruction(
 			baseTokenAccount,
 			payer,
 			payer,
-			[]solana.PublicKey{},
+			nil,
 		).Build()
 		instructions = append(instructions, unwrapIx)
 	}
@@ -806,7 +806,7 @@ func CreateCustomizablePoolWithDynamicConfigInstruction(
 			quoteTokenAccount,
 			payer,
 			payer,
-			[]solana.PublicKey{},
+			nil,
 		).Build()
 		instructions = append(instructions, unwrapIx)
 	}

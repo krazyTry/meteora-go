@@ -130,7 +130,7 @@ func AddPositionLiquidityInstruction(
 			baseTokenAccount,
 			owner,
 			owner,
-			[]solana.PublicKey{},
+			nil,
 		).Build()
 		instructions = append(instructions, unwrapIx)
 	}
@@ -140,7 +140,7 @@ func AddPositionLiquidityInstruction(
 			quoteTokenAccount,
 			owner,
 			owner,
-			[]solana.PublicKey{},
+			nil,
 		).Build()
 		instructions = append(instructions, unwrapIx)
 	}
@@ -304,7 +304,7 @@ func RemovePositionLiquidityInstruction(
 			baseTokenAccount,
 			owner,
 			owner,
-			[]solana.PublicKey{},
+			nil,
 		).Build()
 		instructions = append(instructions, unwrapIx)
 	}
@@ -314,7 +314,7 @@ func RemovePositionLiquidityInstruction(
 			quoteTokenAccount,
 			owner,
 			owner,
-			[]solana.PublicKey{},
+			nil,
 		).Build()
 		instructions = append(instructions, unwrapIx)
 	}
@@ -478,7 +478,7 @@ func RemoveAllLiquidityInstruction(
 			baseTokenAccount,
 			owner,
 			owner,
-			[]solana.PublicKey{},
+			nil,
 		).Build()
 		instructions = append(instructions, unwrapIx)
 	}
@@ -488,7 +488,7 @@ func RemoveAllLiquidityInstruction(
 			quoteTokenAccount,
 			owner,
 			owner,
-			[]solana.PublicKey{},
+			nil,
 		).Build()
 		instructions = append(instructions, unwrapIx)
 	}

@@ -366,7 +366,7 @@ func CreatePoolWithFirstBuInstruction(
 		userInputTokenAccount,
 		buyer,
 		buyer,
-		[]solana.PublicKey{},
+		nil,
 	).Build()
 
 	instructions = append(instructions, closeWSOLIx)

@@ -2,6 +2,7 @@ package dbc
 
 import (
 	"context"
+	"fmt"
 
 	dbc "github.com/krazyTry/meteora-go/dbc/dynamic_bonding_curve"
 
@@ -21,6 +22,10 @@ func WithdrawLeftoverInstruction(
 	poolState *dbc.VirtualPool,
 	configState *dbc.PoolConfig,
 ) ([]solana.Instruction, error) {
+	if poolState.IsWithdrawLeftover == 1 {
+		return nil, fmt.Errorf("withdrawLeftover has been claimed")
+	}
+
 	baseMint := poolState.BaseMint // baseMint
 
 	var instructions []solana.Instruction
@@ -115,6 +120,10 @@ func WithdrawPartnerSurplusInstruction(
 	poolState *dbc.VirtualPool,
 	configState *dbc.PoolConfig,
 ) ([]solana.Instruction, error) {
+	if poolState.IsPartnerWithdrawSurplus == 1 {
+		return nil, fmt.Errorf("partnerWithdrawSurplus has been claimed")
+	}
+
 	quoteMint := configState.QuoteMint // solana.WrappedSol
 	quoteVault := poolState.QuoteVault
 
@@ -215,6 +224,10 @@ func WithdrawCreatorSurplusInstruction(
 	poolState *dbc.VirtualPool,
 	config *dbc.PoolConfig,
 ) ([]solana.Instruction, error) {
+	if poolState.IsCreatorWithdrawSurplus == 1 {
+		return nil, fmt.Errorf("creatorWithdrawSurplus has been claimed")
+	}
+
 	quoteMint := config.QuoteMint // solana.WrappedSol
 	quoteVault := poolState.QuoteVault
 
@@ -248,7 +261,7 @@ func WithdrawCreatorSurplusInstruction(
 			tokenQuoteAccount,
 			poolCreator,
 			poolCreator,
-			[]solana.PublicKey{},
+			nil,
 		).Build()
 
 		instructions = append(instructions, closeWSOLIx)
@@ -353,7 +366,7 @@ func WithdrawMigrationFeeInstruction(
 			tokenQuoteAccount,
 			owner,
 			owner,
-			[]solana.PublicKey{},
+			nil,
 		).Build()
 
 		instructions = append(instructions, closeWSOLIx)

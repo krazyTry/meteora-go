@@ -39,7 +39,7 @@ func TransferInstruction(
 		mint,
 		receiveTokenAccount,
 		payer,
-		[]solana.PublicKey{},
+		nil,
 	).Build()
 
 	return append(instructions, transferIx), nil
