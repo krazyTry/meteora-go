@@ -6,6 +6,7 @@ import (
 
 	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/rpc"
+	"github.com/gagliardetto/solana-go/rpc/ws"
 	dbc "github.com/krazyTry/meteora-go/dbc/dynamic_bonding_curve"
 	solanago "github.com/krazyTry/meteora-go/solana"
 )
@@ -40,6 +41,7 @@ func CreateConfigInstruction(
 
 func (m *DBC) CreateConfig(
 	ctx context.Context,
+	wsClient *ws.Client,
 	payer *solana.Wallet,
 	quoteMint solana.PublicKey,
 	cfg *dbc.ConfigParameters,
@@ -60,7 +62,7 @@ func (m *DBC) CreateConfig(
 
 	sig, err := solanago.SendTransaction(ctx,
 		m.rpcClient,
-		m.wsClient,
+		wsClient,
 		instructions,
 		payer.PublicKey(),
 		func(key solana.PublicKey) *solana.PrivateKey {
@@ -115,6 +117,7 @@ func GetConfig(
 
 func (m *DBC) InitConfig(
 	ctx context.Context,
+	wsClient *ws.Client,
 	payerWallet *solana.Wallet,
 	quoteMint solana.PublicKey,
 	cfg *dbc.ConfigParameters,
@@ -128,7 +131,7 @@ func (m *DBC) InitConfig(
 		return nil
 	}
 
-	if _, err = m.CreateConfig(ctx, payerWallet, quoteMint, cfg); err != nil {
+	if _, err = m.CreateConfig(ctx, wsClient, payerWallet, quoteMint, cfg); err != nil {
 		return err
 	}
 	return nil

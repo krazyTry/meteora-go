@@ -9,6 +9,7 @@ import (
 	"github.com/gagliardetto/solana-go/programs/system"
 	"github.com/gagliardetto/solana-go/programs/token"
 	"github.com/gagliardetto/solana-go/rpc"
+	"github.com/gagliardetto/solana-go/rpc/ws"
 	"github.com/krazyTry/meteora-go/damm.v2/cp_amm"
 	solanago "github.com/krazyTry/meteora-go/solana"
 )
@@ -145,6 +146,7 @@ func SwapInstruction(
 
 func (m *DammV2) Swap(
 	ctx context.Context,
+	wsClient *ws.Client,
 	payer *solana.Wallet,
 	owner *solana.Wallet,
 	referrer *solana.Wallet,
@@ -179,7 +181,7 @@ func (m *DammV2) Swap(
 
 	sig, err := solanago.SendTransaction(ctx,
 		m.rpcClient,
-		m.wsClient,
+		wsClient,
 		instructions,
 		payer.PublicKey(),
 		func(key solana.PublicKey) *solana.PrivateKey {
@@ -212,6 +214,7 @@ func BuyInstruction(
 
 func (m *DammV2) Buy(
 	ctx context.Context,
+	wsClient *ws.Client,
 	buyer *solana.Wallet,
 	referrer *solana.Wallet,
 	poolAddress solana.PublicKey,
@@ -238,6 +241,7 @@ func (m *DammV2) Buy(
 	}
 	return m.Swap(
 		ctx,
+		wsClient,
 		buyer,
 		buyer,
 		referrer,
@@ -264,6 +268,7 @@ func SellInstruction(
 
 func (m *DammV2) Sell(
 	ctx context.Context,
+	wsClient *ws.Client,
 	seller *solana.Wallet,
 	referrer *solana.Wallet,
 	poolAddress solana.PublicKey,
@@ -296,6 +301,7 @@ func (m *DammV2) Sell(
 
 	return m.Swap(
 		ctx,
+		wsClient,
 		seller,
 		seller,
 		referrer,

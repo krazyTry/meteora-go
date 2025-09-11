@@ -7,7 +7,6 @@ import (
 
 	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/rpc"
-	"github.com/gagliardetto/solana-go/rpc/ws"
 )
 
 var (
@@ -56,7 +55,6 @@ func Init() error {
 }
 
 type DBC struct {
-	wsClient         *ws.Client
 	rpcClient        *rpc.Client
 	config           *solana.Wallet
 	feeClaimer       *solana.Wallet
@@ -65,7 +63,6 @@ type DBC struct {
 }
 
 func NewDBC(
-	wsClient *ws.Client,
 	rpcClient *rpc.Client,
 	config *solana.Wallet,
 	poolCreator *solana.Wallet,
@@ -74,7 +71,6 @@ func NewDBC(
 ) (*DBC, error) {
 
 	return &DBC{
-		wsClient:         wsClient,
 		rpcClient:        rpcClient,
 		config:           config,
 		feeClaimer:       poolPartner,

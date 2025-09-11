@@ -13,6 +13,7 @@ import (
 	"github.com/gagliardetto/solana-go/programs/system"
 	token "github.com/gagliardetto/solana-go/programs/token"
 	"github.com/gagliardetto/solana-go/rpc"
+	"github.com/gagliardetto/solana-go/rpc/ws"
 )
 
 func SwapInstruction(
@@ -173,6 +174,7 @@ func SwapInstruction(
 
 func (m *DBC) Swap(
 	ctx context.Context,
+	wsClient *ws.Client,
 	payer *solana.Wallet,
 	owner *solana.Wallet,
 	referrer *solana.Wallet,
@@ -210,7 +212,7 @@ func (m *DBC) Swap(
 
 	sig, err := solanago.SendTransaction(ctx,
 		m.rpcClient,
-		m.wsClient,
+		wsClient,
 		instructions,
 		payer.PublicKey(),
 		func(key solana.PublicKey) *solana.PrivateKey {
@@ -262,6 +264,7 @@ func BuyInstruction(
 
 func (m *DBC) Buy(
 	ctx context.Context,
+	wsClient *ws.Client,
 	buyer *solana.Wallet,
 	referrer *solana.Wallet,
 	poolAddress solana.PublicKey,
@@ -291,6 +294,7 @@ func (m *DBC) Buy(
 
 	return m.Swap(
 		ctx,
+		wsClient,
 		buyer,
 		buyer,
 		referrer,
@@ -334,6 +338,7 @@ func SellInstruction(
 
 func (m *DBC) Sell(
 	ctx context.Context,
+	wsClient *ws.Client,
 	seller *solana.Wallet,
 	referrer *solana.Wallet,
 	poolAddress solana.PublicKey,
@@ -368,6 +373,7 @@ func (m *DBC) Sell(
 
 	return m.Swap(
 		ctx,
+		wsClient,
 		seller,
 		seller,
 		referrer,

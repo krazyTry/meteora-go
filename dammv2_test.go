@@ -79,7 +79,6 @@ func TestDammV2(t *testing.T) {
 	}
 
 	meteoraDammV2, err := dammV2.NewDammV2(
-		wsClient,
 		rpcClient,
 		poolCreator,
 	)
@@ -183,6 +182,7 @@ func TestDammV2(t *testing.T) {
 			quoteAmount := big.NewInt(1) // SOL
 			sig, _, _, err := meteoraDammV2.CreatePool(
 				ctx1,
+				wsClient,
 				payer,
 				0,
 				1, // 1 base token = 1 quote token
@@ -220,6 +220,7 @@ func TestDammV2(t *testing.T) {
 			quoteAmount := big.NewInt(1) // SOL
 			sig, _, _, err := meteoraDammV2.CreateCustomizablePoolWithDynamicConfig(
 				ctx1,
+				wsClient,
 				payer,
 				1,
 				poolCreatorAuthority,
@@ -264,6 +265,7 @@ func TestDammV2(t *testing.T) {
 			quoteAmount := big.NewInt(1) // SOL
 			sig, _, _, err := meteoraDammV2.CreateCustomizablePool(
 				ctx1,
+				wsClient,
 				payer,
 				1, // 1 base token = 1 quote token
 				baseMint,
@@ -297,7 +299,7 @@ func TestDammV2(t *testing.T) {
 			fmt.Println("ready CreatePosition")
 			ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
 			defer cancel1()
-			sig, position, err := meteoraDammV2.CreatePosition(ctx1, payer, poolPartner, baseMint)
+			sig, position, err := meteoraDammV2.CreatePosition(ctx1, wsClient, payer, poolPartner, baseMint)
 			if err != nil {
 				t.Fatal("meteoraDammV2.CreatePosition fail", err)
 			}
@@ -330,7 +332,7 @@ func TestDammV2(t *testing.T) {
 		if err != nil {
 			t.Fatal("meteoraDammV2.GetDepositQuote fail", err)
 		}
-		sig, err := meteoraDammV2.AddPositionLiquidity(ctx1, payer, poolPartner, virtualPool, true, amountIn, quote.LiquidityDelta, quote.OutputAmount)
+		sig, err := meteoraDammV2.AddPositionLiquidity(ctx1, wsClient, payer, poolPartner, virtualPool, true, amountIn, quote.LiquidityDelta, quote.OutputAmount)
 		if err != nil {
 			t.Fatal("meteoraDammV2.AddPositionLiquidity fail", err)
 		}
@@ -351,7 +353,7 @@ func TestDammV2(t *testing.T) {
 		fmt.Println("minOutAmount", quote)
 		// return
 		fmt.Printf("buy token address:%s expected:%v minimum:%v\n", baseMint, quote.SwapOutAmount, quote.MinSwapOutAmount)
-		sig, err := meteoraDammV2.Buy(ctx1, ownerWallet, nil, poolState.Address, poolState.Pool, amountIn, quote.MinSwapOutAmount)
+		sig, err := meteoraDammV2.Buy(ctx1, wsClient, ownerWallet, nil, poolState.Address, poolState.Pool, amountIn, quote.MinSwapOutAmount)
 		if err != nil {
 			t.Fatal("cpAmm.Buy() fail", err)
 		}
@@ -386,7 +388,7 @@ func TestDammV2(t *testing.T) {
 				t.Fatal("cpAmm.SellQuote fail", err)
 			}
 
-			sig, err := meteoraDammV2.Sell(ctx1, ownerWallet, nil, poolState.Address, poolState.Pool, amountIn, quote.MinSwapOutAmount)
+			sig, err := meteoraDammV2.Sell(ctx1, wsClient, ownerWallet, nil, poolState.Address, poolState.Pool, amountIn, quote.MinSwapOutAmount)
 			if err != nil {
 				t.Fatal("cpAmm.Sell fail", err)
 			}
@@ -431,7 +433,7 @@ func TestDammV2(t *testing.T) {
 		if err != nil {
 			t.Fatal("meteoraDammV2.GetWithdrawQuote fail", err)
 		}
-		sig, err := meteoraDammV2.RemovePositionLiquidity(ctx1, payer, poolPartner, virtualPool, liquidityDelta, quote.OutBaseAmount, quote.OutQuoteAmount, xx)
+		sig, err := meteoraDammV2.RemovePositionLiquidity(ctx1, wsClient, payer, poolPartner, virtualPool, liquidityDelta, quote.OutBaseAmount, quote.OutQuoteAmount, xx)
 		if err != nil {
 			t.Fatal("meteoraDammV2.RemovePositionLiquidity fail", err)
 		}
@@ -463,7 +465,7 @@ func TestDammV2(t *testing.T) {
 			xx = vestings
 		}
 
-		sig, err := meteoraDammV2.RemoveAllLiquidity(ctx1, payer, poolPartner, baseMint, xx)
+		sig, err := meteoraDammV2.RemoveAllLiquidity(ctx1, wsClient, payer, poolPartner, baseMint, xx)
 		if err != nil {
 			t.Fatal("meteoraDammV2.RemoveAllLiquidity fail", err)
 		}
@@ -491,7 +493,7 @@ func TestDammV2(t *testing.T) {
 			fmt.Println("claim fee")
 			ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
 			defer cancel1()
-			sig, err := meteoraDammV2.ClaimPositionFee(ctx1, payer, poolPartner, baseMint)
+			sig, err := meteoraDammV2.ClaimPositionFee(ctx1, wsClient, payer, poolPartner, baseMint)
 			if err != nil {
 				t.Fatal("ClaimPositionFee() fail", err)
 			}
@@ -506,7 +508,7 @@ func TestDammV2(t *testing.T) {
 		fmt.Println("ready ClosePosition")
 		ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
 		defer cancel1()
-		sig, err := meteoraDammV2.ClosePosition(ctx1, payer, poolPartner, baseMint)
+		sig, err := meteoraDammV2.ClosePosition(ctx1, wsClient, payer, poolPartner, baseMint)
 		if err != nil {
 			t.Fatal("meteoraDammV2.ClosePosition fail", err)
 		}
@@ -519,7 +521,7 @@ func TestDammV2(t *testing.T) {
 		fmt.Println("ready CreatePosition")
 		ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
 		defer cancel1()
-		sig, _, err := meteoraDammV2.CreatePosition(ctx1, payer, poolPartner, baseMint)
+		sig, _, err := meteoraDammV2.CreatePosition(ctx1, wsClient, payer, poolPartner, baseMint)
 		if err != nil {
 			t.Fatal("meteoraDammV2.CreatePosition fail", err)
 		}
@@ -538,7 +540,7 @@ func TestDammV2(t *testing.T) {
 			t.Fatal("meteoraDammV2.GetDepositQuote fail", err)
 		}
 		fmt.Println("quote", quote)
-		sig, err := meteoraDammV2.AddPositionLiquidity(ctx1, payer, poolPartner, virtualPool, true, amountIn, quote.LiquidityDelta, quote.OutputAmount)
+		sig, err := meteoraDammV2.AddPositionLiquidity(ctx1, wsClient, payer, poolPartner, virtualPool, true, amountIn, quote.LiquidityDelta, quote.OutputAmount)
 		if err != nil {
 			t.Fatal("meteoraDammV2.AddPositionLiquidity fail", err)
 		}
@@ -551,7 +553,7 @@ func TestDammV2(t *testing.T) {
 			fmt.Println("ready CreatePosition")
 			ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
 			defer cancel1()
-			sig, position, err := meteoraDammV2.CreatePosition(ctx1, payer, poolCreator, baseMint)
+			sig, position, err := meteoraDammV2.CreatePosition(ctx1, wsClient, payer, poolCreator, baseMint)
 			if err != nil {
 				t.Fatal("meteoraDammV2.CreatePosition fail", err)
 			}
@@ -565,6 +567,7 @@ func TestDammV2(t *testing.T) {
 			defer cancel1()
 			sig, err := meteoraDammV2.SplitPosition(
 				ctx1,
+				wsClient,
 				payer,
 				poolPartner,
 				poolCreator,
@@ -614,7 +617,7 @@ func TestDammV2(t *testing.T) {
 
 			vesting := solana.NewWallet()
 
-			sig, err := meteoraDammV2.LockPosition(ctx1, payer, poolPartner, baseMint, nil, 1, cliffUnlockLiquidity, liquidityPerPeriod, numberOfPeriod, vesting)
+			sig, err := meteoraDammV2.LockPosition(ctx1, wsClient, payer, poolPartner, baseMint, nil, 1, cliffUnlockLiquidity, liquidityPerPeriod, numberOfPeriod, vesting)
 			if err != nil {
 				t.Fatal("meteoraDammV2.LockPosition fail", err)
 			}
@@ -625,7 +628,7 @@ func TestDammV2(t *testing.T) {
 			ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
 			defer cancel1()
 			liquidityToLock := new(big.Int).Div(liquidityDelta, big.NewInt(2))
-			sig, err := meteoraDammV2.PermanentLockPosition(ctx1, poolPartner, baseMint, liquidityToLock)
+			sig, err := meteoraDammV2.PermanentLockPosition(ctx1, wsClient, poolPartner, baseMint, liquidityToLock)
 			if err != nil {
 				t.Fatal("meteoraDammV2.PermanentLockPosition fail", err)
 			}

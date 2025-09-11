@@ -7,6 +7,7 @@ import (
 	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/programs/token"
 	"github.com/gagliardetto/solana-go/rpc"
+	"github.com/gagliardetto/solana-go/rpc/ws"
 	dbc "github.com/krazyTry/meteora-go/dbc/dynamic_bonding_curve"
 	solanago "github.com/krazyTry/meteora-go/solana"
 )
@@ -101,6 +102,7 @@ func ClaimPartnerTradingFeeInstruction(
 
 func (m *DBC) ClaimPartnerTradingFee(
 	ctx context.Context,
+	wsClient *ws.Client,
 	payer *solana.Wallet,
 	baseMint solana.PublicKey,
 	claimBase bool,
@@ -138,7 +140,7 @@ func (m *DBC) ClaimPartnerTradingFee(
 
 	sig, err := solanago.SendTransaction(ctx,
 		m.rpcClient,
-		m.wsClient,
+		wsClient,
 		instructions,
 		payer.PublicKey(),
 		func(key solana.PublicKey) *solana.PrivateKey {
@@ -248,6 +250,7 @@ func ClaimCreatorTradingFeeInstruction(
 
 func (m *DBC) ClaimCreatorTradingFee(
 	ctx context.Context,
+	wsClient *ws.Client,
 	payer *solana.Wallet,
 	baseMint solana.PublicKey,
 	claimBase bool,
@@ -285,7 +288,7 @@ func (m *DBC) ClaimCreatorTradingFee(
 
 	sig, err := solanago.SendTransaction(ctx,
 		m.rpcClient,
-		m.wsClient,
+		wsClient,
 		instructions,
 		payer.PublicKey(),
 		func(key solana.PublicKey) *solana.PrivateKey {

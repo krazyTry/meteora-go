@@ -5,7 +5,6 @@ import (
 
 	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/rpc"
-	"github.com/gagliardetto/solana-go/rpc/ws"
 )
 
 var (
@@ -30,20 +29,17 @@ func Init() error {
 }
 
 type DammV2 struct {
-	wsClient  *ws.Client
 	rpcClient *rpc.Client
 
 	poolCreator *solana.Wallet
 }
 
 func NewDammV2(
-	wsClient *ws.Client,
 	rpcClient *rpc.Client,
 	poolCreator *solana.Wallet,
 ) (*DammV2, error) {
 
 	m := &DammV2{
-		wsClient:    wsClient,
 		rpcClient:   rpcClient,
 		poolCreator: poolCreator,
 	}

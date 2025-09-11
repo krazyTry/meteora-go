@@ -10,6 +10,7 @@ import (
 	"github.com/gagliardetto/solana-go/programs/system"
 	"github.com/gagliardetto/solana-go/programs/token"
 	"github.com/gagliardetto/solana-go/rpc"
+	"github.com/gagliardetto/solana-go/rpc/ws"
 	"github.com/krazyTry/meteora-go/damm.v2/cp_amm"
 	solanago "github.com/krazyTry/meteora-go/solana"
 	"github.com/krazyTry/meteora-go/u128"
@@ -240,6 +241,7 @@ func CreateCustomizablePoolInstruction(
 
 func (m *DammV2) CreateCustomizablePool(
 	ctx context.Context,
+	wsClient *ws.Client,
 	payer *solana.Wallet,
 	initialPrice float64, // 1 base token = 1 quote token
 	baseMint solana.PublicKey,
@@ -305,7 +307,7 @@ func (m *DammV2) CreateCustomizablePool(
 	}
 	sig, err := solanago.SendTransaction(ctx,
 		m.rpcClient,
-		m.wsClient,
+		wsClient,
 		instructions,
 		m.poolCreator.PublicKey(),
 		func(key solana.PublicKey) *solana.PrivateKey {
@@ -542,6 +544,7 @@ func CreatePoolInstruction(
 
 func (m *DammV2) CreatePool(
 	ctx context.Context,
+	wsClient *ws.Client,
 	payer *solana.Wallet,
 	configIndex uint64,
 	initialPrice float64,
@@ -583,7 +586,7 @@ func (m *DammV2) CreatePool(
 	}
 	sig, err := solanago.SendTransaction(ctx,
 		m.rpcClient,
-		m.wsClient,
+		wsClient,
 		instructions,
 		payer.PublicKey(),
 		func(key solana.PublicKey) *solana.PrivateKey {
@@ -831,6 +834,7 @@ func CreateCustomizablePoolWithDynamicConfigInstruction(
 
 func (m *DammV2) CreateCustomizablePoolWithDynamicConfig(
 	ctx context.Context,
+	wsClient *ws.Client,
 	payer *solana.Wallet,
 	configIndex uint64,
 	poolCreatorAuthority *solana.Wallet,
@@ -934,7 +938,7 @@ func (m *DammV2) CreateCustomizablePoolWithDynamicConfig(
 
 	sig, err := solanago.SendTransaction(ctx,
 		m.rpcClient,
-		m.wsClient,
+		wsClient,
 		append([]solana.Instruction{computebudget.NewSetComputeUnitLimitInstruction(500_000).Build()}, instructions[4:]...),
 		payer.PublicKey(),
 		func(key solana.PublicKey) *solana.PrivateKey {

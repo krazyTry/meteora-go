@@ -5,11 +5,13 @@ import (
 	"math/big"
 
 	"github.com/gagliardetto/solana-go"
+	"github.com/gagliardetto/solana-go/rpc/ws"
 	solanago "github.com/krazyTry/meteora-go/solana"
 )
 
 func (m *DBC) Transfer(
 	ctx context.Context,
+	wsClient *ws.Client,
 	payer *solana.Wallet,
 	sender *solana.Wallet,
 	receiver *solana.Wallet,
@@ -44,7 +46,7 @@ func (m *DBC) Transfer(
 
 	sig, err := solanago.SendTransaction(ctx,
 		m.rpcClient,
-		m.wsClient,
+		wsClient,
 		instructions,
 		payer.PublicKey(),
 		func(key solana.PublicKey) *solana.PrivateKey {

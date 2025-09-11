@@ -12,6 +12,7 @@ import (
 	"github.com/gagliardetto/solana-go"
 	computebudget "github.com/gagliardetto/solana-go/programs/compute-budget"
 	"github.com/gagliardetto/solana-go/rpc"
+	"github.com/gagliardetto/solana-go/rpc/ws"
 )
 
 func CreateLockerInstruction(
@@ -77,6 +78,7 @@ func CreateLockerInstruction(
 
 func (m *DBC) CreateLocker(
 	ctx context.Context,
+	wsClient *ws.Client,
 	payer *solana.Wallet,
 	baseMint solana.PublicKey,
 ) (string, error) {
@@ -109,7 +111,7 @@ func (m *DBC) CreateLocker(
 
 	sig, err := solanago.SendTransaction(ctx,
 		m.rpcClient,
-		m.wsClient,
+		wsClient,
 		instructions,
 		payer.PublicKey(),
 		func(key solana.PublicKey) *solana.PrivateKey {
@@ -165,6 +167,7 @@ func MigrationDammV2CreateMetadataInstruction(
 
 func (m *DBC) MigrationDammV2CreateMetadata(
 	ctx context.Context,
+	wsClient *ws.Client,
 	payer *solana.Wallet,
 	baseMint solana.PublicKey,
 ) (string, error) {
@@ -186,7 +189,7 @@ func (m *DBC) MigrationDammV2CreateMetadata(
 
 	sig, err := solanago.SendTransaction(ctx,
 		m.rpcClient,
-		m.wsClient,
+		wsClient,
 		instructions,
 		payer.PublicKey(),
 		func(key solana.PublicKey) *solana.PrivateKey {
@@ -313,6 +316,7 @@ func MigrationDammV2Instruction(
 
 func (m *DBC) MigrationDammV2(
 	ctx context.Context,
+	wsClient *ws.Client,
 	payer *solana.Wallet,
 	baseMint solana.PublicKey,
 ) (string, *solana.Wallet, *solana.Wallet, error) {
@@ -344,7 +348,7 @@ func (m *DBC) MigrationDammV2(
 
 	sig, err := solanago.SendTransaction(ctx,
 		m.rpcClient,
-		m.wsClient,
+		wsClient,
 		append([]solana.Instruction{
 			computebudget.NewSetComputeUnitLimitInstruction(500_000).Build(),
 		}, instructions...),

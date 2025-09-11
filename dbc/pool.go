@@ -13,6 +13,7 @@ import (
 	"github.com/gagliardetto/solana-go/programs/system"
 	"github.com/gagliardetto/solana-go/programs/token"
 	"github.com/gagliardetto/solana-go/rpc"
+	"github.com/gagliardetto/solana-go/rpc/ws"
 )
 
 func CreatePoolInstruction(
@@ -109,6 +110,7 @@ func CreatePoolInstruction(
 
 func (m *DBC) CreatePool(
 	ctx context.Context,
+	wsClient *ws.Client,
 	payer *solana.Wallet,
 	baseMint *solana.Wallet,
 	name string,
@@ -156,7 +158,7 @@ func (m *DBC) CreatePool(
 
 	sig, err := solanago.SendTransaction(ctx,
 		m.rpcClient,
-		m.wsClient,
+		wsClient,
 		instructions,
 		payer.PublicKey(),
 		func(key solana.PublicKey) *solana.PrivateKey {
@@ -374,6 +376,7 @@ func CreatePoolWithFirstBuInstruction(
 
 func (m *DBC) CreatePoolWithFirstBuy(
 	ctx context.Context,
+	wsClient *ws.Client,
 	payerAndBuyer *solana.Wallet,
 	baseMint *solana.Wallet,
 	name string,
@@ -435,7 +438,7 @@ func (m *DBC) CreatePoolWithFirstBuy(
 
 	sig, err := solanago.SendTransaction(ctx,
 		m.rpcClient,
-		m.wsClient,
+		wsClient,
 		instructions,
 		payer.PublicKey(),
 		func(key solana.PublicKey) *solana.PrivateKey {

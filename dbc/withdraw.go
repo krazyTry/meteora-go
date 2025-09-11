@@ -8,6 +8,7 @@ import (
 	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/programs/token"
 	"github.com/gagliardetto/solana-go/rpc"
+	"github.com/gagliardetto/solana-go/rpc/ws"
 	solanago "github.com/krazyTry/meteora-go/solana"
 )
 
@@ -55,6 +56,7 @@ func WithdrawLeftoverInstruction(
 
 func (m *DBC) WithdrawLeftover(
 	ctx context.Context,
+	wsClient *ws.Client,
 	payer *solana.Wallet,
 	baseMint solana.PublicKey,
 ) (string, error) {
@@ -84,7 +86,7 @@ func (m *DBC) WithdrawLeftover(
 
 	sig, err := solanago.SendTransaction(ctx,
 		m.rpcClient,
-		m.wsClient,
+		wsClient,
 		instructions,
 		payer.PublicKey(),
 		func(key solana.PublicKey) *solana.PrivateKey {
@@ -155,6 +157,7 @@ func WithdrawPartnerSurplusInstruction(
 
 func (m *DBC) WithdrawPartnerSurplus(
 	ctx context.Context,
+	wsClient *ws.Client,
 	payer *solana.Wallet,
 	baseMint solana.PublicKey,
 ) (string, error) {
@@ -183,7 +186,7 @@ func (m *DBC) WithdrawPartnerSurplus(
 
 	sig, err := solanago.SendTransaction(ctx,
 		m.rpcClient,
-		m.wsClient,
+		wsClient,
 		instructions,
 		payer.PublicKey(),
 		func(key solana.PublicKey) *solana.PrivateKey {
@@ -255,6 +258,7 @@ func WithdrawCreatorSurplusInstruction(
 
 func (m *DBC) WithdrawCreatorSurplus(
 	ctx context.Context,
+	wsClient *ws.Client,
 	payer *solana.Wallet,
 	baseMint solana.PublicKey,
 ) (string, error) {
@@ -284,7 +288,7 @@ func (m *DBC) WithdrawCreatorSurplus(
 
 	sig, err := solanago.SendTransaction(ctx,
 		m.rpcClient,
-		m.wsClient,
+		wsClient,
 		instructions,
 		payer.PublicKey(),
 		func(key solana.PublicKey) *solana.PrivateKey {
@@ -359,6 +363,7 @@ func WithdrawMigrationFeeInstruction(
 
 func (m *DBC) WithdrawPartnerMigrationFee(
 	ctx context.Context,
+	wsClient *ws.Client,
 	payer *solana.Wallet,
 	baseMint solana.PublicKey,
 ) (string, error) {
@@ -389,7 +394,7 @@ func (m *DBC) WithdrawPartnerMigrationFee(
 
 	sig, err := solanago.SendTransaction(ctx,
 		m.rpcClient,
-		m.wsClient,
+		wsClient,
 		instructions,
 		payer.PublicKey(),
 		func(key solana.PublicKey) *solana.PrivateKey {
@@ -411,6 +416,7 @@ func (m *DBC) WithdrawPartnerMigrationFee(
 
 func (m *DBC) WithdrawCreatorMigrationFee(
 	ctx context.Context,
+	wsClient *ws.Client,
 	payer *solana.Wallet,
 	baseMint solana.PublicKey,
 ) (string, error) {
@@ -439,7 +445,7 @@ func (m *DBC) WithdrawCreatorMigrationFee(
 	}
 	sig, err := solanago.SendTransaction(ctx,
 		m.rpcClient,
-		m.wsClient,
+		wsClient,
 		instructions,
 		payer.PublicKey(),
 		func(key solana.PublicKey) *solana.PrivateKey {

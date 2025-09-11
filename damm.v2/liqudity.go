@@ -13,6 +13,7 @@ import (
 	"github.com/gagliardetto/solana-go/programs/system"
 	"github.com/gagliardetto/solana-go/programs/token"
 	"github.com/gagliardetto/solana-go/rpc"
+	"github.com/gagliardetto/solana-go/rpc/ws"
 )
 
 func AddPositionLiquidityInstruction(
@@ -149,6 +150,7 @@ func AddPositionLiquidityInstruction(
 
 func (m *DammV2) AddPositionLiquidity(
 	ctx context.Context,
+	wsClient *ws.Client,
 	payer *solana.Wallet,
 	owner *solana.Wallet,
 	poolState *Pool,
@@ -186,7 +188,7 @@ func (m *DammV2) AddPositionLiquidity(
 	}
 	sig, err := solanago.SendTransaction(ctx,
 		m.rpcClient,
-		m.wsClient,
+		wsClient,
 		instructions,
 		payer.PublicKey(),
 		func(key solana.PublicKey) *solana.PrivateKey {
@@ -321,6 +323,7 @@ func RemovePositionLiquidityInstruction(
 
 func (m *DammV2) RemovePositionLiquidity(
 	ctx context.Context,
+	wsClient *ws.Client,
 	payer *solana.Wallet,
 	owner *solana.Wallet,
 	poolState *Pool,
@@ -359,7 +362,7 @@ func (m *DammV2) RemovePositionLiquidity(
 
 	sig, err := solanago.SendTransaction(ctx,
 		m.rpcClient,
-		m.wsClient,
+		wsClient,
 		instructions,
 		payer.PublicKey(),
 		func(key solana.PublicKey) *solana.PrivateKey {
@@ -494,6 +497,7 @@ func RemoveAllLiquidityInstruction(
 }
 func (m *DammV2) RemoveAllLiquidity(
 	ctx context.Context,
+	wsClient *ws.Client,
 	payer *solana.Wallet,
 	owner *solana.Wallet,
 	baseMint solana.PublicKey,
@@ -529,7 +533,7 @@ func (m *DammV2) RemoveAllLiquidity(
 
 	sig, err := solanago.SendTransaction(ctx,
 		m.rpcClient,
-		m.wsClient,
+		wsClient,
 		instructions,
 		payer.PublicKey(),
 		func(key solana.PublicKey) *solana.PrivateKey {

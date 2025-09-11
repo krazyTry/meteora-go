@@ -14,6 +14,7 @@ import (
 
 	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/rpc"
+	"github.com/gagliardetto/solana-go/rpc/ws"
 )
 
 func CreatePositionInstruction(
@@ -56,6 +57,7 @@ func CreatePositionInstruction(
 
 func (m *DammV2) CreatePosition(
 	ctx context.Context,
+	wsClient *ws.Client,
 	payer *solana.Wallet,
 	owner *solana.Wallet,
 	baseMint solana.PublicKey,
@@ -82,7 +84,7 @@ func (m *DammV2) CreatePosition(
 
 	sig, err := solanago.SendTransaction(ctx,
 		m.rpcClient,
-		m.wsClient,
+		wsClient,
 		instructions,
 		payer.PublicKey(),
 		func(key solana.PublicKey) *solana.PrivateKey {
@@ -130,6 +132,7 @@ func ClosePositionInstruction(
 
 func (m *DammV2) ClosePosition(
 	ctx context.Context,
+	wsClient *ws.Client,
 	payer *solana.Wallet,
 	owner *solana.Wallet,
 	baseMint solana.PublicKey,
@@ -163,7 +166,7 @@ func (m *DammV2) ClosePosition(
 
 	sig, err := solanago.SendTransaction(ctx,
 		m.rpcClient,
-		m.wsClient,
+		wsClient,
 		instructions,
 		payer.PublicKey(),
 		func(key solana.PublicKey) *solana.PrivateKey {
@@ -227,6 +230,7 @@ func LockPositionInstruction(
 
 func (m *DammV2) LockPosition(
 	ctx context.Context,
+	wsClient *ws.Client,
 	payer *solana.Wallet,
 	owner *solana.Wallet,
 	baseMint solana.PublicKey,
@@ -272,7 +276,7 @@ func (m *DammV2) LockPosition(
 	}
 	sig, err := solanago.SendTransaction(ctx,
 		m.rpcClient,
-		m.wsClient,
+		wsClient,
 		instructions,
 		payer.PublicKey(),
 		func(key solana.PublicKey) *solana.PrivateKey {
@@ -323,6 +327,7 @@ func PermanentLockPositionInstruction(
 
 func (m *DammV2) PermanentLockPosition(
 	ctx context.Context,
+	wsClient *ws.Client,
 	owner *solana.Wallet,
 	baseMint solana.PublicKey,
 	permanentLockLiquidity *big.Int,
@@ -354,7 +359,7 @@ func (m *DammV2) PermanentLockPosition(
 	}
 	sig, err := solanago.SendTransaction(ctx,
 		m.rpcClient,
-		m.wsClient,
+		wsClient,
 		instructions,
 		owner.PublicKey(),
 		func(key solana.PublicKey) *solana.PrivateKey {
@@ -427,6 +432,7 @@ func SplitPositionInstruction(
 
 func (m *DammV2) SplitPosition(
 	ctx context.Context,
+	wsClient *ws.Client,
 	payer *solana.Wallet,
 	owner *solana.Wallet,
 	newOwner *solana.Wallet,
@@ -475,7 +481,7 @@ func (m *DammV2) SplitPosition(
 	}
 	sig, err := solanago.SendTransaction(ctx,
 		m.rpcClient,
-		m.wsClient,
+		wsClient,
 		instructions,
 		payer.PublicKey(),
 		func(key solana.PublicKey) *solana.PrivateKey {

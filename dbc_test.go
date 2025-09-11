@@ -80,7 +80,7 @@ func TestDbc(t *testing.T) {
 		t.Fatal("dbc.Init() fail", err)
 	}
 
-	meteoraDBC, err := dbc.NewDBC(wsClient, rpcClient, config, poolCreator, poolPartner, leftoverReceiver)
+	meteoraDBC, err := dbc.NewDBC(rpcClient, config, poolCreator, poolPartner, leftoverReceiver)
 	if err != nil {
 		t.Fatal("NewMeteoraDBC() fail", err)
 	}
@@ -93,7 +93,7 @@ func TestDbc(t *testing.T) {
 		ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
 		defer cancel1()
 		fmt.Println("try to initialize config")
-		if err = meteoraDBC.InitConfig(ctx1, payer, solana.WrappedSol, testDBCGenConfig()); err != nil {
+		if err = meteoraDBC.InitConfig(ctx1, wsClient, payer, solana.WrappedSol, testDBCGenConfig()); err != nil {
 			t.Fatal("dbc.InitConfig() fail", err)
 		}
 		fmt.Println("initialization config completed")
@@ -122,7 +122,7 @@ func TestDbc(t *testing.T) {
 
 		fmt.Println("try to create token mint address:", baseMint)
 		amountIn := new(big.Int).SetUint64(uint64(0.1 * 1e9))
-		sig, err := meteoraDBC.CreatePoolWithFirstBuy(ctx1, ownerWallet, mintWallet, name, symbol, uri, amountIn, 250)
+		sig, err := meteoraDBC.CreatePoolWithFirstBuy(ctx1, wsClient, ownerWallet, mintWallet, name, symbol, uri, amountIn, 250)
 		if err != nil {
 			t.Fatal("dbc.CreatePoolWithFirstBuy fail", err)
 		}
@@ -177,7 +177,7 @@ func TestDbc(t *testing.T) {
 			if err != nil {
 				t.Fatal("testMintBalance() fail")
 			}
-			sig, err := meteoraDBC.Sell(ctx1, ownerWallet, nil, poolState.Address, poolState.VirtualPool, configState, amountIn, quote.MinimumAmountOut, currentPoint)
+			sig, err := meteoraDBC.Sell(ctx1, wsClient, ownerWallet, nil, poolState.Address, poolState.VirtualPool, configState, amountIn, quote.MinimumAmountOut, currentPoint)
 			if err != nil {
 				t.Fatal("dbc.Sell() fail", err)
 			}
@@ -202,7 +202,7 @@ func TestDbc(t *testing.T) {
 		fmt.Println("try to create token mint address:", baseMint)
 		ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
 		defer cancel1()
-		sig, err := meteoraDBC.CreatePool(ctx1, payer, mintWallet, name, symbol, uri)
+		sig, err := meteoraDBC.CreatePool(ctx1, wsClient, payer, mintWallet, name, symbol, uri)
 		if err != nil {
 			t.Fatal("dbc.CreatePool() fail", err)
 		}
@@ -228,7 +228,7 @@ func TestDbc(t *testing.T) {
 			t.Fatal("dbc.BuyQuote() fail", err)
 		}
 		fmt.Printf("buy token address:%s expected:%v minimum:%v\n", baseMint, minOutAmount.AmountOut, minOutAmount.MinimumAmountOut)
-		sig, err := meteoraDBC.Buy(ctx1, ownerWallet, nil, poolState.Address, poolState.VirtualPool, configState, amountIn, minOutAmount.MinimumAmountOut, currentPoint)
+		sig, err := meteoraDBC.Buy(ctx1, wsClient, ownerWallet, nil, poolState.Address, poolState.VirtualPool, configState, amountIn, minOutAmount.MinimumAmountOut, currentPoint)
 		if err != nil {
 			t.Fatal("dbc.Buy() fail", err)
 		}
@@ -256,7 +256,7 @@ func TestDbc(t *testing.T) {
 		if err != nil {
 			t.Fatal("dbc.SellQuote() fail", err)
 		}
-		sig, err := meteoraDBC.Sell(ctx1, ownerWallet, nil, poolState.Address, poolState.VirtualPool, configState, amountIn, quote.MinimumAmountOut, currentPoint)
+		sig, err := meteoraDBC.Sell(ctx1, wsClient, ownerWallet, nil, poolState.Address, poolState.VirtualPool, configState, amountIn, quote.MinimumAmountOut, currentPoint)
 		if err != nil {
 			t.Fatal("dbc.Sell() fail", err)
 		}
@@ -282,7 +282,7 @@ func TestDbc(t *testing.T) {
 			t.Fatal("dbc.BuyQuote() fail", err)
 		}
 		fmt.Printf("buy token address:%s expected:%v minimum:%v\n", baseMint, minOutAmount.AmountOut, minOutAmount.MinimumAmountOut)
-		sig, err := meteoraDBC.Buy(ctx1, ownerWallet, nil, poolState.Address, poolState.VirtualPool, configState, amountIn, minOutAmount.MinimumAmountOut, currentPoint)
+		sig, err := meteoraDBC.Buy(ctx1, wsClient, ownerWallet, nil, poolState.Address, poolState.VirtualPool, configState, amountIn, minOutAmount.MinimumAmountOut, currentPoint)
 		if err != nil {
 			t.Fatal("dbc.Buy() fail", err)
 		}
@@ -306,7 +306,7 @@ func TestDbc(t *testing.T) {
 		if err != nil {
 			t.Fatal("dbc.SellQuote() fail", err)
 		}
-		sig, err := meteoraDBC.Sell(ctx1, ownerWallet, nil, poolState.Address, poolState.VirtualPool, configState, amountIn, quote.MinimumAmountOut, currentPoint)
+		sig, err := meteoraDBC.Sell(ctx1, wsClient, ownerWallet, nil, poolState.Address, poolState.VirtualPool, configState, amountIn, quote.MinimumAmountOut, currentPoint)
 		if err != nil {
 			t.Fatal("dbc.Sell() fail", err)
 		}
@@ -335,7 +335,7 @@ func TestDbc(t *testing.T) {
 			fmt.Println("try to claim CreatorQuoteFee")
 			ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
 			defer cancel1()
-			sig, err := meteoraDBC.ClaimCreatorTradingFee(ctx1, payer, baseMint, false, pool.CreatorQuoteFee)
+			sig, err := meteoraDBC.ClaimCreatorTradingFee(ctx1, wsClient, payer, baseMint, false, pool.CreatorQuoteFee)
 			if err != nil {
 				t.Fatal("dbc.ClaimCreatorTradingFee() fail", err)
 			}
@@ -382,7 +382,7 @@ func TestDbc(t *testing.T) {
 			fmt.Println("try to claim PartnerQuoteFee")
 			ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
 			defer cancel1()
-			sig, err := meteoraDBC.ClaimPartnerTradingFee(ctx1, payer, baseMint, false, pool.PartnerQuoteFee)
+			sig, err := meteoraDBC.ClaimPartnerTradingFee(ctx1, wsClient, payer, baseMint, false, pool.PartnerQuoteFee)
 			if err != nil {
 				t.Fatal("dbc.ClaimPartnerTradingFee() fail", err)
 			}
@@ -427,7 +427,7 @@ func TestDbc(t *testing.T) {
 				t.Fatal("dbc.BuyQuote() fail", err)
 			}
 			fmt.Printf("buy token address:%s expected:%v minimum:%v\n", baseMint, minOutAmount.AmountOut, minOutAmount.MinimumAmountOut)
-			sig, err := meteoraDBC.Buy(ctx1, ownerWallet, nil, poolState.Address, poolState.VirtualPool, configState, amountIn, minOutAmount.MinimumAmountOut, currentPoint)
+			sig, err := meteoraDBC.Buy(ctx1, wsClient, ownerWallet, nil, poolState.Address, poolState.VirtualPool, configState, amountIn, minOutAmount.MinimumAmountOut, currentPoint)
 			if err != nil {
 				t.Fatal("dbc.Buy() fail", err)
 			}
@@ -441,7 +441,7 @@ func TestDbc(t *testing.T) {
 			ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
 			defer cancel1()
 
-			sig, err := meteoraDBC.MigrationDammV2CreateMetadata(ctx1, payer, baseMint)
+			sig, err := meteoraDBC.MigrationDammV2CreateMetadata(ctx1, wsClient, payer, baseMint)
 			if err != nil {
 				t.Fatal("dbc.MigrationDammV2CreateMetadata fail", err)
 			}
@@ -453,7 +453,7 @@ func TestDbc(t *testing.T) {
 			ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
 			defer cancel1()
 
-			sig, err := meteoraDBC.CreateLocker(ctx1, payer, baseMint)
+			sig, err := meteoraDBC.CreateLocker(ctx1, wsClient, payer, baseMint)
 			if err != nil {
 				t.Fatal("dbc.CreateLocker fail", err)
 			}
@@ -465,7 +465,7 @@ func TestDbc(t *testing.T) {
 			ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
 			defer cancel1()
 
-			sig, _, _, err := meteoraDBC.MigrationDammV2(ctx1, payer, baseMint)
+			sig, _, _, err := meteoraDBC.MigrationDammV2(ctx1, wsClient, payer, baseMint)
 			if err != nil {
 				t.Fatal("dbc.MigrationDammV2 fail", err)
 			}
@@ -481,7 +481,7 @@ func TestDbc(t *testing.T) {
 		{
 			ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
 			defer cancel1()
-			sig, err := meteoraDBC.WithdrawCreatorSurplus(ctx1, payer, baseMint)
+			sig, err := meteoraDBC.WithdrawCreatorSurplus(ctx1, wsClient, payer, baseMint)
 			if err != nil {
 				t.Fatal("dbc.WithdrawCreatorSurplus fail", err)
 			}
@@ -491,7 +491,7 @@ func TestDbc(t *testing.T) {
 		{
 			ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
 			defer cancel1()
-			sig, err := meteoraDBC.WithdrawPartnerSurplus(ctx1, payer, baseMint)
+			sig, err := meteoraDBC.WithdrawPartnerSurplus(ctx1, wsClient, payer, baseMint)
 			if err != nil {
 				t.Fatal("dbc.WithdrawPartnerSurplus fail", err)
 			}
@@ -501,7 +501,7 @@ func TestDbc(t *testing.T) {
 		{
 			ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
 			defer cancel1()
-			sig, err := meteoraDBC.WithdrawLeftover(ctx1, payer, baseMint)
+			sig, err := meteoraDBC.WithdrawLeftover(ctx1, wsClient, payer, baseMint)
 			if err != nil {
 				t.Fatal("dbc.WithdrawLeftover fail", err)
 			}
@@ -523,7 +523,7 @@ func TestDbc(t *testing.T) {
 				fmt.Println("try to claim CreatorQuoteFee")
 				ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
 				defer cancel1()
-				sig, err := meteoraDBC.ClaimCreatorTradingFee(ctx1, payer, baseMint, false, pool.CreatorQuoteFee)
+				sig, err := meteoraDBC.ClaimCreatorTradingFee(ctx1, wsClient, payer, baseMint, false, pool.CreatorQuoteFee)
 				if err != nil {
 					t.Fatal("dbc.ClaimCreatorTradingFee() fail", err)
 				}
@@ -570,7 +570,7 @@ func TestDbc(t *testing.T) {
 				fmt.Println("try to claim PartnerQuoteFee")
 				ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
 				defer cancel1()
-				sig, err := meteoraDBC.ClaimPartnerTradingFee(ctx1, payer, baseMint, false, pool.PartnerQuoteFee)
+				sig, err := meteoraDBC.ClaimPartnerTradingFee(ctx1, wsClient, payer, baseMint, false, pool.PartnerQuoteFee)
 				if err != nil {
 					t.Fatal("dbc.ClaimPartnerTradingFee() fail", err)
 				}
@@ -610,7 +610,7 @@ func TestDbc(t *testing.T) {
 		t.Fatal("dammV2.Init() fail", err)
 	}
 
-	meteoraDammV2, err := dammV2.NewDammV2(wsClient, rpcClient, poolCreator)
+	meteoraDammV2, err := dammV2.NewDammV2(rpcClient, poolCreator)
 	if err != nil {
 		t.Fatal("NewDammV2() fail", err)
 	}
@@ -644,7 +644,7 @@ func TestDbc(t *testing.T) {
 				fmt.Println("quote.SwapOutAmount", quote.SwapOutAmount)
 				fmt.Println("quote.MinSwapOutAmount", quote.MinSwapOutAmount)
 
-				sig, err := meteoraDammV2.Sell(ctx1, leftoverReceiver, nil, poolState.Address, poolState.Pool, amountIn, quote.MinSwapOutAmount)
+				sig, err := meteoraDammV2.Sell(ctx1, wsClient, leftoverReceiver, nil, poolState.Address, poolState.Pool, amountIn, quote.MinSwapOutAmount)
 				if err != nil {
 					t.Fatal("meteoraDammV2.Sell fail", err)
 				}
@@ -698,7 +698,7 @@ func TestDbc(t *testing.T) {
 		}
 		fmt.Println("poolState", poolState.Address)
 		fmt.Printf("buy token address:%s expected:%v minimum:%v\n", baseMint, minOutAmount.SwapOutAmount, minOutAmount.MinSwapOutAmount)
-		sig, err := meteoraDammV2.Buy(ctx1, ownerWallet, nil, poolState.Address, poolState.Pool, amountIn, minOutAmount.MinSwapOutAmount)
+		sig, err := meteoraDammV2.Buy(ctx1, wsClient, ownerWallet, nil, poolState.Address, poolState.Pool, amountIn, minOutAmount.MinSwapOutAmount)
 		if err != nil {
 			t.Fatal("cpAmm.Buy() fail", err)
 		}
@@ -726,7 +726,7 @@ func TestDbc(t *testing.T) {
 				t.Fatal("cpAmm.BuyQuote fail", err)
 			}
 
-			sig, err := meteoraDammV2.Sell(ctx1, ownerWallet, nil, poolState.Address, poolState.Pool, amountIn, quote.MinSwapOutAmount)
+			sig, err := meteoraDammV2.Sell(ctx1, wsClient, ownerWallet, nil, poolState.Address, poolState.Pool, amountIn, quote.MinSwapOutAmount)
 			if err != nil {
 				t.Fatal("cpAmm.Sell fail", err)
 			}
@@ -777,7 +777,7 @@ func TestDbc(t *testing.T) {
 					fmt.Println("claim fee creator")
 					ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
 					defer cancel1()
-					sig, err := meteoraDammV2.ClaimPositionFee(ctx1, payer, poolCreator, baseMint)
+					sig, err := meteoraDammV2.ClaimPositionFee(ctx1, wsClient, payer, poolCreator, baseMint)
 					if err != nil {
 						t.Fatal("ClaimPositionFee() fail", err)
 					}
@@ -843,7 +843,7 @@ func TestDbc(t *testing.T) {
 					fmt.Println("claim fee partner")
 					ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
 					defer cancel1()
-					sig, err := meteoraDammV2.ClaimPositionFee(ctx1, payer, poolPartner, baseMint)
+					sig, err := meteoraDammV2.ClaimPositionFee(ctx1, wsClient, payer, poolPartner, baseMint)
 					if err != nil {
 						t.Fatal("ClaimPositionFee() fail", err)
 					}
