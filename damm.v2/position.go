@@ -675,7 +675,13 @@ func GetPositionsByPoolPDA(
 	rpcClient *rpc.Client,
 	poolAddress solana.PublicKey,
 ) ([]*Position, error) {
-	opt := solanago.GenProgramAccountFilter(cp_amm.AccountKeyPosition, &solanago.Filter{Owner: poolAddress, Offset: 8})
+
+	opt := solanago.GenProgramAccountFilter(cp_amm.AccountKeyPosition, &solanago.Filter{
+		Owner:  poolAddress,
+		Offset: solanago.ComputeStructOffset(new(cp_amm.Position), "Pool"),
+	})
+
+	// opt := solanago.GenProgramAccountFilter(cp_amm.AccountKeyPosition, &solanago.Filter{Owner: poolAddress, Offset: 8})
 
 	outs, err := rpcClient.GetProgramAccountsWithOpts(ctx, cp_amm.ProgramID, opt)
 	if err != nil {

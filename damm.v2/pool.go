@@ -1003,13 +1003,33 @@ func GetPoolByBaseMint(
 	rpcClient *rpc.Client,
 	baseMint solana.PublicKey,
 ) (*Pool, error) {
-	pools, err := GetPools(ctx, rpcClient)
+
+	opt := solanago.GenProgramAccountFilter(cp_amm.AccountKeyPool, &solanago.Filter{
+		Owner:  baseMint,
+		Offset: solanago.ComputeStructOffset(new(cp_amm.Pool), "TokenAMint"),
+	})
+
+	outs, err := rpcClient.GetProgramAccountsWithOpts(ctx, cp_amm.ProgramID, opt)
+	if err != nil {
+		if err == rpc.ErrNotFound {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	if len(outs) == 0 {
+		return nil, nil
+	}
+
+	out := outs[0]
+
+	obj, err := cp_amm.ParseAnyAccount(out.Account.Data.GetBinary())
 	if err != nil {
 		return nil, err
 	}
-	pool, ok := pools[baseMint]
+	pool, ok := obj.(*cp_amm.Pool)
 	if !ok {
-		return nil, nil
+		return nil, fmt.Errorf("obj.(*cp_amm.Pool) fail")
 	}
-	return pool, nil
+	return &Pool{pool, out.Pubkey}, nil
 }

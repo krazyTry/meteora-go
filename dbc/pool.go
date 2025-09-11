@@ -466,7 +466,13 @@ func GetPoolsByConfig(
 	rpcClient *rpc.Client,
 	config solana.PublicKey,
 ) ([]*dbc.VirtualPool, error) {
-	opt := solanago.GenProgramAccountFilter(dbc.AccountKeyPoolConfig, &solanago.Filter{Owner: config, Offset: 72})
+
+	opt := solanago.GenProgramAccountFilter(dbc.AccountKeyPoolConfig, &solanago.Filter{
+		Owner:  config,
+		Offset: solanago.ComputeStructOffset(new(dbc.VirtualPool), "Config"),
+	})
+
+	// opt := solanago.GenProgramAccountFilter(dbc.AccountKeyPoolConfig, &solanago.Filter{Owner: config, Offset: 72})
 
 	outs, err := rpcClient.GetProgramAccountsWithOpts(ctx, dbc.ProgramID, opt)
 	if err != nil {
@@ -503,7 +509,12 @@ func GetPoolsByCreator(
 	rpcClient *rpc.Client,
 	poolCreator solana.PublicKey,
 ) ([]*dbc.VirtualPool, error) {
-	opt := solanago.GenProgramAccountFilter(dbc.AccountKeyVirtualPool, &solanago.Filter{Owner: poolCreator, Offset: 104})
+	opt := solanago.GenProgramAccountFilter(dbc.AccountKeyVirtualPool, &solanago.Filter{
+		Owner:  poolCreator,
+		Offset: solanago.ComputeStructOffset(new(dbc.VirtualPool), "Creator"),
+	})
+
+	// opt := solanago.GenProgramAccountFilter(dbc.AccountKeyVirtualPool, &solanago.Filter{Owner: poolCreator, Offset: 104})
 	outs, err := rpcClient.GetProgramAccountsWithOpts(ctx, dbc.ProgramID, opt)
 	if err != nil {
 		if err == rpc.ErrNotFound {
@@ -540,7 +551,11 @@ func GetPoolByBaseMint(
 	rpcClient *rpc.Client,
 	baseMint solana.PublicKey,
 ) (*Pool, error) {
-	opt := solanago.GenProgramAccountFilter(dbc.AccountKeyVirtualPool, &solanago.Filter{Owner: baseMint, Offset: 136})
+	opt := solanago.GenProgramAccountFilter(dbc.AccountKeyVirtualPool, &solanago.Filter{
+		Owner:  baseMint,
+		Offset: solanago.ComputeStructOffset(new(dbc.VirtualPool), "BaseMint"),
+	})
+	// opt := solanago.GenProgramAccountFilter(dbc.AccountKeyVirtualPool, &solanago.Filter{Owner: baseMint, Offset: 136})
 
 	outs, err := rpcClient.GetProgramAccountsWithOpts(ctx, dbc.ProgramID, opt)
 	if err != nil {

@@ -19,6 +19,7 @@ import (
 )
 
 func TestDammV2(t *testing.T) {
+
 	// init
 	rpcClient, wsClient, pctx, cancel, err := testInit()
 	if err != nil {
@@ -86,6 +87,15 @@ func TestDammV2(t *testing.T) {
 		t.Fatal("NewDammV2() fail", err)
 	}
 
+	// {
+	// 	ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
+	// 	defer cancel1()
+
+	// 	baseMint := solana.MustPublicKeyFromBase58("EAeMX1T6Jzm7jMm7bVsfu7kLyZSxpEhdmtRUyMXJfaNC")
+
+	// 	fmt.Println(meteoraDammV2.GetPoolByBaseMint(ctx1, baseMint))
+	// 	return
+	// }
 	// {
 	// 	baseMint := solana.MustPublicKeyFromBase58("EAeMX1T6Jzm7jMm7bVsfu7kLyZSxpEhdmtRUyMXJfaNC")
 	// 	z, _ := decimal.NewFromString("79226673521066979257578248091")

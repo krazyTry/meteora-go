@@ -1,11 +1,14 @@
 package solana
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"fmt"
 	"math/big"
+	"reflect"
 
+	binary "github.com/gagliardetto/binary"
 	"github.com/gagliardetto/solana-go"
 	associatedtokenaccount "github.com/gagliardetto/solana-go/programs/associated-token-account"
 	"github.com/gagliardetto/solana-go/rpc"
@@ -107,6 +110,29 @@ func discriminator(name string) []byte {
 	var out [8]byte
 	copy(out[:], hash[:8])
 	return out[:]
+}
+
+func ComputeStructOffset(x any, o string) uint64 {
+	t := reflect.TypeOf(x).Elem()
+	fields := make([]reflect.StructField, 0)
+
+	for i := 0; i < t.NumField(); i++ {
+		f := t.Field(i)
+		if f.Name == o {
+			break
+		}
+		fields = append(fields, f)
+	}
+
+	newType := reflect.StructOf(fields)
+	newValue := reflect.New(newType).Elem()
+
+	buf__ := new(bytes.Buffer)
+	enc__ := binary.NewBorshEncoder(buf__)
+	enc__.Encode(newValue.Interface())
+
+	// instruction discriminators offset = 8
+	return uint64(buf__.Len()) + 8
 }
 
 func GenProgramAccountFilter(key string, filter *Filter) *rpc.GetProgramAccountsOpts {
