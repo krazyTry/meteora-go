@@ -998,7 +998,7 @@ func GetPools(
 func (m *DammV2) GetPoolByBaseMint(
 	ctx context.Context,
 	baseMint solana.PublicKey,
-) (*Pool, error) {
+) ([]*Pool, error) {
 	return GetPoolByBaseMint(ctx, m.rpcClient, baseMint)
 }
 
@@ -1006,7 +1006,7 @@ func GetPoolByBaseMint(
 	ctx context.Context,
 	rpcClient *rpc.Client,
 	baseMint solana.PublicKey,
-) (*Pool, error) {
+) ([]*Pool, error) {
 
 	opt := solanago.GenProgramAccountFilter(cp_amm.AccountKeyPool, &solanago.Filter{
 		Owner:  baseMint,
@@ -1025,15 +1025,18 @@ func GetPoolByBaseMint(
 		return nil, nil
 	}
 
-	out := outs[0]
+	var pools []*Pool
+	for _, out := range outs {
+		obj, err := cp_amm.ParseAnyAccount(out.Account.Data.GetBinary())
+		if err != nil {
+			return nil, err
+		}
+		pool, ok := obj.(*cp_amm.Pool)
+		if !ok {
+			return nil, fmt.Errorf("obj.(*cp_amm.Pool) fail")
+		}
+		pools = append(pools, &Pool{pool, out.Pubkey})
+	}
 
-	obj, err := cp_amm.ParseAnyAccount(out.Account.Data.GetBinary())
-	if err != nil {
-		return nil, err
-	}
-	pool, ok := obj.(*cp_amm.Pool)
-	if !ok {
-		return nil, fmt.Errorf("obj.(*cp_amm.Pool) fail")
-	}
-	return &Pool{pool, out.Pubkey}, nil
+	return pools, nil
 }

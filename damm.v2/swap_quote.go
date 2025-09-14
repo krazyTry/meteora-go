@@ -43,10 +43,11 @@ func SwapQuote(
 	slippageBps uint64,
 ) (*GetQuoteResult, *Pool, error) {
 
-	poolState, err := GetPoolByBaseMint(ctx, rpcClient, baseMint)
+	poolStates, err := GetPoolByBaseMint(ctx, rpcClient, baseMint)
 	if err != nil {
 		return nil, nil, err
 	}
+	poolState := poolStates[0]
 
 	baseMint = poolState.TokenAMint
 	quoteMint := poolState.TokenBMint

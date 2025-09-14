@@ -41,10 +41,11 @@ func GetDepositQuote(
 	amountIn *big.Int,
 ) (*DepositQuote, *Pool, error) {
 
-	poolState, err := GetPoolByBaseMint(ctx, rpcClient, baseMint)
+	poolStates, err := GetPoolByBaseMint(ctx, rpcClient, baseMint)
 	if err != nil {
 		return nil, nil, err
 	}
+	poolState := poolStates[0]
 
 	baseMint = poolState.TokenAMint
 	quoteMint := poolState.TokenBMint
@@ -147,10 +148,11 @@ func GetWithdrawQuote(
 	baseMint solana.PublicKey,
 	liquidityDelta *big.Int,
 ) (*WithdrawQuote, *Pool, error) {
-	poolState, err := GetPoolByBaseMint(ctx, rpcClient, baseMint)
+	poolStates, err := GetPoolByBaseMint(ctx, rpcClient, baseMint)
 	if err != nil {
 		return nil, nil, err
 	}
+	poolState := poolStates[0]
 
 	amountA := cp_amm.GetAmountAFromLiquidityDelta(
 		decimal.NewFromBigInt(liquidityDelta, 0),

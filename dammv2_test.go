@@ -703,15 +703,16 @@ func testCpAmmPoolCheck(t *testing.T, ctx context.Context, cpamm *dammV2.DammV2,
 	ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
 	defer cancel1()
 
-	pool, err := cpamm.GetPoolByBaseMint(ctx1, baseMint)
+	pools, err := cpamm.GetPoolByBaseMint(ctx1, baseMint)
 	if err != nil {
 		t.Fatal("cpamm.GetPoolByBaseMint() fail", err)
 	}
 
-	if pool == nil {
+	if len(pools) == 0 {
 		fmt.Println("pool does not exist:", baseMint)
 		return nil
 	}
+	pool := pools[0]
 	fmt.Println("===========================")
 	fmt.Println("print pool info")
 	fmt.Println("dammv2.PoolAddress", pool.Address)

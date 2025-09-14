@@ -63,10 +63,11 @@ func (m *DammV2) CreatePosition(
 	baseMint solana.PublicKey,
 ) (string, *solana.Wallet, error) {
 
-	poolState, err := m.GetPoolByBaseMint(ctx, baseMint)
+	poolStates, err := m.GetPoolByBaseMint(ctx, baseMint)
 	if err != nil {
 		return "", nil, err
 	}
+	poolState := poolStates[0]
 
 	positionNft := solana.NewWallet()
 
@@ -137,10 +138,11 @@ func (m *DammV2) ClosePosition(
 	owner *solana.Wallet,
 	baseMint solana.PublicKey,
 ) (string, error) {
-	poolState, err := m.GetPoolByBaseMint(ctx, baseMint)
+	poolStates, err := m.GetPoolByBaseMint(ctx, baseMint)
 	if err != nil {
 		return "", err
 	}
+	poolState := poolStates[0]
 	var userPosition *UserPosition
 	userPositions, err := m.GetUserPositionByUserAndPoolPDA(ctx, poolState.Address, owner.PublicKey())
 	if err != nil {
@@ -242,10 +244,11 @@ func (m *DammV2) LockPosition(
 	vesting *solana.Wallet,
 ) (string, error) {
 
-	poolState, err := m.GetPoolByBaseMint(ctx, baseMint)
+	poolStates, err := m.GetPoolByBaseMint(ctx, baseMint)
 	if err != nil {
 		return "", err
 	}
+	poolState := poolStates[0]
 
 	var userPosition *UserPosition
 	userPositions, err := m.GetUserPositionByUserAndPoolPDA(ctx, poolState.Address, owner.PublicKey())
@@ -333,10 +336,12 @@ func (m *DammV2) PermanentLockPosition(
 	permanentLockLiquidity *big.Int,
 ) (string, error) {
 
-	poolState, err := m.GetPoolByBaseMint(ctx, baseMint)
+	poolStates, err := m.GetPoolByBaseMint(ctx, baseMint)
 	if err != nil {
 		return "", err
 	}
+	poolState := poolStates[0]
+
 	var userPosition *UserPosition
 	userPositions, err := m.GetUserPositionByUserAndPoolPDA(ctx, poolState.Address, owner.PublicKey())
 	if err != nil {
@@ -445,10 +450,11 @@ func (m *DammV2) SplitPosition(
 	reward0Percentage uint8,
 	reward1Percentage uint8,
 ) (string, error) {
-	poolState, err := m.GetPoolByBaseMint(ctx, baseMint)
+	poolStates, err := m.GetPoolByBaseMint(ctx, baseMint)
 	if err != nil {
 		return "", err
 	}
+	poolState := poolStates[0]
 
 	var userPosition *UserPosition
 	userPositions, err := m.GetUserPositionByUserAndPoolPDA(ctx, poolState.Address, owner.PublicKey())

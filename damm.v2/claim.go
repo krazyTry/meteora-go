@@ -92,10 +92,12 @@ func (m *DammV2) ClaimPositionFee(
 	owner *solana.Wallet,
 	baseMint solana.PublicKey,
 ) (string, error) {
-	poolState, err := m.GetPoolByBaseMint(ctx, baseMint)
+	poolStates, err := m.GetPoolByBaseMint(ctx, baseMint)
 	if err != nil {
 		return "", err
 	}
+	poolState := poolStates[0]
+
 	var userPosition *UserPosition
 	userPositions, err := m.GetUserPositionByUserAndPoolPDA(ctx, poolState.Address, owner.PublicKey())
 	if err != nil {
@@ -210,10 +212,11 @@ func (m *DammV2) ClaimReward(
 	rewardIndex uint8,
 	skipReward uint8,
 ) (string, error) {
-	poolState, err := m.GetPoolByBaseMint(ctx, baseMint)
+	poolStates, err := m.GetPoolByBaseMint(ctx, baseMint)
 	if err != nil {
 		return "", err
 	}
+	poolState := poolStates[0]
 	var userPosition *UserPosition
 	userPositions, err := m.GetUserPositionByUserAndPoolPDA(ctx, poolState.Address, owner.PublicKey())
 	if err != nil {

@@ -96,7 +96,7 @@ func (m *DBC) CreateLocker(
 		ctx,
 		m.rpcClient,
 		payer.PublicKey(),
-		m.poolCreator.PublicKey(),
+		poolState.Creator,
 		poolState.Address,
 		poolState.VirtualPool,
 		configState,

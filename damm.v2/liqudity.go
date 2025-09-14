@@ -503,10 +503,11 @@ func (m *DammV2) RemoveAllLiquidity(
 	baseMint solana.PublicKey,
 	vestings []*Vesting,
 ) (string, error) {
-	poolState, err := m.GetPoolByBaseMint(ctx, baseMint)
+	poolStates, err := m.GetPoolByBaseMint(ctx, baseMint)
 	if err != nil {
 		return "", err
 	}
+	poolState := poolStates[0]
 	var userPosition *UserPosition
 	userPositions, err := m.GetUserPositionByUserAndPoolPDA(ctx, poolState.Address, owner.PublicKey())
 	if err != nil {
@@ -554,10 +555,11 @@ func (m *DammV2) RemoveAllLiquidity(
 }
 
 func (m *DammV2) GetPositionLiquidity(ctx context.Context, baseMint solana.PublicKey, owner solana.PublicKey) (*big.Int, *UserPosition, error) {
-	poolState, err := m.GetPoolByBaseMint(ctx, baseMint)
+	poolStates, err := m.GetPoolByBaseMint(ctx, baseMint)
 	if err != nil {
 		return nil, nil, err
 	}
+	poolState := poolStates[0]
 	var userPosition *UserPosition
 	userPositions, err := m.GetUserPositionByUserAndPoolPDA(ctx, poolState.Address, owner)
 	if err != nil {
