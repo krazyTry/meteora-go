@@ -16,6 +16,28 @@ import (
 	"github.com/gagliardetto/solana-go/rpc/ws"
 )
 
+// CreatePoolInstruction generates the instruction needed to create a DBC pool.
+//
+// Example:
+//
+// configState, _ := m.GetConfig(ctx, m.config.PublicKey())
+//
+// instructions, _ := CreatePoolInstruction(
+//
+//	ctx,
+//	payer.PublicKey(), // payer account
+//	m.poolCreator.PublicKey(), // pool (token) creator account
+//	m.config.PublicKey(),// config address used to create pool (token)
+//	configState, // dbc pool config
+//	baseMint.PublicKey(), // baseMintToken
+//	solana.WrappedSol, // quoteMintToken
+//	dbc.GetTokenProgram(configState.TokenType), // solana.TokenProgramID or solana.Token2022ProgramID
+//	solana.TokenProgramID,
+//	name, // pool (token) name
+//	symbol, // pool (token) symbol
+//	uri, // pool (token) metadata url
+//
+// )
 func CreatePoolInstruction(
 	ctx context.Context,
 	payer solana.PublicKey,
@@ -48,7 +70,7 @@ func CreatePoolInstruction(
 	var createPoolIx solana.Instruction
 
 	switch configState.TokenType {
-	case 0:
+	case dbc.TokenTypeSPL:
 		mintMetadata, err := dbc.DeriveMintMetadataPDA(baseMint)
 		if err != nil {
 			return nil, err
@@ -79,7 +101,7 @@ func CreatePoolInstruction(
 		); err != nil {
 			return nil, err
 		}
-	case 1:
+	case dbc.TokenTypeToken2022:
 		if createPoolIx, err = dbc.NewInitializeVirtualPoolWithToken2022Instruction(
 			dbc.InitializePoolParameters{
 				Name:   name,
@@ -108,6 +130,25 @@ func CreatePoolInstruction(
 	return []solana.Instruction{createPoolIx}, nil
 }
 
+// CreatePool creates a new pool with the config key.
+// It depends on the CreatePoolInstruction function.
+// This function is blocking and will wait for on-chain confirmation before returning.
+//
+// Example:
+//
+// mintWallet := solana.NewWallet() // pool (token) account
+//
+// sig, _ := meteoraDBC.CreatePool(
+//
+//	ctx,
+//	wsClient,
+//	payer, // payer account
+//	mintWallet, // pool (token) account
+//	name, // pool (token) name
+//	symbol, // pool (token) symbol
+//	uri, // pool (token) metadata url
+//
+// )
 func (m *DBC) CreatePool(
 	ctx context.Context,
 	wsClient *ws.Client,
@@ -180,6 +221,33 @@ func (m *DBC) CreatePool(
 	return sig.String(), nil
 }
 
+// CreatePoolWithFirstBuInstruction generates the instruction to create a DBC pool and complete the first purchase.
+// The function includes the creation of the ATA account.
+//
+// Example:
+//
+// configState, _ := m.GetConfig(ctx, m.config.PublicKey())
+//
+// instructions, _ := CreatePoolWithFirstBuInstruction(
+//
+//	ctx,
+//	m.rpcClient,
+//	payer.PublicKey(), // payer account
+//	m.poolCreator.PublicKey(),// pool (token) creator account
+//	m.config.PublicKey(), // config address used to create pool (token)
+//	configState, // dbc pool config
+//	baseMint.PublicKey(), // baseMintToken
+//	solana.WrappedSol, // quoteMintToken
+//	dbc.GetTokenProgram(configState.TokenType), // solana.TokenProgramID or solana.Token2022ProgramID
+//	solana.TokenProgramID,
+//	name, // pool (token) name
+//	symbol, // pool (token) symbol
+//	uri, // pool (token) metadata url
+//	buyer.PublicKey(), // pool (token) buyer account
+//	new(big.Int).Sub(amountIn, new(big.Int).SetUint64(rentExemptFee+transferFee)), // purchase amount must deduct rentExemptFee+transferFee to ensure ATA and purchase success
+//	slippageBps, // slippage //  250 = 2.5%
+//
+// )
 func CreatePoolWithFirstBuInstruction(
 	ctx context.Context,
 	rpcClient *rpc.Client,
@@ -191,7 +259,6 @@ func CreatePoolWithFirstBuInstruction(
 	quoteMint solana.PublicKey,
 	tokenBaseProgram solana.PublicKey,
 	tokenQuoteProgram solana.PublicKey,
-	creator solana.PublicKey,
 	name string,
 	symbol string,
 	uri string,
@@ -224,7 +291,7 @@ func CreatePoolWithFirstBuInstruction(
 
 	var createPoolIx solana.Instruction
 	switch configState.TokenType {
-	case 0:
+	case dbc.TokenTypeSPL:
 
 		mintMetadata, err := dbc.DeriveMintMetadataPDA(baseMint)
 		if err != nil {
@@ -256,7 +323,7 @@ func CreatePoolWithFirstBuInstruction(
 		); err != nil {
 			return nil, err
 		}
-	case 1:
+	case dbc.TokenTypeToken2022:
 
 		if createPoolIx, err = dbc.NewInitializeVirtualPoolWithToken2022Instruction(
 			dbc.InitializePoolParameters{
@@ -374,6 +441,29 @@ func CreatePoolWithFirstBuInstruction(
 	return instructions, nil
 }
 
+// CreatePoolWithFirstBuy creates a new pool with the config key and buys the token immediately.
+// It depends on the CreatePoolWithFirstBuInstruction function.
+// This function is blocking and will wait for on-chain confirmation before returning.
+//
+// Example:
+//
+// mintWallet := solana.NewWallet() // pool (token) account
+//
+// amountIn := new(big.Int).SetUint64(uint64(0.1 * 1e9))
+//
+// sig, _ := meteoraDBC.CreatePoolWithFirstBuy(
+//
+//	ctx,
+//	wsClient,
+//	ownerWallet, // payer account and also buyer
+//	mintWallet, // pool (token) account
+//	name, // pool (token) name
+//	symbol, // pool (token) symbol
+//	uri, // pool (token) metadata url
+//	amountIn, // amount required for purchase
+//	250, // slippage //  250 = 2.5%
+//
+// )
 func (m *DBC) CreatePoolWithFirstBuy(
 	ctx context.Context,
 	wsClient *ws.Client,
@@ -424,7 +514,6 @@ func (m *DBC) CreatePoolWithFirstBuy(
 		solana.WrappedSol,
 		dbc.GetTokenProgram(configState.TokenType),
 		solana.TokenProgramID,
-		m.poolCreator.PublicKey(),
 		name,
 		symbol,
 		uri,
@@ -460,22 +549,37 @@ func (m *DBC) CreatePoolWithFirstBuy(
 	return sig.String(), nil
 }
 
+// GetPoolsByConfig retrieves all pools by config key address.
+// It depends on the GetPoolsByConfig function.
+//
+// Example:
+//
+// pools, _ := meteoraDBC.GetPoolsByConfig(ctx)
 func (m *DBC) GetPoolsByConfig(ctx context.Context) ([]*dbc.VirtualPool, error) {
 	return GetPoolsByConfig(ctx, m.rpcClient, m.config.PublicKey())
 }
 
+// GetPoolsByConfig Retrieves all pools by config key address.
+//
+// Example:
+//
+// pools, _ := GetPoolsByConfig(
+//
+//	ctx,
+//	rpcClient,
+//	config.PublicKey(), // config address
+//
+// )
 func GetPoolsByConfig(
 	ctx context.Context,
 	rpcClient *rpc.Client,
-	config solana.PublicKey,
+	configAddress solana.PublicKey,
 ) ([]*dbc.VirtualPool, error) {
 
 	opt := solanago.GenProgramAccountFilter(dbc.AccountKeyPoolConfig, &solanago.Filter{
-		Owner:  config,
+		Owner:  configAddress,
 		Offset: solanago.ComputeStructOffset(new(dbc.VirtualPool), "Config"),
 	})
-
-	// opt := solanago.GenProgramAccountFilter(dbc.AccountKeyPoolConfig, &solanago.Filter{Owner: config, Offset: 72})
 
 	outs, err := rpcClient.GetProgramAccountsWithOpts(ctx, dbc.ProgramID, opt)
 	if err != nil {
@@ -501,12 +605,29 @@ func GetPoolsByConfig(
 	return list, nil
 }
 
+// GetPoolsByCreator retrieves all pools by creator address.
+// It depends on the GetPoolsByCreator function.
+//
+// Example:
+//
+// pools, _ := meteoraDBC.GetPoolsByCreator(ctx)
 func (m *DBC) GetPoolsByCreator(
 	ctx context.Context,
 ) ([]*dbc.VirtualPool, error) {
 	return GetPoolsByCreator(ctx, m.rpcClient, m.poolCreator.PublicKey())
 }
 
+// GetPoolsByCreator Retrieves all pools by creator address.
+//
+// Example:
+//
+// pools,_ := GetPoolsByCreator(
+//
+//	ctx,
+//	rpcClient,
+//	poolCreator.PublicKey(), // creator address
+//
+// )
 func GetPoolsByCreator(
 	ctx context.Context,
 	rpcClient *rpc.Client,
@@ -517,7 +638,6 @@ func GetPoolsByCreator(
 		Offset: solanago.ComputeStructOffset(new(dbc.VirtualPool), "Creator"),
 	})
 
-	// opt := solanago.GenProgramAccountFilter(dbc.AccountKeyVirtualPool, &solanago.Filter{Owner: poolCreator, Offset: 104})
 	outs, err := rpcClient.GetProgramAccountsWithOpts(ctx, dbc.ProgramID, opt)
 	if err != nil {
 		if err == rpc.ErrNotFound {
@@ -542,6 +662,19 @@ func GetPoolsByCreator(
 	return list, nil
 }
 
+// GetPoolByBaseMint gets the pool by base mint.
+// It depends on the GetPoolByBaseMint function.
+//
+// Example:
+//
+// baseMint := solana.MustPublicKeyFromBase58("BHyqU2m7YeMFM3PaPXd2zdk7ApVtmWVsMiVK148vxRcS")
+//
+// pool, _ := meteoraDBC.GetPoolByBaseMint(
+//
+//	ctx,
+//	baseMint, // pool (token) address
+//
+// )
 func (m *DBC) GetPoolByBaseMint(
 	ctx context.Context,
 	baseMint solana.PublicKey,
@@ -549,6 +682,17 @@ func (m *DBC) GetPoolByBaseMint(
 	return GetPoolByBaseMint(ctx, m.rpcClient, baseMint)
 }
 
+// GetPoolByBaseMint Gets the pool by base mint.
+//
+// Example:
+//
+// pool, _ := GetPoolByBaseMint(
+//
+//	ctx,
+//	rpcClient,
+//	baseMint, // pool (token) address
+//
+// )
 func GetPoolByBaseMint(
 	ctx context.Context,
 	rpcClient *rpc.Client,

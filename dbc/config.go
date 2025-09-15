@@ -11,6 +11,21 @@ import (
 	solanago "github.com/krazyTry/meteora-go/solana"
 )
 
+// CreateConfigInstruction generates the instruction needed for creating configuration.
+//
+// Example:
+//
+// instructions, _ := CreateConfigInstruction(
+//
+//	ctx,
+//	payer.PublicKey(),
+//	m.config.PublicKey(), // config address
+//	m.feeClaimer.PublicKey(), // partner
+//	m.leftoverReceiver.PublicKey(),// leftover receiver account
+//	quoteMint, // quoteMintToken eg: solana.WrappedSol
+//	cfg,
+//
+// )
 func CreateConfigInstruction(
 	ctx context.Context,
 	payer solana.PublicKey,
@@ -39,6 +54,22 @@ func CreateConfigInstruction(
 	return []solana.Instruction{createConfigIx}, nil
 }
 
+// CreateConfig creates a new config key that will dictate the behavior of all pools created with this key.
+// This is where you set the pool fees, migration options, the bonding curve shape, and more.
+// The function depends on CreateConfigInstruction.
+// The function is blocking, it will wait for on-chain confirmation before returning.
+//
+// Example:
+//
+// m.CreateConfig(
+//
+//	ctx,
+//	wsClient,
+//	payerWallet, // payer account
+//	quoteMint, // quoteMintToken eg: solana.WrappedSol
+//	cfg, // configuration eg: BuildCurve | BuildCurveWithMarketCap | BuildCurveWithTwoSegments | BuildCurveWithLiquidityWeights
+//
+// )
 func (m *DBC) CreateConfig(
 	ctx context.Context,
 	wsClient *ws.Client,
@@ -82,19 +113,41 @@ func (m *DBC) CreateConfig(
 	return sig.String(), nil
 }
 
+// GetConfig gets all details about the config (dbc pool config).
+// Depends on GetConfig.
+//
+// Example:
+//
+// m.GetConfig(
+//
+//	ctx,
+//	m.config.PublicKey(),
+//
+// )
 func (m *DBC) GetConfig(
 	ctx context.Context,
-	config solana.PublicKey,
+	configAddress solana.PublicKey,
 ) (*dbc.PoolConfig, error) {
-	return GetConfig(ctx, m.rpcClient, config)
+	return GetConfig(ctx, m.rpcClient, configAddress)
 }
 
+// GetConfig gets all details about the config (dbc pool config).
+//
+// Example:
+//
+// GetConfig(
+//
+//	ctx,
+//	rpcClient,
+//	config.PublicKey(),
+//
+// )
 func GetConfig(
 	ctx context.Context,
 	rpcClient *rpc.Client,
-	config solana.PublicKey,
+	configAddress solana.PublicKey,
 ) (*dbc.PoolConfig, error) {
-	out, err := solanago.GetAccountInfo(ctx, rpcClient, config)
+	out, err := solanago.GetAccountInfo(ctx, rpcClient, configAddress)
 	if err != nil {
 		if err == rpc.ErrNotFound {
 			return nil, nil
@@ -115,6 +168,83 @@ func GetConfig(
 	return cfg, nil
 }
 
+// InitConfig performs initialization check, creates config if it doesn't exist, skips if it exists.
+// The function is blocking, it will wait for on-chain confirmation before returning.
+//
+// Example:
+//
+//	cfg :=&dynamic_bonding_curve.ConfigParameters{
+//		PoolFees: dynamic_bonding_curve.PoolFeeParameters{
+//			BaseFee: dynamic_bonding_curve.BaseFeeParameters{
+//				CliffFeeNumerator: 5000 * 100_000, // 50% = 5000*0.01%,
+//				FirstFactor:       0,
+//				SecondFactor:      0,
+//				ThirdFactor:       0,
+//				BaseFeeMode:       0,
+//			},
+//			DynamicFee: &dynamic_bonding_curve.DynamicFeeParameters{
+//				BinStep:                  1,
+//				BinStepU128:              u128.GenUint128FromString("1844674407370955"),
+//				FilterPeriod:             10,
+//				DecayPeriod:              120,
+//				ReductionFactor:          1_000,
+//				MaxVolatilityAccumulator: 100_000,
+//				VariableFeeControl:       100_000,
+//			},
+//		},
+//		CollectFeeMode:            dynamic_bonding_curve.CollectFeeModeQuoteToken,
+//		MigrationOption:           dynamic_bonding_curve.MigrationOptionMETDAMMV2,
+//		ActivationType:            dynamic_bonding_curve.ActivationTypeTimestamp,
+//		TokenType:                 dynamic_bonding_curve.TokenTypeSPL,
+//		TokenDecimal:              dynamic_bonding_curve.TokenDecimalNine,
+//		PartnerLpPercentage:       80,
+//		PartnerLockedLpPercentage: 0,
+//		CreatorLpPercentage:       20,
+//		CreatorLockedLpPercentage: 0,
+//		MigrationQuoteThreshold:   0.5 * 1e9, // 85 * 1e9, >= 750 USD
+//		SqrtStartPrice:            u128.GenUint128FromString("58333726687135158"),
+//		LockedVesting: dynamic_bonding_curve.LockedVesting{
+//			AmountPerPeriod:                0,
+//			CliffDurationFromMigrationTime: 0,
+//			Frequency:                      0,
+//			NumberOfPeriod:                 0,
+//			CliffUnlockAmount:              0,
+//		},
+//		MigrationFeeOption: dynamic_bonding_curve.MigrationFeeFixedBps200, // 0: Fixed 25bps, 1: Fixed 30bps, 2: Fixed 100bps, 3: Fixed 200bps, 4: Fixed 400bps, 5: Fixed 600bps
+//		TokenSupply: &dynamic_bonding_curve.TokenSupplyParams{
+//			PreMigrationTokenSupply:  1000000000000000000,
+//			PostMigrationTokenSupply: 1000000000000000000,
+//		},
+//		CreatorTradingFeePercentage: 0,
+//		TokenUpdateAuthority:        dynamic_bonding_curve.TokenUpdateAuthorityImmutable,
+//		MigrationFee: dynamic_bonding_curve.MigrationFee{
+//			FeePercentage:        2,
+//			CreatorFeePercentage: 0,
+//		},
+//		// MigratedPoolFee: &dbc.MigratedPoolFee{},
+//		Padding: [7]uint64{},
+//		// use case
+//		Curve: []dynamic_bonding_curve.LiquidityDistributionParameters{
+//			{
+//				SqrtPrice: u128.GenUint128FromString("233334906748540631"),
+//				Liquidity: u128.GenUint128FromString("622226417996106429201027821619672729"),
+//			},
+//			{
+//				SqrtPrice: u128.GenUint128FromString("79226673521066979257578248091"),
+//				Liquidity: u128.GenUint128FromString("1"),
+//			},
+//		},
+//	}
+//
+// meteoraDBC.InitConfig(
+//
+//	ctx,
+//	wsClient,
+//	payer,
+//	solana.WrappedSol,
+//	cfg,
+//
+// )
 func (m *DBC) InitConfig(
 	ctx context.Context,
 	wsClient *ws.Client,

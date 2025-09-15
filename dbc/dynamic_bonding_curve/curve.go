@@ -215,16 +215,16 @@ func getTotalVestingAmount(lockedVesting *LockedVesting) decimal.Decimal {
 	return amountPerPeriod.Mul(numberOfPeriod).Add(cliffUnlockAmount)
 }
 
-// CurveStep
+// CurveStep represents a step in the bonding curve with price and liquidity
 type CurveStep struct {
-	SqrtPrice *big.Int
-	Liquidity *big.Int
+	SqrtPrice *big.Int // Square root price at this step
+	Liquidity *big.Int // Liquidity amount at this step
 }
 
-// FirstCurveResult
+// FirstCurveResult represents the result of first curve calculation
 type FirstCurveResult struct {
-	SqrtStartPrice decimal.Decimal
-	Curve          []LiquidityDistributionParameters
+	SqrtStartPrice decimal.Decimal                   // Starting square root price
+	Curve          []LiquidityDistributionParameters // Liquidity distribution parameters
 }
 
 // getFirstCurve
@@ -272,7 +272,7 @@ func getLiquidity(baseAmount, quoteAmount, minSqrtPrice, maxSqrtPrice decimal.De
 	return liquidityFromQuote, nil
 }
 
-// GetSwapAmountWithBuffer 给 swapAmount 加 25% buffer 并限制最大值
+// GetSwapAmountWithBuffer adds 25% buffer to swapAmount and limits the maximum value
 func getSwapAmountWithBuffer(
 	swapBaseAmount decimal.Decimal,
 	sqrtStartPrice decimal.Decimal,
@@ -419,10 +419,11 @@ func bpsToFeeNumerator(bps int64) decimal.Decimal {
 	return decimal.NewFromInt(bps).Mul(FEE_DENOMINATOR).Div(BASIS_POINT_MAX)
 }
 
+// TwoCurveResult represents the result of two-curve calculation
 type TwoCurveResult struct {
-	IsOk           bool
-	SqrtStartPrice decimal.Decimal
-	Curve          []LiquidityDistributionParameters
+	IsOk           bool                              // Whether the calculation was successful
+	SqrtStartPrice decimal.Decimal                   // Starting square root price
+	Curve          []LiquidityDistributionParameters // Liquidity distribution parameters
 }
 
 func getTwoCurve(

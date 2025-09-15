@@ -15,6 +15,25 @@ import (
 	"github.com/gagliardetto/solana-go/rpc/ws"
 )
 
+// CreateLockerInstruction generates the instruction for locking a dbc pool.
+//
+// Example:
+//
+// poolState, _ := m.GetPoolByBaseMint(ctx, baseMint)
+//
+// configState, _ := m.GetConfig(ctx, poolState.Config)
+//
+// instructions, err := CreateLockerInstruction(
+//
+//	ctx,
+//	m.rpcClient,
+//	payer.PublicKey(), // payer account
+//	poolState.Creator, // creator
+//	poolState.Address, // dbc pool address
+//	poolState.VirtualPool,// dbc pool state
+//	configState, // dbc pool config
+//
+// )
 func CreateLockerInstruction(
 	ctx context.Context,
 	rpcClient *rpc.Client,
@@ -33,8 +52,8 @@ func CreateLockerInstruction(
 		return nil, ErrMigrationProgressState
 	}
 
-	baseMint := poolState.BaseMint   // baseMint
-	baseVault := poolState.BaseVault // dbc.DeriveTokenVaultPDA(pool, virtualPool.BaseMint)
+	baseMint := poolState.BaseMint
+	baseVault := poolState.BaseVault
 
 	base, err := dbc.DeriveBaseKeyForLocker(poolAddress)
 	if err != nil {
@@ -76,6 +95,22 @@ func CreateLockerInstruction(
 	return instructions, nil
 }
 
+// CreateLocker creates a new locker account when migrating from the Dynamic Bonding Curve to DAMM V1 or DAMM V2.
+// This function is called when lockedVestingParam is enabled in the config key.
+// This function is blocking and will wait for on-chain confirmation before returning.
+//
+// It is used for manually migrating dbc to damm.v2 and is the first step in the migration process.
+//
+// Example:
+//
+// sig, _ := meteoraDBC.CreateLocker(
+//
+//	ctx,
+//	wsClient,
+//	payer,
+//	baseMint, // baseMintToken
+//
+// )
 func (m *DBC) CreateLocker(
 	ctx context.Context,
 	wsClient *ws.Client,
@@ -129,6 +164,20 @@ func (m *DBC) CreateLocker(
 	return sig.String(), nil
 }
 
+// MigrationDammV2CreateMetadataInstruction generates the instruction for creating Metadata.
+//
+// Example:
+//
+// poolState, _ := m.GetPoolByBaseMint(ctx, baseMint)
+//
+// instructions, _ := MigrationDammV2CreateMetadataInstruction(
+//
+//	ctx,
+//	payer.PublicKey(),
+//	poolState.Address, // pool address
+//	poolState.VirtualPool, // dbc pool state
+//
+// )
 func MigrationDammV2CreateMetadataInstruction(
 	ctx context.Context,
 	payer solana.PublicKey,
@@ -165,6 +214,21 @@ func MigrationDammV2CreateMetadataInstruction(
 	return instructions, nil
 }
 
+// MigrationDammV2CreateMetadata creates a new DAMM V2 migration metadata account.
+// This function is blocking and will wait for on-chain confirmation before returning.
+//
+// It is used for manually migrating dbc to damm.v2 and is the second step in the migration process.
+//
+// Example:
+//
+// sig, _ := meteoraDBC.MigrationDammV2CreateMetadata(
+//
+//	ctx,
+//	wsClient,
+//	payer,
+//	baseMint, // baseMintToken
+//
+// )
 func (m *DBC) MigrationDammV2CreateMetadata(
 	ctx context.Context,
 	wsClient *ws.Client,
@@ -207,6 +271,28 @@ func (m *DBC) MigrationDammV2CreateMetadata(
 	return sig.String(), nil
 }
 
+// MigrationDammV2Instruction generates the instruction needed for migrating to dammv2.
+//
+// Example:
+//
+// poolState, _ := m.GetPoolByBaseMint(ctx, baseMint)
+//
+// configState, _ := m.GetConfig(ctx, poolState.Config)
+//
+// partnerPositionNft := solana.NewWallet()
+// creatorPositionNft := solana.NewWallet()
+//
+// instructions, _ := MigrationDammV2Instruction(
+//
+//	ctx,
+//	payer.PublicKey(), // payer account
+//	poolState.Address, // dbc pool address
+//	poolState.VirtualPool, // dbc pool state
+//	configState, // dbc pool config
+//	partnerPositionNft,
+//	creatorPositionNft,
+//
+// )
 func MigrationDammV2Instruction(
 	ctx context.Context,
 	payer solana.PublicKey,
@@ -223,10 +309,10 @@ func MigrationDammV2Instruction(
 		return nil, ErrMigrationProgressState
 	}
 
-	quoteMint := configState.QuoteMint // solana.WrappedSol
-	baseMint := poolState.BaseMint     // baseMint
-	baseVault := poolState.BaseVault   // dbc.DeriveTokenVaultPDA(pool, virtualPool.BaseMint)
-	quoteVault := poolState.QuoteVault // dbc.DeriveTokenVaultPDA(pool, config.QuoteMint)
+	quoteMint := configState.QuoteMint
+	baseMint := poolState.BaseMint
+	baseVault := poolState.BaseVault
+	quoteVault := poolState.QuoteVault
 
 	migrationMetadata, err := dbc.DeriveDammV2MigrationMetadataPDA(poolAddress)
 	if err != nil {
@@ -240,8 +326,6 @@ func MigrationDammV2Instruction(
 		return nil, err
 	}
 
-	// partnerPositionNft := solana.NewWallet()
-
 	partnerPosition, err := dbc.DerivePosition(partnerPositionNft.PublicKey())
 	if err != nil {
 		return nil, err
@@ -251,8 +335,6 @@ func MigrationDammV2Instruction(
 	if err != nil {
 		return nil, err
 	}
-
-	// creatorPositionNft := solana.NewWallet()
 
 	creatorPosition, err := dbc.DerivePosition(creatorPositionNft.PublicKey())
 	if err != nil {
@@ -314,6 +396,28 @@ func MigrationDammV2Instruction(
 	return instructions, nil
 }
 
+// MigrationDammV2 migrates the Dynamic Bonding Curve pool to DAMM V2.
+// This function is blocking and will wait for on-chain confirmation before returning.
+//
+// The migration process consists of three steps:
+// 1. CreateLocker.
+// 2. MigrationDammV2CreateMetadata.
+// 3. MigrationDammV2.
+//
+// partnerPositionNft is the partner's position in dammv2, which will be used later to claim the position fee.
+//
+// creatorPositionNft is the creator's position in dammv2, which will be used later to claim the position fee.
+//
+// Example:
+//
+// sig, partnerPositionNft, creatorPositionNft, _ := meteoraDBC.MigrationDammV2(
+//
+//	ctx,
+//	wsClient,
+//	payer,
+//	baseMint,
+//
+// )
 func (m *DBC) MigrationDammV2(
 	ctx context.Context,
 	wsClient *ws.Client,

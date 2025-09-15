@@ -41,8 +41,8 @@ var (
 	DYNAMIC_FEE_DECAY_PERIOD_DEFAULT     = uint16(120)  // 120 seconds
 	DYNAMIC_FEE_REDUCTION_FACTOR_DEFAULT = uint16(5000) // 50%
 
-	MAX_RATE_LIMITER_DURATION_IN_SECONDS = 43200  // 12 hours
-	MAX_RATE_LIMITER_DURATION_IN_SLOTS   = 108000 // 12 hours
+	MAX_RATE_LIMITER_DURATION_IN_SECONDS = 43200
+	MAX_RATE_LIMITER_DURATION_IN_SLOTS   = 108000
 
 	MAX_PRICE_CHANGE_BPS_DEFAULT = int64(1500) // 15%
 
@@ -163,4 +163,11 @@ type IsMigrated uint8
 const (
 	IsMigratedProcess IsMigrated = iota
 	IsMigratedCompleted
+)
+
+type WithdrawMigrationFeeFlag uint8
+
+const (
+	PartnerWithdrawMigrationFeeFlag WithdrawMigrationFeeFlag = iota
+	CreatorWithdrawMigrationFeeFlag
 )

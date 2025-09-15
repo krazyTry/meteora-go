@@ -8,41 +8,22 @@ import (
 	"github.com/gagliardetto/solana-go"
 )
 
-func dbcCreatePartnerMetadata(
-	m *DBC,
-	// Params:
-	name string,
-	website string,
-	logo string,
-
-	// Accounts:
-	partnerMetadata solana.PublicKey,
-	payer solana.PublicKey,
-	feeClaimer solana.PublicKey,
-
-) (solana.Instruction, error) {
-
-	metadata := dbc.CreatePartnerMetadataParameters{
-		Name:    name,
-		Website: website,
-		Logo:    logo,
-	}
-
-	return dbc.NewCreatePartnerMetadataInstruction(
-		// Params:
-		metadata,
-
-		// Accounts:
-		partnerMetadata,
-		payer,
-		feeClaimer,
-		solana.SystemProgramID,
-		eventAuthority,
-		dbc.ProgramID,
-	)
-}
-
-func (m *DBC) CreatePartnerMetadataInstruction(
+// CreatePartnerMetadataInstruction generates the instruction needed for modifying Partner's Metadata.
+// It creates a new partner metadata account. This partner metadata will be tagged to a wallet address that holds the config keys.
+//
+// Example:
+//
+// instructions,_ := CreatePartnerMetadataInstruction(
+//
+//	ctx,
+//	payer,
+//	m.feeClaimer.PublicKey(), // parnter
+//	name,
+//	website,
+//	logo,
+//
+// )
+func CreatePartnerMetadataInstruction(
 	ctx context.Context,
 	payer solana.PublicKey,
 	poolPartner solana.PublicKey,
@@ -81,6 +62,23 @@ func (m *DBC) CreatePartnerMetadataInstruction(
 	return []solana.Instruction{createIx}, nil
 }
 
+// CreateVirtualPoolMetadataInstruction generates the instruction needed for modifying the Metadata of a dbc pool.
+// It creates a new pool metadata account.
+//
+// Example:
+//
+// poolState, _ := m.GetPoolByBaseMint(ctx, baseMint)
+// instructions,_ := CreateVirtualPoolMetadataInstruction(
+//
+//	ctx,
+//	payer,
+//	m.poolCreator.PublicKey(), // creator
+//	poolState.Address, // dbc pool address
+//	name,
+//	website,
+//	logo,
+//
+// )
 func (m *DBC) CreateVirtualPoolMetadataInstruction(
 	ctx context.Context,
 	payer solana.PublicKey,

@@ -10,99 +10,99 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-// BaseFee
+// BaseFee represents the base fee configuration
 type BaseFee struct {
-	CliffFeeNumerator *big.Int
-	FirstFactor       int64    // feeScheduler: numberOfPeriod, rateLimiter: feeIncrementBps
-	SecondFactor      *big.Int // feeScheduler: periodFrequency, rateLimiter: maxLimiterDuration
-	ThirdFactor       *big.Int // feeScheduler: reductionFactor, rateLimiter: referenceAmount
-	BaseFeeMode       BaseFeeMode
+	CliffFeeNumerator *big.Int    // Initial fee numerator value
+	FirstFactor       int64       // Fee scheduler: number of periods, rate limiter: fee increment bps
+	SecondFactor      *big.Int    // Fee scheduler: period frequency, rate limiter: max limiter duration
+	ThirdFactor       *big.Int    // Fee scheduler: reduction factor, rate limiter: reference amount
+	BaseFeeMode       BaseFeeMode // Base fee mode configuration
 }
 
-// FeeSchedulerParams
+// FeeSchedulerParams represents fee scheduler configuration parameters
 type FeeSchedulerParams struct {
-	StartingFeeBps int64
-	EndingFeeBps   int64
-	NumberOfPeriod uint16
-	TotalDuration  uint16
+	StartingFeeBps int64  // Starting fee in basis points
+	EndingFeeBps   int64  // Ending fee in basis points
+	NumberOfPeriod uint16 // Number of fee periods
+	TotalDuration  uint16 // Total duration of fee schedule
 }
 
-// RateLimiterParams
+// RateLimiterParams represents rate limiter configuration parameters
 type RateLimiterParams struct {
-	BaseFeeBps         int64
-	FeeIncrementBps    int64
-	ReferenceAmount    int
-	MaxLimiterDuration int
+	BaseFeeBps         int64 // Base fee in basis points
+	FeeIncrementBps    int64 // Fee increment in basis points
+	ReferenceAmount    int   // Reference amount for rate limiting
+	MaxLimiterDuration int   // Maximum duration for rate limiter
 }
 
-// LockedVestingParams
+// LockedVestingParams represents locked vesting configuration parameters
 type LockedVestingParams struct {
-	TotalLockedVestingAmount       int64
-	NumberOfVestingPeriod          int64
-	CliffUnlockAmount              int64
-	TotalVestingDuration           int64
-	CliffDurationFromMigrationTime int64
+	TotalLockedVestingAmount       int64 // Total amount locked for vesting
+	NumberOfVestingPeriod          int64 // Number of vesting periods
+	CliffUnlockAmount              int64 // Amount unlocked at cliff
+	TotalVestingDuration           int64 // Total duration of vesting
+	CliffDurationFromMigrationTime int64 // Cliff duration from migration time
 }
 
-// BaseFeeParams: union type
+// BaseFeeParams represents base fee parameters as a union type
 type BaseFeeParams struct {
-	BaseFeeMode       BaseFeeMode
-	FeeSchedulerParam *FeeSchedulerParams
-	RateLimiterParam  *RateLimiterParams
+	BaseFeeMode       BaseFeeMode         // Base fee mode selection
+	FeeSchedulerParam *FeeSchedulerParams // Fee scheduler parameters (optional)
+	RateLimiterParam  *RateLimiterParams  // Rate limiter parameters (optional)
 }
 
-// BuildCurveBaseParam
+// BuildCurveBaseParam represents base parameters for building a curve
 type BuildCurveBaseParam struct {
-	TotalTokenSupply            float64
-	MigrationOption             MigrationOption
-	TokenBaseDecimal            TokenDecimal
-	TokenQuoteDecimal           TokenDecimal
-	LockedVestingParam          LockedVestingParams
-	BaseFeeParams               BaseFeeParams
-	DynamicFeeEnabled           bool
-	ActivationType              ActivationType
-	CollectFeeMode              CollectFeeMode
-	MigrationFeeOption          MigrationFeeOption
-	TokenType                   TokenType
-	PartnerLpPercentage         uint8
-	CreatorLpPercentage         uint8
-	PartnerLockedLpPercentage   uint8
-	CreatorLockedLpPercentage   uint8
-	CreatorTradingFeePercentage uint8
-	Leftover                    int64
-	TokenUpdateAuthority        TokenUpdateAuthorityOption
-	MigrationFee                MigrationFee
-	MigratedPoolFee             *MigratedPoolFee
+	TotalTokenSupply            float64                    // Total token supply
+	MigrationOption             MigrationOption            // Migration option configuration
+	TokenBaseDecimal            TokenDecimal               // Base token decimal places
+	TokenQuoteDecimal           TokenDecimal               // Quote token decimal places
+	LockedVestingParam          LockedVestingParams        // Locked vesting parameters
+	BaseFeeParams               BaseFeeParams              // Base fee parameters
+	DynamicFeeEnabled           bool                       // Whether dynamic fee is enabled
+	ActivationType              ActivationType             // Pool activation type
+	CollectFeeMode              CollectFeeMode             // Fee collection mode
+	MigrationFeeOption          MigrationFeeOption         // Migration fee option
+	TokenType                   TokenType                  // Token type (SPL or Token2022)
+	PartnerLpPercentage         uint8                      // Partner LP percentage
+	CreatorLpPercentage         uint8                      // Creator LP percentage
+	PartnerLockedLpPercentage   uint8                      // Partner locked LP percentage
+	CreatorLockedLpPercentage   uint8                      // Creator locked LP percentage
+	CreatorTradingFeePercentage uint8                      // Creator trading fee percentage
+	Leftover                    int64                      // Leftover amount
+	TokenUpdateAuthority        TokenUpdateAuthorityOption // Token update authority option
+	MigrationFee                MigrationFee               // Migration fee configuration
+	MigratedPoolFee             *MigratedPoolFee           // Migrated pool fee (optional)
 }
 
-// BuildCurveParam
+// BuildCurveParam represents parameters for building a standard curve
 type BuildCurveParam struct {
 	BuildCurveBaseParam
-	PercentageSupplyOnMigration float64
-	MigrationQuoteThreshold     float64
+	PercentageSupplyOnMigration float64 // Percentage of supply available on migration
+	MigrationQuoteThreshold     float64 // Quote threshold for migration
 }
 
-// BuildCurveWithMarketCapParam
+// BuildCurveWithMarketCapParam represents parameters for building a curve with market cap
 type BuildCurveWithMarketCapParam struct {
 	BuildCurveBaseParam
-	InitialMarketCap   float64
-	MigrationMarketCap float64
+	InitialMarketCap   float64 // Initial market capitalization
+	MigrationMarketCap float64 // Market cap at migration
 }
 
-// BuildCurveWithTwoSegmentsParam
+// BuildCurveWithTwoSegmentsParam represents parameters for building a curve with two segments
 type BuildCurveWithTwoSegmentsParam struct {
 	BuildCurveBaseParam
-	InitialMarketCap            float64
-	MigrationMarketCap          float64
-	PercentageSupplyOnMigration int64
+	InitialMarketCap            float64 // Initial market capitalization
+	MigrationMarketCap          float64 // Market cap at migration
+	PercentageSupplyOnMigration int64   // Percentage of supply available on migration
 }
 
-// BuildCurveWithLiquidityWeightsParam
+// BuildCurveWithLiquidityWeightsParam represents parameters for building a curve with liquidity weights
 type BuildCurveWithLiquidityWeightsParam struct {
 	BuildCurveBaseParam
-	InitialMarketCap   float64
-	MigrationMarketCap float64
-	LiquidityWeights   []float64
+	InitialMarketCap   float64   // Initial market capitalization
+	MigrationMarketCap float64   // Market cap at migration
+	LiquidityWeights   []float64 // Liquidity weight distribution
 }
 
 func BuildCurve(param BuildCurveParam) (*ConfigParameters, error) {

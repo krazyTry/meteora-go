@@ -39,7 +39,7 @@ func getFeeNumeratorOnExponentialFeeScheduler(cliffFeeNumerator, reductionFactor
 	return finalFee
 }
 
-// 对应 TS 的 getBaseFeeNumeratorByPeriod
+// Corresponds to TS's getBaseFeeNumeratorByPeriod
 func getBaseFeeNumeratorByPeriod(
 	cliffFeeNumerator decimal.Decimal,
 	numberOfPeriod decimal.Decimal,
@@ -85,7 +85,7 @@ func getBaseFeeNumerator7(
 
 	period := currentPoint.Sub(activationPoint).Div(periodFrequency)
 
-	// 调用之前的函数
+	// Call the previous function
 	return getBaseFeeNumeratorByPeriod(
 		cliffFeeNumerator,
 		numberOfPeriod,

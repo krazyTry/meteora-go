@@ -16,6 +16,43 @@ import (
 	"github.com/gagliardetto/solana-go/rpc/ws"
 )
 
+// SwapInstruction generates the instruction needed to swap
+//
+// Example:
+//
+// result, poolState, configState, currentPoint, _ := SwapQuote(
+//
+//	ctx,
+//	rpcClient,
+//	baseMint, // pool (token) address
+//	false, // buy(quote=>base) sell(base => quote)
+//	amountIn, // amount to spend on selling or buying
+//	slippageBps, // slippage // 250 = 2.5%
+//	hasReferral, // default false, contact meteora
+//
+// )
+//
+// instructions, _ := SwapInstruction(
+//
+//	ctx,
+//	m.rpcClient,
+//	payer.PublicKey(), // payer account
+//	owner.PublicKey(), // owner account
+//	func() solana.PublicKey {
+//		if referrer == nil {
+//			return solana.PublicKey{}
+//		}
+//		return referrer.PublicKey()
+//	}(), // referral account, contact meteora
+//	poolState.Address, // pool address
+//	poolState.VirtualPool, // dbc pool state
+//	configState, // dbc pool config
+//	swapBaseForQuote, // buy(quote=>base) sell(base => quote)
+//	amountIn, // amount to spend on selling or buying
+//	result.MinimumAmountOut, // minimum amount to receive after accounting for slippage
+//	currentPoint,
+//
+// )
 func SwapInstruction(
 	ctx context.Context,
 	rpcClient *rpc.Client,
@@ -77,7 +114,6 @@ func SwapInstruction(
 		}
 	}
 
-	// TODO 逻辑复杂 值得优化
 	switch {
 	case inputMint.Equals(solana.WrappedSol):
 
@@ -100,8 +136,8 @@ func SwapInstruction(
 	case outputMint.Equals(solana.WrappedSol):
 	}
 
-	baseVault := poolState.BaseVault   // dbc.DeriveTokenVaultPDA(pool, virtualPool.BaseMint)
-	quoteVault := poolState.QuoteVault // dbc.DeriveTokenVaultPDA(pool, config.QuoteMint)
+	baseVault := poolState.BaseVault
+	quoteVault := poolState.QuoteVault
 
 	var remainingAccounts []*solana.AccountMeta
 	if isRateLimiterApplied {
@@ -172,6 +208,40 @@ func SwapInstruction(
 	return instructions, nil
 }
 
+// Swap swaps between base and quote or quote and base on the Dynamic Bonding Curve.
+// It depends on the SwapInstruction function.
+// This function is blocking and will wait for on-chain confirmation before returning.
+//
+// Example:
+//
+// result, poolState, configState, currentPoint, _ := SwapQuote(
+//
+//	ctx,
+//	rpcClient,
+//	baseMint, // pool (token) address
+//	false, // buy(quote=>base) sell(base => quote)
+//	amountIn, // amount to spend on selling or buying
+//	slippageBps, // slippage // 250 = 2.5%
+//	hasReferral, // default false, contact meteora
+//
+// )
+//
+// instructions, _ := m.Swap(
+//
+//	ctx,
+//	wsClient,
+//	payer.PublicKey(), // payer account
+//	owner.PublicKey(), // owner account
+//	nil, // referral account, contact meteora
+//	poolState.Address, // pool address
+//	poolState.VirtualPool, // dbc pool state
+//	configState, // dbc pool config
+//	swapBaseForQuote, // buy(quote=>base) sell(base => quote)
+//	amountIn, // amount to spend on selling or buying
+//	result.MinimumAmountOut, // minimum amount to receive after accounting for slippage
+//	currentPoint,
+//
+// )
 func (m *DBC) Swap(
 	ctx context.Context,
 	wsClient *ws.Client,
@@ -234,6 +304,34 @@ func (m *DBC) Swap(
 	return sig.String(), nil
 }
 
+// BuyInstruction generates the instruction needed to buy
+//
+// Example:
+//
+// result, poolState, configState, currentPoint, _ := BuyQuote(
+//
+//	ctx,
+//	baseMint, // pool (token) address
+//	amountIn, // amount to spend on buying
+//	slippageBps, // slippage // 250 = 2.5%
+//	hasReferral, // default false, contact meteora
+//
+// )
+//
+// instructions, _ := BuyInstruction(
+//
+//	ctx,
+//	m.rpcClient,
+//	buyer.PublicKey(), // payer account
+//	referrer, // referral account, contact meteora
+//	poolState.Address, // pool address
+//	poolState.VirtualPool, // dbc pool state
+//	configState, // dbc pool config
+//	amountIn, // amount to spend on buying
+//	result.MinimumAmountOut, // minimum amount to receive after accounting for slippage
+//	currentPoint,
+//
+// )
 func BuyInstruction(
 	ctx context.Context,
 	rpcClient *rpc.Client,
@@ -262,6 +360,35 @@ func BuyInstruction(
 	)
 }
 
+// Buy buys base tokens using quote tokens on the Dynamic Bonding Curve.
+// It depends on the BuyInstruction function.
+// This function is blocking and will wait for on-chain confirmation before returning.
+//
+// Example:
+//
+// result, poolState, configState, currentPoint, _ := BuyQuote(
+//
+//	ctx,
+//	baseMint, // pool (token) address
+//	amountIn, // amount to spend on buying
+//	slippageBps, // slippage // 250 = 2.5%
+//	hasReferral, // default false, contact meteora
+//
+// )
+// sig, _ := meteoraDBC.Buy(
+//
+//	ctx,
+//	wsClient,
+//	ownerWallet, // buyer
+//	nil, // referral account, contact meteora
+//	poolState.Address, // pool address
+//	poolState.VirtualPool, // dbc pool state
+//	configState, // dbc pool config
+//	amountIn, // amount to spend on buying
+//	result.MinimumAmountOut, // minimum amount to receive after accounting for slippage
+//	currentPoint,
+//
+// )
 func (m *DBC) Buy(
 	ctx context.Context,
 	wsClient *ws.Client,
@@ -308,6 +435,34 @@ func (m *DBC) Buy(
 	)
 }
 
+// SellInstruction generates the instruction needed to sell
+//
+// Example:
+//
+// result, poolState, configState, currentPoint, _ := SellQuote(
+//
+//	ctx,
+//	baseMint, // pool (token) address
+//	amountIn, // amount to spend on selling
+//	slippageBps, // slippage // 250 = 2.5%
+//	hasReferral, // default false, contact meteora
+//
+// )
+//
+// instructions, _ := SellInstruction(
+//
+//	ctx,
+//	m.rpcClient,
+//	seller.PublicKey(), // payer account
+//	referrer, // referral account, contact meteora
+//	poolState.Address, // pool address
+//	poolState.VirtualPool, // dbc pool state
+//	configState, // dbc pool config
+//	amountIn, // amount to spend on selling
+//	result.MinimumAmountOut, // minimum amount to receive after accounting for slippage
+//	currentPoint,
+//
+// )
 func SellInstruction(
 	ctx context.Context,
 	rpcClient *rpc.Client,
@@ -336,6 +491,35 @@ func SellInstruction(
 	)
 }
 
+// Sell sells base tokens to receive quote tokens on the Dynamic Bonding Curve.
+// It depends on the SellInstruction function.
+// This function is blocking and will wait for on-chain confirmation before returning.
+//
+// Example:
+//
+// result, poolState, configState, currentPoint, _ := SellQuote(
+//
+//	ctx,
+//	baseMint, // pool (token) address
+//	amountIn, // amount to spend on selling
+//	slippageBps, // slippage // 250 = 2.5%
+//	hasReferral, // default false, contact meteora
+//
+// )
+// sig, _ := meteoraDBC.Sell(
+//
+//	ctx,
+//	wsClient,
+//	ownerWallet, // seller
+//	nil, // referral account, contact meteora
+//	poolState.Address, // pool address
+//	poolState.VirtualPool, // dbc pool state
+//	configState, // dbc pool config
+//	amountIn, // amount to spend on selling
+//	result.MinimumAmountOut, // minimum amount to receive after accounting for slippage
+//	currentPoint,
+//
+// )
 func (m *DBC) Sell(
 	ctx context.Context,
 	wsClient *ws.Client,

@@ -13,12 +13,12 @@ import (
 )
 
 type BaseFeeConfig struct {
-	CliffFeeNumerator uint64      `json:"cliffFeeNumerator"`
-	SecondFactor      uint64      `json:"secondFactor"`
-	ThirdFactor       uint64      `json:"thirdFactor"`
-	FirstFactor       uint16      `json:"firstFactor"`
-	BaseFeeMode       BaseFeeMode `json:"baseFeeMode"`
-	Padding0          [5]uint8    `json:"padding0"`
+	CliffFeeNumerator uint64      `json:"cliffFeeNumerator"` // Initial fee numerator value
+	SecondFactor      uint64      `json:"secondFactor"`      // Second configuration factor
+	ThirdFactor       uint64      `json:"thirdFactor"`       // Third configuration factor
+	FirstFactor       uint16      `json:"firstFactor"`       // First configuration factor
+	BaseFeeMode       BaseFeeMode `json:"baseFeeMode"`       // Fee calculation mode
+	Padding0          [5]uint8    `json:"padding0"`          // Padding for alignment
 }
 
 func (obj BaseFeeConfig) MarshalWithEncoder(encoder *binary.Encoder) (err error) {
@@ -117,11 +117,11 @@ func UnmarshalBaseFeeConfig(buf []byte) (*BaseFeeConfig, error) {
 }
 
 type BaseFeeParameters struct {
-	CliffFeeNumerator uint64      `json:"cliffFeeNumerator"`
-	FirstFactor       uint16      `json:"firstFactor"`
-	SecondFactor      uint64      `json:"secondFactor"`
-	ThirdFactor       uint64      `json:"thirdFactor"`
-	BaseFeeMode       BaseFeeMode `json:"baseFeeMode"`
+	CliffFeeNumerator uint64      `json:"cliffFeeNumerator"` // Initial fee numerator value
+	FirstFactor       uint16      `json:"firstFactor"`       // First configuration factor
+	SecondFactor      uint64      `json:"secondFactor"`      // Second configuration factor
+	ThirdFactor       uint64      `json:"thirdFactor"`       // Third configuration factor
+	BaseFeeMode       BaseFeeMode `json:"baseFeeMode"`       // Fee calculation mode
 }
 
 func (obj BaseFeeParameters) MarshalWithEncoder(encoder *binary.Encoder) (err error) {
@@ -209,12 +209,12 @@ func UnmarshalBaseFeeParameters(buf []byte) (*BaseFeeParameters, error) {
 	return obj, nil
 }
 
-// Parameter that set by the protocol
+// Parameters that are set by the protocol
 type ClaimFeeOperator struct {
-	// operator
+	// Fee operator public key
 	Operator solanago.PublicKey `json:"operator"`
 
-	// Reserve
+	// Reserved space for future use
 	Padding0 [128]uint8 `json:"padding0"`
 }
 
@@ -274,13 +274,13 @@ func UnmarshalClaimFeeOperator(buf []byte) (*ClaimFeeOperator, error) {
 }
 
 type Config struct {
-	PoolFees             PoolFees           `json:"poolFees"`
-	ActivationDuration   uint64             `json:"activationDuration"`
-	VaultConfigKey       solanago.PublicKey `json:"vaultConfigKey"`
-	PoolCreatorAuthority solanago.PublicKey `json:"poolCreatorAuthority"`
-	ActivationType       uint8              `json:"activationType"`
-	PartnerFeeNumerator  uint64             `json:"partnerFeeNumerator"`
-	Padding              [219]uint8         `json:"padding"`
+	PoolFees             PoolFees           `json:"poolFees"`             // Pool fee configuration
+	ActivationDuration   uint64             `json:"activationDuration"`   // Duration for pool activation
+	VaultConfigKey       solanago.PublicKey `json:"vaultConfigKey"`       // Vault configuration key
+	PoolCreatorAuthority solanago.PublicKey `json:"poolCreatorAuthority"` // Authority for pool creation
+	ActivationType       uint8              `json:"activationType"`       // Type of activation
+	PartnerFeeNumerator  uint64             `json:"partnerFeeNumerator"`  // Partner fee numerator
+	Padding              [219]uint8         `json:"padding"`              // Padding for alignment
 }
 
 func (obj Config) MarshalWithEncoder(encoder *binary.Encoder) (err error) {
@@ -2068,12 +2068,12 @@ func UnmarshalEvtCurveComplete(buf []byte) (*EvtCurveComplete, error) {
 }
 
 type EvtInitializePool struct {
-	Pool            solanago.PublicKey `json:"pool"`
-	Config          solanago.PublicKey `json:"config"`
-	Creator         solanago.PublicKey `json:"creator"`
-	BaseMint        solanago.PublicKey `json:"baseMint"`
-	PoolType        uint8              `json:"poolType"`
-	ActivationPoint uint64             `json:"activationPoint"`
+	Pool            solanago.PublicKey `json:"pool"`            // Pool address
+	Config          solanago.PublicKey `json:"config"`          // Configuration address
+	Creator         solanago.PublicKey `json:"creator"`         // Pool creator address
+	BaseMint        solanago.PublicKey `json:"baseMint"`        // Base token mint address
+	PoolType        uint8              `json:"poolType"`        // Type of the pool
+	ActivationPoint uint64             `json:"activationPoint"` // Pool activation point
 }
 
 func (obj EvtInitializePool) MarshalWithEncoder(encoder *binary.Encoder) (err error) {
@@ -2413,14 +2413,14 @@ func UnmarshalEvtProtocolWithdrawSurplus(buf []byte) (*EvtProtocolWithdrawSurplu
 }
 
 type EvtSwap struct {
-	Pool             solanago.PublicKey `json:"pool"`
-	Config           solanago.PublicKey `json:"config"`
-	TradeDirection   uint8              `json:"tradeDirection"`
-	HasReferral      bool               `json:"hasReferral"`
-	Params           SwapParameters     `json:"params"`
-	SwapResult       SwapResult         `json:"swapResult"`
-	AmountIn         uint64             `json:"amountIn"`
-	CurrentTimestamp uint64             `json:"currentTimestamp"`
+	Pool             solanago.PublicKey `json:"pool"`             // Pool address
+	Config           solanago.PublicKey `json:"config"`           // Configuration address
+	TradeDirection   uint8              `json:"tradeDirection"`   // Direction of the trade
+	HasReferral      bool               `json:"hasReferral"`      // Whether the swap has a referral
+	Params           SwapParameters     `json:"params"`           // Swap parameters
+	SwapResult       SwapResult         `json:"swapResult"`       // Result of the swap
+	AmountIn         uint64             `json:"amountIn"`         // Input amount for the swap
+	CurrentTimestamp uint64             `json:"currentTimestamp"` // Timestamp of the swap
 }
 
 func (obj EvtSwap) MarshalWithEncoder(encoder *binary.Encoder) (err error) {
@@ -4472,10 +4472,10 @@ func UnmarshalPoolFeeParameters(buf []byte) (*PoolFeeParameters, error) {
 
 // Information regarding fee charges
 type PoolFees struct {
-	TradeFeeNumerator           uint64 `json:"tradeFeeNumerator"`
-	TradeFeeDenominator         uint64 `json:"tradeFeeDenominator"`
-	ProtocolTradeFeeNumerator   uint64 `json:"protocolTradeFeeNumerator"`
-	ProtocolTradeFeeDenominator uint64 `json:"protocolTradeFeeDenominator"`
+	TradeFeeNumerator           uint64 `json:"tradeFeeNumerator"`           // Trade fee numerator
+	TradeFeeDenominator         uint64 `json:"tradeFeeDenominator"`         // Trade fee denominator
+	ProtocolTradeFeeNumerator   uint64 `json:"protocolTradeFeeNumerator"`   // Protocol trade fee numerator
+	ProtocolTradeFeeDenominator uint64 `json:"protocolTradeFeeDenominator"` // Protocol trade fee denominator
 }
 
 func (obj PoolFees) MarshalWithEncoder(encoder *binary.Encoder) (err error) {
@@ -4658,10 +4658,10 @@ func UnmarshalPoolFeesConfig(buf []byte) (*PoolFeesConfig, error) {
 }
 
 type PoolMetrics struct {
-	TotalProtocolBaseFee  uint64 `json:"totalProtocolBaseFee"`
-	TotalProtocolQuoteFee uint64 `json:"totalProtocolQuoteFee"`
-	TotalTradingBaseFee   uint64 `json:"totalTradingBaseFee"`
-	TotalTradingQuoteFee  uint64 `json:"totalTradingQuoteFee"`
+	TotalProtocolBaseFee  uint64 `json:"totalProtocolBaseFee"`  // Total protocol base token fees collected
+	TotalProtocolQuoteFee uint64 `json:"totalProtocolQuoteFee"` // Total protocol quote token fees collected
+	TotalTradingBaseFee   uint64 `json:"totalTradingBaseFee"`   // Total trading base token fees collected
+	TotalTradingQuoteFee  uint64 `json:"totalTradingQuoteFee"`  // Total trading quote token fees collected
 }
 
 func (obj PoolMetrics) MarshalWithEncoder(encoder *binary.Encoder) (err error) {
@@ -4740,8 +4740,8 @@ func UnmarshalPoolMetrics(buf []byte) (*PoolMetrics, error) {
 }
 
 type SwapParameters struct {
-	AmountIn         uint64 `json:"amountIn"`
-	MinimumAmountOut uint64 `json:"minimumAmountOut"`
+	AmountIn         uint64 `json:"amountIn"`         // Input amount for the swap
+	MinimumAmountOut uint64 `json:"minimumAmountOut"` // Minimum output amount expected
 }
 
 func (obj SwapParameters) MarshalWithEncoder(encoder *binary.Encoder) (err error) {
@@ -4801,12 +4801,12 @@ func UnmarshalSwapParameters(buf []byte) (*SwapParameters, error) {
 
 // Encodes all results of swapping
 type SwapResult struct {
-	ActualInputAmount uint64         `json:"actualInputAmount"`
-	OutputAmount      uint64         `json:"outputAmount"`
-	NextSqrtPrice     binary.Uint128 `json:"nextSqrtPrice"`
-	TradingFee        uint64         `json:"tradingFee"`
-	ProtocolFee       uint64         `json:"protocolFee"`
-	ReferralFee       uint64         `json:"referralFee"`
+	ActualInputAmount uint64         `json:"actualInputAmount"` // Actual amount of input tokens used
+	OutputAmount      uint64         `json:"outputAmount"`      // Amount of output tokens received
+	NextSqrtPrice     binary.Uint128 `json:"nextSqrtPrice"`     // Next square root price after swap
+	TradingFee        uint64         `json:"tradingFee"`        // Trading fee charged
+	ProtocolFee       uint64         `json:"protocolFee"`       // Protocol fee charged
+	ReferralFee       uint64         `json:"referralFee"`       // Referral fee charged
 }
 
 func (obj SwapResult) MarshalWithEncoder(encoder *binary.Encoder) (err error) {
@@ -4970,82 +4970,82 @@ func UnmarshalTokenSupplyParams(buf []byte) (*TokenSupplyParams, error) {
 }
 
 type VirtualPool struct {
-	// volatility tracker
+	// Volatility tracker for price movements
 	VolatilityTracker VolatilityTracker `json:"volatilityTracker"`
 
-	// config key
+	// Configuration key reference
 	Config solanago.PublicKey `json:"config"`
 
-	// creator
+	// Pool creator address
 	Creator solanago.PublicKey `json:"creator"`
 
-	// base mint
+	// Base token mint address
 	BaseMint solanago.PublicKey `json:"baseMint"`
 
-	// base vault
+	// Base token vault address
 	BaseVault solanago.PublicKey `json:"baseVault"`
 
-	// quote vault
+	// Quote token vault address
 	QuoteVault solanago.PublicKey `json:"quoteVault"`
 
-	// base reserve
+	// Base token reserve amount
 	BaseReserve uint64 `json:"baseReserve"`
 
-	// quote reserve
+	// Quote token reserve amount
 	QuoteReserve uint64 `json:"quoteReserve"`
 
-	// protocol base fee
+	// Protocol base token fee amount
 	ProtocolBaseFee uint64 `json:"protocolBaseFee"`
 
-	// protocol quote fee
+	// Protocol quote token fee amount
 	ProtocolQuoteFee uint64 `json:"protocolQuoteFee"`
 
-	// partner base fee
+	// Partner base token fee amount
 	PartnerBaseFee uint64 `json:"partnerBaseFee"`
 
-	// trading quote fee
+	// Partner quote token fee amount
 	PartnerQuoteFee uint64 `json:"partnerQuoteFee"`
 
-	// current price
+	// Current square root price
 	SqrtPrice binary.Uint128 `json:"sqrtPrice"`
 
-	// Activation point
+	// Pool activation point
 	ActivationPoint uint64 `json:"activationPoint"`
 
-	// pool type, spl token or token2022
+	// Pool token type (SPL token or Token2022)
 	PoolType TokenType `json:"poolType"`
 
-	// is migrated
+	// Migration status flag
 	IsMigrated IsMigrated `json:"isMigrated"`
 
-	// is partner withdraw surplus
+	// Partner surplus withdrawal status
 	IsPartnerWithdrawSurplus uint8 `json:"isPartnerWithdrawSurplus"`
 
-	// is protocol withdraw surplus
+	// Protocol surplus withdrawal status
 	IsProtocolWithdrawSurplus uint8 `json:"isProtocolWithdrawSurplus"`
 
-	// migration progress
+	// Current migration progress state
 	MigrationProgress MigrationProgress `json:"migrationProgress"`
 
-	// is withdraw leftover
+	// Leftover withdrawal status
 	IsWithdrawLeftover uint8 `json:"isWithdrawLeftover"`
 
-	// is creator withdraw surplus
+	// Creator surplus withdrawal status
 	IsCreatorWithdrawSurplus uint8 `json:"isCreatorWithdrawSurplus"`
 
-	// migration fee withdraw status, first bit is for partner, second bit is for creator
+	// Migration fee withdrawal status (first bit for partner, second bit for creator)
 	MigrationFeeWithdrawStatus uint8 `json:"migrationFeeWithdrawStatus"`
 
-	// pool metrics
+	// Pool performance metrics
 	Metrics PoolMetrics `json:"metrics"`
 
-	// The time curve is finished
+	// Timestamp when the curve is finished
 	FinishCurveTimestamp uint64 `json:"finishCurveTimestamp"`
 
-	// creator base fee
+	// Creator base token fee amount
 	CreatorBaseFee uint64 `json:"creatorBaseFee"`
 
-	// creator quote fee
+	// Creator quote token fee amount
 	CreatorQuoteFee uint64 `json:"creatorQuoteFee"`
 
 	// Padding for further use

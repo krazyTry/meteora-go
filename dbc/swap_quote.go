@@ -12,6 +12,23 @@ import (
 	solanago "github.com/krazyTry/meteora-go/solana"
 )
 
+// SwapQuote gets the exact swap out quotation for quote and base swaps.
+// It depends on the SwapQuote function.
+//
+// Example:
+//
+// baseMint := solana.MustPublicKeyFromBase58("BHyqU2m7YeMFM3PaPXd2zdk7ApVtmWVsMiVK148vxRcS")
+//
+// result, poolState, configState, currentPoint, _ := m.SwapQuote(
+//
+//	ctx,
+//	baseMint, // pool (token) address
+//	false, // buy(quote=>base) sell(base => quote)
+//	amountIn, // amount to spend on selling or buying
+//	slippageBps, // slippage // 250 = 2.5%
+//	hasReferral, // default false, contact meteora
+//
+// )
 func (m *DBC) SwapQuote(
 	ctx context.Context,
 	baseMint solana.PublicKey,
@@ -23,6 +40,21 @@ func (m *DBC) SwapQuote(
 	return SwapQuote(ctx, m.rpcClient, baseMint, swapBaseForQuote, amountIn, slippageBps, hasReferral)
 }
 
+// SwapQuote gets the exact swap out quotation for quote and base swaps.
+//
+// Example:
+//
+// result, poolState, configState, currentPoint, _ := SwapQuote(
+//
+//	ctx,
+//	rpcClient,
+//	baseMint, // pool (token) address
+//	false, // buy(quote=>base) sell(base => quote)
+//	amountIn, // amount to spend on selling or buying
+//	slippageBps, // slippage // 250 = 2.5%
+//	hasReferral, // default false, contact meteora
+//
+// )
 func SwapQuote(
 	ctx context.Context,
 	rpcClient *rpc.Client,
@@ -66,6 +98,19 @@ func SwapQuote(
 	return quote, poolState, configState, currentPoint, nil
 }
 
+// BuyQuote gets the exact quotation for buying a specified amount of base token using quote token.
+//
+// Example:
+//
+// result, poolState, configState, currentPoint, _ := BuyQuote(
+//
+//	ctx,
+//	baseMint, // pool (token) address
+//	amountIn, // amount to spend on buying
+//	slippageBps, // slippage // 250 = 2.5%
+//	hasReferral, // default false, contact meteora
+//
+// )
 func (m *DBC) BuyQuote(
 	ctx context.Context,
 	baseMint solana.PublicKey,
@@ -76,6 +121,19 @@ func (m *DBC) BuyQuote(
 	return m.SwapQuote(ctx, baseMint, false, amountIn, slippageBps, hasReferral)
 }
 
+// SellQuote gets the exact quotation for selling a specified amount of base token to receive quote token.
+//
+// Example:
+//
+// result, poolState, configState, currentPoint, _ := SellQuote(
+//
+//	ctx,
+//	baseMint, // pool (token) address
+//	amountIn, // amount to spend on selling
+//	slippageBps, // slippage // 250 = 2.5%
+//	hasReferral, // default false, contact meteora
+//
+// )
 func (m *DBC) SellQuote(
 	ctx context.Context,
 	baseMint solana.PublicKey,

@@ -13,6 +13,25 @@ import (
 	solanago "github.com/krazyTry/meteora-go/solana"
 )
 
+// WithdrawLeftoverInstruction generates the instruction needed to withdraw leftover tokens.
+//
+// Example:
+//
+// poolState, _ := m.GetPoolByBaseMint(ctx, baseMint)
+//
+// configState, _ := m.GetConfig(ctx, poolState.Config)
+//
+// instructions, _ := WithdrawLeftoverInstruction(
+//
+//	ctx,
+//	m.rpcClient,
+//	payer.PublicKey(), // payer account
+//	m.leftoverReceiver.PublicKey(), // leftover receiver account
+//	poolState.Address, // dbc pool address
+//	poolState.VirtualPool,// dbc pool state
+//	configState, // dbc pool config
+//
+// )
 func WithdrawLeftoverInstruction(
 	ctx context.Context,
 	rpcClient *rpc.Client,
@@ -26,7 +45,7 @@ func WithdrawLeftoverInstruction(
 		return nil, fmt.Errorf("withdrawLeftover has been claimed")
 	}
 
-	baseMint := poolState.BaseMint // baseMint
+	baseMint := poolState.BaseMint
 
 	var instructions []solana.Instruction
 
@@ -35,7 +54,7 @@ func WithdrawLeftoverInstruction(
 		return nil, err
 	}
 
-	baseVault := poolState.BaseVault // dbc.DeriveTokenVaultPDA(pool, virtualPool.BaseMint)
+	baseVault := poolState.BaseVault
 
 	tokenBaseProgram := dbc.GetTokenProgram(configState.TokenType)
 
@@ -59,6 +78,22 @@ func WithdrawLeftoverInstruction(
 	return instructions, nil
 }
 
+// WithdrawLeftover withdraws leftover tokens from the Dynamic Bonding Curve pool.
+// It depends on the WithdrawLeftoverInstruction function.
+// This function is blocking and will wait for on-chain confirmation before returning.
+//
+// Example:
+//
+// baseMint := solana.MustPublicKeyFromBase58("BHyqU2m7YeMFM3PaPXd2zdk7ApVtmWVsMiVK148vxRcS")
+//
+// instructions, _ := WithdrawLeftover(
+//
+//	ctx,
+//	wsClient,
+//	payer, // payer account
+//	baseMint, // pool (token) address
+//
+// )
 func (m *DBC) WithdrawLeftover(
 	ctx context.Context,
 	wsClient *ws.Client,
@@ -111,6 +146,27 @@ func (m *DBC) WithdrawLeftover(
 	return sig.String(), nil
 }
 
+// WithdrawPartnerSurplusInstruction generates the instruction needed to withdraw partner surplus.
+//
+// Example:
+//
+// baseMint := solana.MustPublicKeyFromBase58("BHyqU2m7YeMFM3PaPXd2zdk7ApVtmWVsMiVK148vxRcS")
+//
+// poolState, _ := m.GetPoolByBaseMint(ctx, baseMint)
+//
+// configState, _ := m.GetConfig(ctx, poolState.Config)
+//
+// instructions, _ := WithdrawPartnerSurplusInstruction(
+//
+//	ctx,
+//	m.rpcClient,
+//	payer.PublicKey(), // payer account
+//	m.feeClaimer.PublicKey(), // partner
+//	poolState.Address, // dbc pool address
+//	poolState.VirtualPool, // dbc pool state
+//	configState, // dbc pool config
+//
+// )
 func WithdrawPartnerSurplusInstruction(
 	ctx context.Context,
 	rpcClient *rpc.Client,
@@ -164,6 +220,22 @@ func WithdrawPartnerSurplusInstruction(
 	return instructions, nil
 }
 
+// WithdrawPartnerSurplus withdraws the partner’s surplus from the pool.
+// It depends on the WithdrawPartnerSurplusInstruction function.
+// This function is blocking and will wait for on-chain confirmation before returning.
+//
+// Example:
+//
+// baseMint := solana.MustPublicKeyFromBase58("BHyqU2m7YeMFM3PaPXd2zdk7ApVtmWVsMiVK148vxRcS")
+//
+// sig, _ := meteoraDBC.WithdrawPartnerSurplus(
+//
+//	ctx,
+//	wsClient,
+//	payer, // payer account
+//	baseMint,
+//
+// )
 func (m *DBC) WithdrawPartnerSurplus(
 	ctx context.Context,
 	wsClient *ws.Client,
@@ -215,6 +287,27 @@ func (m *DBC) WithdrawPartnerSurplus(
 	return sig.String(), nil
 }
 
+// WithdrawCreatorSurplusInstruction generates the instruction needed to withdraw creator surplus.
+//
+// Example:
+//
+// baseMint := solana.MustPublicKeyFromBase58("BHyqU2m7YeMFM3PaPXd2zdk7ApVtmWVsMiVK148vxRcS")
+//
+// poolState, _ := m.GetPoolByBaseMint(ctx, baseMint)
+//
+// configState, _ := m.GetConfig(ctx, poolState.Config)
+//
+// instructions, _ := WithdrawCreatorSurplusInstruction(
+//
+//	ctx,
+//	m.rpcClient,
+//	payer.PublicKey(), // payer account
+//	m.poolCreator.PublicKey(), // creator
+//	poolState.Address, // dbc pool address
+//	poolState.VirtualPool, // dbc pool state
+//	configState, // dbc pool config
+//
+// )
 func WithdrawCreatorSurplusInstruction(
 	ctx context.Context,
 	rpcClient *rpc.Client,
@@ -269,6 +362,22 @@ func WithdrawCreatorSurplusInstruction(
 	return instructions, nil
 }
 
+// WithdrawCreatorSurplus withdraws the creator’s surplus from the pool.
+// It depends on the WithdrawCreatorSurplusInstruction function.
+// This function is blocking and will wait for on-chain confirmation before returning.
+//
+// Example:
+//
+// baseMint := solana.MustPublicKeyFromBase58("BHyqU2m7YeMFM3PaPXd2zdk7ApVtmWVsMiVK148vxRcS")
+//
+// sig, _ := meteoraDBC.WithdrawCreatorSurplus(
+//
+//	ctx,
+//	wsClient,
+//	payer, // payer account
+//	baseMint,
+//
+// )
 func (m *DBC) WithdrawCreatorSurplus(
 	ctx context.Context,
 	wsClient *ws.Client,
@@ -321,12 +430,34 @@ func (m *DBC) WithdrawCreatorSurplus(
 	return sig.String(), nil
 }
 
+// WithdrawMigrationFeeInstruction generates the instruction needed to withdraw the migration fee.
+//
+// Example:
+//
+// baseMint := solana.MustPublicKeyFromBase58("BHyqU2m7YeMFM3PaPXd2zdk7ApVtmWVsMiVK148vxRcS")
+//
+// poolState, _ := m.GetPoolByBaseMint(ctx, baseMint)
+//
+// configState, _ := m.GetConfig(ctx, poolState.Config)
+//
+// instructions, _ := WithdrawMigrationFeeInstruction(
+//
+//	ctx,
+//	m.rpcClient,
+//	payer.PublicKey(), // payer account
+//	m.feeClaimer.PublicKey(), // partner
+//	0, // 0. partner 1. creator
+//	poolState.Address, // dbc pool address
+//	poolState.VirtualPool, // dbc pool state
+//	configState, // dbc pool config
+//
+// )
 func WithdrawMigrationFeeInstruction(
 	ctx context.Context,
 	rpcClient *rpc.Client,
 	payer solana.PublicKey,
 	owner solana.PublicKey,
-	flag uint8,
+	flag dbc.WithdrawMigrationFeeFlag, // 0. partner 1. creator
 	poolAddress solana.PublicKey,
 	poolState *dbc.VirtualPool,
 	configState *dbc.PoolConfig,
@@ -374,6 +505,22 @@ func WithdrawMigrationFeeInstruction(
 	return instructions, nil
 }
 
+// WithdrawPartnerMigrationFee withdraws the partner’s migration fee from the pool.
+// It depends on the WithdrawMigrationFeeInstruction function.
+// This function is blocking and will wait for on-chain confirmation before returning.
+//
+// Example:
+//
+// baseMint := solana.MustPublicKeyFromBase58("BHyqU2m7YeMFM3PaPXd2zdk7ApVtmWVsMiVK148vxRcS")
+//
+// sig, _ := meteoraDBC.WithdrawPartnerMigrationFee(
+//
+//	ctx,
+//	wsClient,
+//	payer, // payer account
+//	baseMint,
+//
+// )
 func (m *DBC) WithdrawPartnerMigrationFee(
 	ctx context.Context,
 	wsClient *ws.Client,
@@ -395,7 +542,7 @@ func (m *DBC) WithdrawPartnerMigrationFee(
 		m.rpcClient,
 		payer.PublicKey(),
 		m.feeClaimer.PublicKey(),
-		0,
+		dbc.PartnerWithdrawMigrationFeeFlag,
 
 		poolState.Address,
 		poolState.VirtualPool,
@@ -427,6 +574,22 @@ func (m *DBC) WithdrawPartnerMigrationFee(
 	return sig.String(), nil
 }
 
+// WithdrawCreatorMigrationFee withdraws the creator’s migration fee from the pool.
+// It depends on the WithdrawMigrationFeeInstruction function.
+// This function is blocking and will wait for on-chain confirmation before returning.
+//
+// Example:
+//
+// baseMint := solana.MustPublicKeyFromBase58("BHyqU2m7YeMFM3PaPXd2zdk7ApVtmWVsMiVK148vxRcS")
+//
+// sig, _ := meteoraDBC.WithdrawCreatorMigrationFee(
+//
+//	ctx,
+//	wsClient,
+//	payer, // payer account
+//	baseMint,
+//
+// )
 func (m *DBC) WithdrawCreatorMigrationFee(
 	ctx context.Context,
 	wsClient *ws.Client,
@@ -448,7 +611,7 @@ func (m *DBC) WithdrawCreatorMigrationFee(
 		m.rpcClient,
 		payer.PublicKey(),
 		m.poolCreator.PublicKey(),
-		1,
+		dbc.CreatorWithdrawMigrationFeeFlag,
 		poolState.Address,
 		poolState.VirtualPool,
 		configState,

@@ -9,12 +9,12 @@ import (
 )
 
 type QuoteResult struct {
-	AmountOut        *big.Int
-	MinimumAmountOut *big.Int
-	NextSqrtPrice    binary.Uint128
-	Trading          *big.Int
-	Protocol         *big.Int
-	Referral         *big.Int
+	AmountOut        *big.Int       // Amount of output tokens to be received
+	MinimumAmountOut *big.Int       // Minimum amount of output tokens expected
+	NextSqrtPrice    binary.Uint128 // Next square root price after the swap
+	Trading          *big.Int       // Trading fee amount
+	Protocol         *big.Int       // Protocol fee amount
+	Referral         *big.Int       // Referral fee amount
 }
 
 func getSwapResult(

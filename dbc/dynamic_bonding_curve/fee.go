@@ -6,10 +6,11 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+// FeeMode represents the fee collection mode configuration
 type FeeMode struct {
-	FeesOnInput     bool
-	FeesOnBaseToken bool
-	HasReferral     bool
+	FeesOnInput     bool // Whether fees are collected on input tokens
+	FeesOnBaseToken bool // Whether fees are collected on base tokens
+	HasReferral     bool // Whether referral fees are enabled
 }
 
 func getFeeMode(collectFeeMode CollectFeeMode, tradeDirection TradeDirection, hasReferral bool) *FeeMode {
@@ -121,7 +122,7 @@ func getTotalFeeNumeratorFromIncludedFeeAmount(
 		return decimal.Decimal{}, errors.New("invalid base fee mode")
 	}
 
-	// 3. 返回 totalFee
+	// 3. Return totalFee
 	return getTotalFeeNumerator(
 		baseFeeNumerator,
 		poolFees.DynamicFee,

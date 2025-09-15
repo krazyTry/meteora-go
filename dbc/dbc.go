@@ -10,10 +10,13 @@ import (
 )
 
 var (
+	// ErrPoolCompleted dbc pool has been converted to dammv2
 	ErrPoolCompleted = errors.New("virtual pool is completed")
 
+	// ErrDammV2LockerNotRequired dbc pool does not require locking
 	ErrDammV2LockerNotRequired = errors.New("locker not required")
-	ErrMigrationProgressState  = errors.New("virtual pool state error")
+	// ErrMigrationProgressState dbc pool state error
+	ErrMigrationProgressState = errors.New("virtual pool state error")
 
 	poolAuthority        solana.PublicKey
 	eventAuthority       solana.PublicKey
@@ -25,6 +28,8 @@ var (
 	transferFee = uint64(5000) // 0.000005 SOL
 )
 
+// Init performs initialization.
+// It completes the generation of poolAuthority, eventAuthority, lockerEventAuthority, dammPoolAuthority, and dammEventAuthority in the dbc pool.
 func Init() error {
 	var err error
 	poolAuthority, err = dbc.DerivePoolAuthorityPDA()
@@ -54,14 +59,33 @@ func Init() error {
 	return nil
 }
 
+// DBC
 type DBC struct {
-	rpcClient        *rpc.Client
-	config           *solana.Wallet
-	feeClaimer       *solana.Wallet
-	leftoverReceiver *solana.Wallet
-	poolCreator      *solana.Wallet
+	rpcClient        *rpc.Client    // solana rpc client
+	config           *solana.Wallet // config wallet
+	feeClaimer       *solana.Wallet // partner wallet
+	leftoverReceiver *solana.Wallet // leftover receiver account wallet
+	poolCreator      *solana.Wallet // pool creator account wallet
 }
 
+// NewDBC creates a meteora dbc object.
+//
+// Example:
+//
+// config := solana.NewWallet()
+// poolCreator := solana.NewWallet()
+// poolPartner := solana.NewWallet()
+// leftoverReceiver := solana.NewWallet()
+//
+// meteoraDBC, _ := dbc.NewDBC(
+//
+//	rpcClient, // solana rpc client
+//	config, // config wallet
+//	poolCreator, // partner wallet
+//	poolPartner, // leftover receiver account wallet
+//	leftoverReceiver, // pool creator account wallet
+//
+// )
 func NewDBC(
 	rpcClient *rpc.Client,
 	config *solana.Wallet,

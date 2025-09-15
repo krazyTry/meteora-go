@@ -6,6 +6,8 @@ import (
 )
 
 type Pool struct {
+	// dbc pool state
 	*dbc.VirtualPool
+	// dbc pool address
 	Address solana.PublicKey
 }

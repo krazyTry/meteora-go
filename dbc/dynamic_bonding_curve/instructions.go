@@ -1640,7 +1640,7 @@ func NewWithdrawLeftoverInstruction(
 // BOTH partner and creator FUNCTIONS ///
 func NewWithdrawMigrationFeeInstruction(
 	// Params:
-	flagParam uint8,
+	flagParam WithdrawMigrationFeeFlag,
 
 	// Accounts:
 	poolAuthorityAccount solanago.PublicKey,
