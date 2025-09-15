@@ -10,6 +10,7 @@ import (
 	"github.com/gagliardetto/solana-go/rpc"
 )
 
+// PrepareTokenATA checks if ATA exists, creates it if it doesn't exist
 func PrepareTokenATA(
 	ctx context.Context,
 	rpcClient *rpc.Client,
@@ -41,6 +42,8 @@ func PrepareTokenATA(
 	return tokenATA, nil
 }
 
+// SplitInstructions splits instructions into three phases: start, middle, end.
+// The start and end phases will attempt to deduplicate specific types to avoid multiple identical instructions.
 func SplitInstructions(oldInstructions []solana.Instruction) ([]solana.Instruction, []solana.Instruction, []solana.Instruction) {
 	var (
 		startInstruction  []solana.Instruction
@@ -94,6 +97,7 @@ loop:
 	return startInstruction, middleInstruction, endInstruction
 }
 
+// MergeInstructions merges instructions
 func MergeInstructions(oldInstructions []solana.Instruction) []solana.Instruction {
 	var (
 		newInstructions []solana.Instruction

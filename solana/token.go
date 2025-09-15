@@ -5,11 +5,14 @@ import (
 	"github.com/gagliardetto/solana-go/programs/token"
 )
 
+// Token represents a Solana token with mint information and owner
 type Token struct {
 	token.Mint
+	// Owner account of the token
 	Owner solana.PublicKey
 }
 
+// TokenLayout provides methods for decoding token data
 type TokenLayout struct {
 }
 

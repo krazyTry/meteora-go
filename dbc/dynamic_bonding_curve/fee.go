@@ -13,6 +13,7 @@ type FeeMode struct {
 	HasReferral     bool // Whether referral fees are enabled
 }
 
+// getFeeMode creates a FeeMode configuration based on fee collection mode, trade direction, and referral status
 func getFeeMode(collectFeeMode CollectFeeMode, tradeDirection TradeDirection, hasReferral bool) *FeeMode {
 	return &FeeMode{
 		FeesOnInput:     tradeDirection == TradeDirectionQuoteToBase && collectFeeMode == CollectFeeModeQuoteToken,
@@ -21,6 +22,7 @@ func getFeeMode(collectFeeMode CollectFeeMode, tradeDirection TradeDirection, ha
 	}
 }
 
+// getVariableFeeNumerator calculates the variable fee numerator based on dynamic fee configuration and volatility
 func getVariableFeeNumerator(
 	dynamicFee DynamicFeeConfig,
 	volatilityTracker VolatilityTracker,
@@ -45,6 +47,7 @@ func getVariableFeeNumerator(
 	return vFee.Add(N99_999_999_999).Div(N100_000_000_000)
 }
 
+// getTotalFeeNumerator calculates the total fee numerator by combining base fee and variable fee
 func getTotalFeeNumerator(
 	baseFeeNumerator decimal.Decimal,
 	dynamicFee DynamicFeeConfig,
@@ -64,6 +67,7 @@ func getTotalFeeNumerator(
 	return totalFeeNumerator
 }
 
+// getTotalFeeNumeratorFromIncludedFeeAmount calculates the total fee numerator from an included fee amount
 func getTotalFeeNumeratorFromIncludedFeeAmount(
 	poolFees PoolFeesConfig,
 	volatilityTracker VolatilityTracker,
@@ -130,6 +134,7 @@ func getTotalFeeNumeratorFromIncludedFeeAmount(
 	), nil
 }
 
+// isZeroRateLimiter checks if all rate limiter parameters are zero
 func isZeroRateLimiter(
 	referenceAmount decimal.Decimal,
 	maxLimiterDuration decimal.Decimal,
@@ -138,6 +143,7 @@ func isZeroRateLimiter(
 	return referenceAmount.IsZero() && maxLimiterDuration.IsZero() && feeIncrementBps.IsZero()
 }
 
+// isRateLimiterApplied determines if rate limiting should be applied based on current conditions
 func isRateLimiterApplied(
 	currentPoint decimal.Decimal,
 	activationPoint decimal.Decimal,
@@ -146,23 +152,24 @@ func isRateLimiterApplied(
 	referenceAmount decimal.Decimal,
 	feeIncrementBps decimal.Decimal,
 ) bool {
-	// 1. 如果 RateLimiter 全部为零，则不应用
+	// 1. If all RateLimiter parameters are zero, do not apply rate limiting
 	if isZeroRateLimiter(referenceAmount, maxLimiterDuration, feeIncrementBps) {
 		return false
 	}
 
-	// 2. 只处理 quote -> base 的情况
+	// 2. Only handle quote -> base trade direction
 	if tradeDirection == TradeDirectionBaseToQuote {
 		return false
 	}
 
-	// 3. 计算最后有效的 RateLimiter 点
+	// 3. Calculate the last effective RateLimiter point
 	lastEffectiveRateLimiterPoint := activationPoint.Add(maxLimiterDuration)
 
-	// 4. currentPoint <= lastEffectiveRateLimiterPoint
+	// 4. Check if currentPoint <= lastEffectiveRateLimiterPoint
 	return currentPoint.Cmp(lastEffectiveRateLimiterPoint) <= 0
 }
 
+// toNumerator converts basis points to numerator using the given fee denominator
 func toNumerator(bps, feeDenominator decimal.Decimal) (decimal.Decimal, error) {
 	numerator, err := mulDiv(bps, feeDenominator, BASIS_POINT_MAX, false)
 	if err != nil {
@@ -171,8 +178,9 @@ func toNumerator(bps, feeDenominator decimal.Decimal) (decimal.Decimal, error) {
 	return numerator, nil
 }
 
+// getMaxIndex1 calculates the maximum index for fee increment calculations
 func getMaxIndex1(cliffFeeNumerator, feeIncrementBps decimal.Decimal) (decimal.Decimal, error) {
-	// 检查 cliffFeeNumerator 是否超过最大值
+	// Check if cliffFeeNumerator exceeds the maximum value
 	if cliffFeeNumerator.Cmp(MAX_FEE_NUMERATOR) > 0 {
 		return decimal.Decimal{}, errors.New("cliff fee numerator exceeds maximum fee numerator")
 	}
@@ -186,12 +194,12 @@ func getMaxIndex1(cliffFeeNumerator, feeIncrementBps decimal.Decimal) (decimal.D
 		return decimal.Decimal{}, err
 	}
 
-	// 检查 feeIncrementNumerator 是否为零
+	// Check if feeIncrementNumerator is zero
 	if feeIncrementNumerator.Sign() == 0 {
 		return decimal.Decimal{}, errors.New("fee increment numerator cannot be zero")
 	}
 
-	// 返回 deltaNumerator / feeIncrementNumerator
+	// Return deltaNumerator / feeIncrementNumerator
 	return deltaNumerator.Div(feeIncrementNumerator), nil
 }
 
@@ -290,6 +298,7 @@ func getFeeNumeratorFromIncludedAmount(
 	return feeNumerator, nil
 }
 
+// getExcludedFeeAmount calculates the amount after excluding fees and the trading fee
 func getExcludedFeeAmount(
 	tradeFeeNumerator decimal.Decimal,
 	includedFeeAmount decimal.Decimal,
@@ -311,19 +320,20 @@ func getExcludedFeeAmount(
 	return excludedFeeAmount, tradingFee, nil
 }
 
+// getFeeOnAmount calculates fee distribution including protocol fees, referral fees, and trading fees
 func getFeeOnAmount(
 	tradeFeeNumerator decimal.Decimal,
 	amount decimal.Decimal,
 	poolFees PoolFeesConfig,
 	hasReferral bool,
 ) (amountAfterFee, updatedProtocolFee, referralFee, updatedTradingFee decimal.Decimal, err error) {
-	// 1. 先计算去掉交易费之后的数量
+	// 1. First calculate the amount after removing trading fees
 	amountAfterFee, tradingFee, err := getExcludedFeeAmount(tradeFeeNumerator, amount)
 	if err != nil {
 		return decimal.Decimal{}, decimal.Decimal{}, decimal.Decimal{}, decimal.Decimal{}, err
 	}
 
-	// 2. 计算协议费 (protocolFee = tradingFee * protocolFeePercent / 100)
+	// 2. Calculate protocol fee (protocolFee = tradingFee * protocolFeePercent / 100)
 	protocolFee, err := mulDiv(
 		tradingFee,
 		decimal.NewFromUint64(uint64(poolFees.ProtocolFeePercent)),
@@ -334,10 +344,10 @@ func getFeeOnAmount(
 		return decimal.Decimal{}, decimal.Decimal{}, decimal.Decimal{}, decimal.Decimal{}, err
 	}
 
-	// 3. 更新交易费 (去掉协议费)
+	// 3. Update trading fee (subtract protocol fee)
 	updatedTradingFee = tradingFee.Sub(protocolFee)
 
-	// 4. 计算推荐人奖励 (referralFee = protocolFee * referralFeePercent / 100)
+	// 4. Calculate referral reward (referralFee = protocolFee * referralFeePercent / 100)
 	if hasReferral {
 		referralFee, err = mulDiv(
 			protocolFee,
@@ -352,9 +362,9 @@ func getFeeOnAmount(
 		referralFee = N0
 	}
 
-	// 5. 更新协议费 (protocolFee - referralFee)
+	// 5. Update protocol fee (protocolFee - referralFee)
 	updatedProtocolFee = protocolFee.Sub(referralFee)
 
-	// 6. 返回结果
+	// 6. Return results
 	return amountAfterFee, updatedProtocolFee, referralFee, updatedTradingFee, nil
 }

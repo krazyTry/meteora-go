@@ -78,7 +78,7 @@ func SwapQuote(
 		return nil, nil, nil, nil, ErrPoolCompleted
 	}
 
-	currentPoint, err := solanago.CurrenPoint(ctx, rpcClient, uint8(configState.ActivationType))
+	currentPoint, err := solanago.CurrentPoint(ctx, rpcClient, uint8(configState.ActivationType))
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
@@ -102,7 +102,7 @@ func SwapQuote(
 //
 // Example:
 //
-// result, poolState, configState, currentPoint, _ := BuyQuote(
+// result, poolState, configState, currentPoint, _ := m.BuyQuote(
 //
 //	ctx,
 //	baseMint, // pool (token) address
@@ -125,7 +125,7 @@ func (m *DBC) BuyQuote(
 //
 // Example:
 //
-// result, poolState, configState, currentPoint, _ := SellQuote(
+// result, poolState, configState, currentPoint, _ := m.SellQuote(
 //
 //	ctx,
 //	baseMint, // pool (token) address
@@ -142,4 +142,54 @@ func (m *DBC) SellQuote(
 	hasReferral bool,
 ) (*dbc.QuoteResult, *Pool, *dbc.PoolConfig, *big.Int, error) {
 	return m.SwapQuote(ctx, baseMint, true, amountIn, slippageBps, hasReferral)
+}
+
+// BuyQuote gets the exact quotation for buying a specified amount of base token using quote token.
+//
+// Example:
+//
+// result, poolState, configState, currentPoint, _ := BuyQuote(
+//
+//	ctx,
+//	rpcClient,
+//	baseMint, // pool (token) address
+//	amountIn, // amount to spend on buying
+//	slippageBps, // slippage // 250 = 2.5%
+//	hasReferral, // default false, contact meteora
+//
+// )
+func BuyQuote(
+	ctx context.Context,
+	rpcClient *rpc.Client,
+	baseMint solana.PublicKey,
+	amountIn *big.Int,
+	slippageBps uint64,
+	hasReferral bool,
+) (*dbc.QuoteResult, *Pool, *dbc.PoolConfig, *big.Int, error) {
+	return SwapQuote(ctx, rpcClient, baseMint, false, amountIn, slippageBps, hasReferral)
+}
+
+// SellQuote gets the exact quotation for selling a specified amount of base token to receive quote token.
+//
+// Example:
+//
+// result, poolState, configState, currentPoint, _ := SellQuote(
+//
+//	ctx,
+//	rpcClient,
+//	baseMint, // pool (token) address
+//	amountIn, // amount to spend on selling
+//	slippageBps, // slippage // 250 = 2.5%
+//	hasReferral, // default false, contact meteora
+//
+// )
+func SellQuote(
+	ctx context.Context,
+	rpcClient *rpc.Client,
+	baseMint solana.PublicKey,
+	amountIn *big.Int,
+	slippageBps uint64,
+	hasReferral bool,
+) (*dbc.QuoteResult, *Pool, *dbc.PoolConfig, *big.Int, error) {
+	return SwapQuote(ctx, rpcClient, baseMint, true, amountIn, slippageBps, hasReferral)
 }

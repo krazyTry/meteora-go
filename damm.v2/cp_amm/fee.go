@@ -67,10 +67,13 @@ func getDynamicFeeNumerator(
 	return result
 }
 
-// DynamicFeeParams
+// DynamicFeeParams represents parameters for dynamic fee calculation based on market volatility
 type DynamicFeeParams struct {
+	// VolatilityAccumulator tracks the accumulated volatility over time
 	VolatilityAccumulator *big.Int
+	// BinStep represents the step size for price bins in the dynamic fee calculation
 	BinStep               *big.Int
+	// VariableFeeControl controls the variable fee adjustment mechanism
 	VariableFeeControl    *big.Int
 }
 
@@ -120,9 +123,11 @@ func GetFeeNumerator(
 	return feeNumerator
 }
 
-// FeeMode
+// FeeMode represents the fee collection mode for swap operations
 type FeeMode struct {
+	// FeeOnInput indicates whether fees are collected on the input token
 	FeeOnInput   bool
+	// FeesOnTokenA indicates whether fees are collected on token A
 	FeesOnTokenA bool
 }
 
@@ -224,9 +229,13 @@ func GetPriceImpact(
 	return priceImpact, nil
 }
 
+// RewardResult represents the result of reward and fee calculations
 type RewardResult struct {
+	// FeeTokenA is the fee amount for token A
 	FeeTokenA *big.Int
+	// FeeTokenB is the fee amount for token B
 	FeeTokenB *big.Int
+	// Rewards is an array of reward amounts for different reward tokens
 	Rewards   []*big.Int
 }
 
@@ -414,7 +423,7 @@ func GetDynamicFeeParams(baseFeeBps int64, maxPriceChangeBps int) (*DynamicFeePa
 	// baseFeeNumerator
 	baseFeeNumerator := bpsToFeeNumerator(baseFeeBps)
 
-	// maxDynamicFeeNumerator = baseFeeNumerator * 20% (除以100)
+	// maxDynamicFeeNumerator = baseFeeNumerator * 20% (divide by 100)
 	maxDynamicFeeNumerator := baseFeeNumerator.Mul(N20)       //new(big.Int).Mul(baseFeeNumerator, big.NewInt(20))
 	maxDynamicFeeNumerator = maxDynamicFeeNumerator.Div(N100) //maxDynamicFeeNumerator.Div(maxDynamicFeeNumerator, big.NewInt(100))
 

@@ -12,14 +12,15 @@ import (
 	solanago "github.com/gagliardetto/solana-go"
 )
 
+// AddLiquidityParameters represents the parameters required for adding liquidity to a pool
 type AddLiquidityParameters struct {
-	// delta liquidity
+	// LiquidityDelta is the delta liquidity amount to be added
 	LiquidityDelta binary.Uint128 `json:"liquidityDelta"`
 
-	// maximum token a amount
+	// TokenAAmountThreshold is the maximum token A amount allowed
 	TokenAAmountThreshold uint64 `json:"tokenAAmountThreshold"`
 
-	// maximum token b amount
+	// TokenBAmountThreshold is the maximum token B amount allowed
 	TokenBAmountThreshold uint64 `json:"tokenBAmountThreshold"`
 }
 
@@ -88,13 +89,20 @@ func UnmarshalAddLiquidityParameters(buf []byte) (*AddLiquidityParameters, error
 	return obj, nil
 }
 
+// BaseFeeConfig represents the base fee configuration for a pool
 type BaseFeeConfig struct {
-	CliffFeeNumerator uint64           `json:"cliffFeeNumerator"`
-	FeeSchedulerMode  FeeSchedulerMode `json:"feeSchedulerMode"`
-	Padding           [5]uint8         `json:"padding"`
-	NumberOfPeriod    uint16           `json:"numberOfPeriod"`
-	PeriodFrequency   uint64           `json:"periodFrequency"`
-	ReductionFactor   uint64           `json:"reductionFactor"`
+	// CliffFeeNumerator is the initial fee numerator at the cliff
+	CliffFeeNumerator uint64 `json:"cliffFeeNumerator"`
+	// FeeSchedulerMode defines the fee reduction mode (linear or exponential)
+	FeeSchedulerMode FeeSchedulerMode `json:"feeSchedulerMode"`
+	// Padding for memory alignment
+	Padding [5]uint8 `json:"padding"`
+	// NumberOfPeriod is the total number of fee reduction periods
+	NumberOfPeriod uint16 `json:"numberOfPeriod"`
+	// PeriodFrequency is the frequency of each period in seconds
+	PeriodFrequency uint64 `json:"periodFrequency"`
+	// ReductionFactor is the factor by which fees are reduced each period
+	ReductionFactor uint64 `json:"reductionFactor"`
 }
 
 func (obj BaseFeeConfig) MarshalWithEncoder(encoder *binary.Encoder) (err error) {
@@ -192,12 +200,18 @@ func UnmarshalBaseFeeConfig(buf []byte) (*BaseFeeConfig, error) {
 	return obj, nil
 }
 
+// BaseFeeParameters represents the parameters for configuring base fees
 type BaseFeeParameters struct {
-	CliffFeeNumerator uint64           `json:"cliffFeeNumerator"`
-	NumberOfPeriod    uint16           `json:"numberOfPeriod"`
-	PeriodFrequency   uint64           `json:"periodFrequency"`
-	ReductionFactor   uint64           `json:"reductionFactor"`
-	FeeSchedulerMode  FeeSchedulerMode `json:"feeSchedulerMode"`
+	// CliffFeeNumerator is the initial fee numerator at the cliff
+	CliffFeeNumerator uint64 `json:"cliffFeeNumerator"`
+	// NumberOfPeriod is the total number of fee reduction periods
+	NumberOfPeriod uint16 `json:"numberOfPeriod"`
+	// PeriodFrequency is the frequency of each period in seconds
+	PeriodFrequency uint64 `json:"periodFrequency"`
+	// ReductionFactor is the factor by which fees are reduced each period
+	ReductionFactor uint64 `json:"reductionFactor"`
+	// FeeSchedulerMode defines the fee reduction mode (linear or exponential)
+	FeeSchedulerMode FeeSchedulerMode `json:"feeSchedulerMode"`
 }
 
 func (obj BaseFeeParameters) MarshalWithEncoder(encoder *binary.Encoder) (err error) {
@@ -285,14 +299,22 @@ func UnmarshalBaseFeeParameters(buf []byte) (*BaseFeeParameters, error) {
 	return obj, nil
 }
 
+// BaseFeeStruct represents the base fee structure with padding for storage
 type BaseFeeStruct struct {
-	CliffFeeNumerator uint64           `json:"cliffFeeNumerator"`
-	FeeSchedulerMode  FeeSchedulerMode `json:"feeSchedulerMode"`
-	Padding0          [5]uint8         `json:"padding0"`
-	NumberOfPeriod    uint16           `json:"numberOfPeriod"`
-	PeriodFrequency   uint64           `json:"periodFrequency"`
-	ReductionFactor   uint64           `json:"reductionFactor"`
-	Padding1          uint64           `json:"padding1"`
+	// CliffFeeNumerator is the initial fee numerator at the cliff
+	CliffFeeNumerator uint64 `json:"cliffFeeNumerator"`
+	// FeeSchedulerMode defines the fee reduction mode (linear or exponential)
+	FeeSchedulerMode FeeSchedulerMode `json:"feeSchedulerMode"`
+	// Padding0 for memory alignment
+	Padding0 [5]uint8 `json:"padding0"`
+	// NumberOfPeriod is the total number of fee reduction periods
+	NumberOfPeriod uint16 `json:"numberOfPeriod"`
+	// PeriodFrequency is the frequency of each period in seconds
+	PeriodFrequency uint64 `json:"periodFrequency"`
+	// ReductionFactor is the factor by which fees are reduced each period
+	ReductionFactor uint64 `json:"reductionFactor"`
+	// Padding1 for future use
+	Padding1 uint64 `json:"padding1"`
 }
 
 func (obj BaseFeeStruct) MarshalWithEncoder(encoder *binary.Encoder) (err error) {
@@ -400,12 +422,12 @@ func UnmarshalBaseFeeStruct(buf []byte) (*BaseFeeStruct, error) {
 	return obj, nil
 }
 
-// Parameter that set by the protocol
+// ClaimFeeOperator represents the parameters set by the protocol for fee claiming operations
 type ClaimFeeOperator struct {
-	// operator
+	// Operator is the public key of the operator authorized to claim fees
 	Operator solanago.PublicKey `json:"operator"`
 
-	// Reserve
+	// Padding reserved for future use
 	Padding [128]uint8 `json:"padding"`
 }
 
@@ -464,39 +486,39 @@ func UnmarshalClaimFeeOperator(buf []byte) (*ClaimFeeOperator, error) {
 	return obj, nil
 }
 
+// Config represents the configuration settings for a pool
 type Config struct {
-	// Vault config key
+	// VaultConfigKey is the vault configuration key
 	VaultConfigKey solanago.PublicKey `json:"vaultConfigKey"`
 
-	// Only pool_creator_authority can use the current config to initialize new pool. When it's Pubkey::default, it's a public config.
+	// PoolCreatorAuthority is the authority that can create pools with this config. When it's Pubkey::default, it's a public config.
 	PoolCreatorAuthority solanago.PublicKey `json:"poolCreatorAuthority"`
 
-	// Pool fee
+	// PoolFees contains the pool fee configuration
 	PoolFees PoolFeesConfig `json:"poolFees"`
 
-	// Activation type
+	// ActivationType defines the activation type for the pool
 	ActivationType ActivationType `json:"activationType"`
 
-	// Collect fee mode
+	// CollectFeeMode defines how fees are collected
 	CollectFeeMode CollectFeeMode `json:"collectFeeMode"`
 
-	// Config type mode, 0 for static, 1 for dynamic
+	// ConfigType defines the config type mode: 0 for static, 1 for dynamic
 	ConfigType uint8 `json:"configType"`
 
-	// padding 0
+	// Padding0 for memory alignment
 	Padding0 [5]uint8 `json:"padding0"`
 
-	// config index
+	// Index is the configuration index
 	Index uint64 `json:"index"`
 
-	// sqrt min price
+	// SqrtMinPrice is the square root of the minimum price
 	SqrtMinPrice binary.Uint128 `json:"sqrtMinPrice"`
 
-	// sqrt max price
+	// SqrtMaxPrice is the square root of the maximum price
 	SqrtMaxPrice binary.Uint128 `json:"sqrtMaxPrice"`
 
-	// Fee curve point
-	// Padding for further use
+	// Padding1 reserved for future use (fee curve points)
 	Padding1 [10]uint64 `json:"padding1"`
 }
 
@@ -645,7 +667,9 @@ func UnmarshalConfig(buf []byte) (*Config, error) {
 	return obj, nil
 }
 
+// DynamicConfigParameters represents parameters for dynamic pool configuration
 type DynamicConfigParameters struct {
+	// PoolCreatorAuthority is the public key of the authority that can create pools
 	PoolCreatorAuthority solanago.PublicKey `json:"poolCreatorAuthority"`
 }
 
@@ -694,17 +718,28 @@ func UnmarshalDynamicConfigParameters(buf []byte) (*DynamicConfigParameters, err
 	return obj, nil
 }
 
+// DynamicFeeConfig represents the configuration for dynamic fee calculation
 type DynamicFeeConfig struct {
-	Initialized              uint8          `json:"initialized"`
-	Padding                  [7]uint8       `json:"padding"`
-	MaxVolatilityAccumulator uint32         `json:"maxVolatilityAccumulator"`
-	VariableFeeControl       uint32         `json:"variableFeeControl"`
-	BinStep                  uint16         `json:"binStep"`
-	FilterPeriod             uint16         `json:"filterPeriod"`
-	DecayPeriod              uint16         `json:"decayPeriod"`
-	ReductionFactor          uint16         `json:"reductionFactor"`
-	Padding1                 [8]uint8       `json:"padding1"`
-	BinStepU128              binary.Uint128 `json:"binStepU128"`
+	// Initialized indicates whether the config is initialized (0 = false, 1 = true)
+	Initialized uint8 `json:"initialized"`
+	// Padding for memory alignment
+	Padding [7]uint8 `json:"padding"`
+	// MaxVolatilityAccumulator is the maximum volatility accumulator value
+	MaxVolatilityAccumulator uint32 `json:"maxVolatilityAccumulator"`
+	// VariableFeeControl controls the variable fee calculation
+	VariableFeeControl uint32 `json:"variableFeeControl"`
+	// BinStep is the step size for price bins
+	BinStep uint16 `json:"binStep"`
+	// FilterPeriod is the period for filtering price movements
+	FilterPeriod uint16 `json:"filterPeriod"`
+	// DecayPeriod is the period for volatility decay
+	DecayPeriod uint16 `json:"decayPeriod"`
+	// ReductionFactor is the factor for reducing volatility
+	ReductionFactor uint16 `json:"reductionFactor"`
+	// Padding1 for memory alignment
+	Padding1 [8]uint8 `json:"padding1"`
+	// BinStepU128 is the bin step as a 128-bit unsigned integer
+	BinStepU128 binary.Uint128 `json:"binStepU128"`
 }
 
 func (obj DynamicFeeConfig) MarshalWithEncoder(encoder *binary.Encoder) (err error) {
@@ -3865,96 +3900,98 @@ func UnmarshalInitializePoolParameters(buf []byte) (*InitializePoolParameters, e
 	return obj, nil
 }
 
+// Pool represents a liquidity pool with all its configuration and state
 type Pool struct {
-	// Pool fee
+	// PoolFees contains the fee structure for the pool
 	PoolFees PoolFeesStruct `json:"poolFees"`
 
-	// token a mint
+	// TokenAMint is the mint address of token A
 	TokenAMint solanago.PublicKey `json:"tokenAMint"`
 
-	// token b mint
+	// TokenBMint is the mint address of token B
 	TokenBMint solanago.PublicKey `json:"tokenBMint"`
 
-	// token a vault
+	// TokenAVault is the vault address for token A
 	TokenAVault solanago.PublicKey `json:"tokenAVault"`
 
-	// token b vault
+	// TokenBVault is the vault address for token B
 	TokenBVault solanago.PublicKey `json:"tokenBVault"`
 
-	// Whitelisted vault to be able to buy pool before activation_point
+	// WhitelistedVault is the vault allowed to buy pool tokens before activation point
 	WhitelistedVault solanago.PublicKey `json:"whitelistedVault"`
 
-	// partner
+	// Partner is the partner address for fee sharing
 	Partner solanago.PublicKey `json:"partner"`
 
-	// liquidity share
+	// Liquidity is the total liquidity share in the pool
 	Liquidity binary.Uint128 `json:"liquidity"`
 
-	// padding, previous reserve amount, be careful to use that field
+	// Padding contains previous reserve amount (use with caution)
 	Padding binary.Uint128 `json:"padding"`
 
-	// protocol a fee
+	// ProtocolAFee is the accumulated protocol fee for token A
 	ProtocolAFee uint64 `json:"protocolAFee"`
 
-	// protocol b fee
+	// ProtocolBFee is the accumulated protocol fee for token B
 	ProtocolBFee uint64 `json:"protocolBFee"`
 
-	// partner a fee
+	// PartnerAFee is the accumulated partner fee for token A
 	PartnerAFee uint64 `json:"partnerAFee"`
 
-	// partner b fee
+	// PartnerBFee is the accumulated partner fee for token B
 	PartnerBFee uint64 `json:"partnerBFee"`
 
-	// min price
+	// SqrtMinPrice is the square root of the minimum price
 	SqrtMinPrice binary.Uint128 `json:"sqrtMinPrice"`
 
-	// max price
+	// SqrtMaxPrice is the square root of the maximum price
 	SqrtMaxPrice binary.Uint128 `json:"sqrtMaxPrice"`
 
-	// current price
+	// SqrtPrice is the square root of the current price
 	SqrtPrice binary.Uint128 `json:"sqrtPrice"`
 
-	// Activation point, can be slot or timestamp
+	// ActivationPoint can be slot or timestamp for pool activation
 	ActivationPoint uint64 `json:"activationPoint"`
 
-	// Activation type, 0 means by slot, 1 means by timestamp
+	// ActivationType defines activation type: 0 for slot, 1 for timestamp
 	ActivationType ActivationType `json:"activationType"`
 
-	// pool status, 0: enable, 1 disable
+	// PoolStatus defines pool status: 0 for enabled, 1 for disabled
 	PoolStatus uint8 `json:"poolStatus"`
 
-	// token a flag
+	// TokenAFlag indicates the type of token A
 	TokenAFlag TokenType `json:"tokenAFlag"`
 
-	// token b flag
+	// TokenBFlag indicates the type of token B
 	TokenBFlag TokenType `json:"tokenBFlag"`
 
-	// 0 is collect fee in both token, 1 only collect fee in token a, 2 only collect fee in token b
+	// CollectFeeMode defines fee collection: 0 for both tokens, 1 for token A only, 2 for token B only
 	CollectFeeMode CollectFeeMode `json:"collectFeeMode"`
 
-	// pool type
+	// PoolType indicates the pool type
 	PoolType TokenType `json:"poolType"`
 
-	// padding
+	// Padding0 for memory alignment
 	Padding0 [2]uint8 `json:"padding0"`
 
-	// cumulative
+	// FeeAPerLiquidity is the cumulative fee per liquidity for token A
 	FeeAPerLiquidity [32]uint8 `json:"feeAPerLiquidity"`
 
-	// cumulative
-	FeeBPerLiquidity       [32]uint8      `json:"feeBPerLiquidity"`
+	// FeeBPerLiquidity is the cumulative fee per liquidity for token B
+	FeeBPerLiquidity [32]uint8 `json:"feeBPerLiquidity"`
+	// PermanentLockLiquidity is the amount of permanently locked liquidity
 	PermanentLockLiquidity binary.Uint128 `json:"permanentLockLiquidity"`
 
-	// metrics
+	// Metrics contains pool performance metrics
 	Metrics PoolMetrics `json:"metrics"`
 
-	// pool creator
+	// Creator is the address of the pool creator
 	Creator solanago.PublicKey `json:"creator"`
 
-	// Padding for further use
+	// Padding1 reserved for future use
 	Padding1 [6]uint64 `json:"padding1"`
 
-	// Farming reward information
+	// RewardInfos contains farming reward information (up to 2 rewards)
 	RewardInfos [2]RewardInfo `json:"rewardInfos"`
 }
 
@@ -4780,40 +4817,42 @@ func UnmarshalPoolMetrics(buf []byte) (*PoolMetrics, error) {
 	return obj, nil
 }
 
+// Position represents a liquidity position in a pool
 type Position struct {
+	// Pool is the public key of the associated pool
 	Pool solanago.PublicKey `json:"pool"`
 
-	// nft mint
+	// NftMint is the mint address of the position NFT
 	NftMint solanago.PublicKey `json:"nftMint"`
 
-	// fee a checkpoint
+	// FeeAPerTokenCheckpoint is the checkpoint for fee A per token
 	FeeAPerTokenCheckpoint [32]uint8 `json:"feeAPerTokenCheckpoint"`
 
-	// fee b checkpoint
+	// FeeBPerTokenCheckpoint is the checkpoint for fee B per token
 	FeeBPerTokenCheckpoint [32]uint8 `json:"feeBPerTokenCheckpoint"`
 
-	// fee a pending
+	// FeeAPending is the pending fee amount for token A
 	FeeAPending uint64 `json:"feeAPending"`
 
-	// fee b pending
+	// FeeBPending is the pending fee amount for token B
 	FeeBPending uint64 `json:"feeBPending"`
 
-	// unlock liquidity
+	// UnlockedLiquidity is the amount of unlocked liquidity
 	UnlockedLiquidity binary.Uint128 `json:"unlockedLiquidity"`
 
-	// vesting liquidity
+	// VestedLiquidity is the amount of vested liquidity
 	VestedLiquidity binary.Uint128 `json:"vestedLiquidity"`
 
-	// permanent locked liquidity
+	// PermanentLockedLiquidity is the amount of permanently locked liquidity
 	PermanentLockedLiquidity binary.Uint128 `json:"permanentLockedLiquidity"`
 
-	// metrics
+	// Metrics contains position performance metrics
 	Metrics PositionMetrics `json:"metrics"`
 
-	// Farming reward information
+	// RewardInfos contains farming reward information for the position (up to 2 rewards)
 	RewardInfos [2]UserRewardInfo `json:"rewardInfos"`
 
-	// padding for future usage
+	// Padding reserved for future usage
 	Padding [6]binary.Uint128 `json:"padding"`
 }
 
@@ -5032,14 +5071,15 @@ func UnmarshalPositionMetrics(buf []byte) (*PositionMetrics, error) {
 	return obj, nil
 }
 
+// RemoveLiquidityParameters represents the parameters required for removing liquidity from a pool
 type RemoveLiquidityParameters struct {
-	// delta liquidity
+	// LiquidityDelta is the amount of liquidity to be removed
 	LiquidityDelta binary.Uint128 `json:"liquidityDelta"`
 
-	// minimum token a amount
+	// TokenAAmountThreshold is the minimum token A amount expected
 	TokenAAmountThreshold uint64 `json:"tokenAAmountThreshold"`
 
-	// minimum token b amount
+	// TokenBAmountThreshold is the minimum token B amount expected
 	TokenBAmountThreshold uint64 `json:"tokenBAmountThreshold"`
 }
 
@@ -5756,8 +5796,11 @@ func UnmarshalStaticConfigParameters(buf []byte) (*StaticConfigParameters, error
 	return obj, nil
 }
 
+// SwapParameters represents the parameters required for executing a swap
 type SwapParameters struct {
-	AmountIn         uint64 `json:"amountIn"`
+	// AmountIn is the amount of input tokens to swap
+	AmountIn uint64 `json:"amountIn"`
+	// MinimumAmountOut is the minimum amount of output tokens expected
 	MinimumAmountOut uint64 `json:"minimumAmountOut"`
 }
 
@@ -5816,14 +5859,20 @@ func UnmarshalSwapParameters(buf []byte) (*SwapParameters, error) {
 	return obj, nil
 }
 
-// Encodes all results of swapping
+// SwapResult represents the complete result of a swap operation
 type SwapResult struct {
-	OutputAmount  uint64         `json:"outputAmount"`
+	// OutputAmount is the actual amount of output tokens received
+	OutputAmount uint64 `json:"outputAmount"`
+	// NextSqrtPrice is the square root price after the swap
 	NextSqrtPrice binary.Uint128 `json:"nextSqrtPrice"`
-	LpFee         uint64         `json:"lpFee"`
-	ProtocolFee   uint64         `json:"protocolFee"`
-	PartnerFee    uint64         `json:"partnerFee"`
-	ReferralFee   uint64         `json:"referralFee"`
+	// LpFee is the fee paid to liquidity providers
+	LpFee uint64 `json:"lpFee"`
+	// ProtocolFee is the fee paid to the protocol
+	ProtocolFee uint64 `json:"protocolFee"`
+	// PartnerFee is the fee paid to partners
+	PartnerFee uint64 `json:"partnerFee"`
+	// ReferralFee is the fee paid for referrals
+	ReferralFee uint64 `json:"referralFee"`
 }
 
 func (obj SwapResult) MarshalWithEncoder(encoder *binary.Encoder) (err error) {

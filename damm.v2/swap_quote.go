@@ -23,6 +23,22 @@ type GetQuoteResult struct {
 	PriceImpact      *big.Float
 }
 
+// SwapQuote gets the exact swap out quotation for quote and base swaps.
+// It depends on the SwapQuote function.
+//
+// Example:
+//
+// baseMint := solana.MustPublicKeyFromBase58("")
+//
+// result, poolState, _ := m.SwapQuote(
+//
+//	ctx,
+//	baseMint, // base mint token
+//	false, // buy(quote=>base) sell(base => quote)
+//	amountIn, // amount to spend on selling or buying
+//	slippageBps, // slippage // 250 = 2.5%
+//
+// )
 func (m *DammV2) SwapQuote(
 	ctx context.Context,
 	baseMint solana.PublicKey,
@@ -33,7 +49,21 @@ func (m *DammV2) SwapQuote(
 	return SwapQuote(ctx, m.rpcClient, baseMint, swapBaseForQuote, amountIn, slippageBps)
 }
 
-// GetQuote
+// SwapQuote gets the exact swap out quotation for quote and base swaps.
+// This function is an example function. It only reads the 0th element of poolStates. For multi-pool scenarios, you need to implement it yourself.
+//
+// Example:
+//
+// result, poolState, _ := SwapQuote(
+//
+//	ctx,
+//	rpcClient,
+//	baseMint, // base mint token
+//	false, // buy(quote=>base) sell(base => quote)
+//	amountIn, // amount to spend on selling or buying
+//	slippageBps, // slippage // 250 = 2.5%
+//
+// )
 func SwapQuote(
 	ctx context.Context,
 	rpcClient *rpc.Client,
@@ -43,7 +73,7 @@ func SwapQuote(
 	slippageBps uint64,
 ) (*GetQuoteResult, *Pool, error) {
 
-	poolStates, err := GetPoolByBaseMint(ctx, rpcClient, baseMint)
+	poolStates, err := GetPoolsByBaseMint(ctx, rpcClient, baseMint)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -90,7 +120,7 @@ func SwapQuote(
 		}
 	}
 
-	currentPoint, err := solanago.CurrenPoint(ctx, rpcClient, uint8(poolState.Pool.ActivationType))
+	currentPoint, err := solanago.CurrentPoint(ctx, rpcClient, uint8(poolState.Pool.ActivationType))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -180,6 +210,18 @@ func SwapQuote(
 	}, poolState, nil
 }
 
+// BuyQuote gets the exact quotation for buying a specified amount of base token using quote token.
+//
+// Example:
+//
+// result, poolState, _ := m.BuyQuote(
+//
+//	ctx,
+//	baseMint, // base mint token
+//	amountIn, // amount to spend on buying
+//	slippageBps, // slippage // 250 = 2.5%
+//
+// )
 func (m *DammV2) BuyQuote(
 	ctx context.Context,
 	baseMint solana.PublicKey,
@@ -189,6 +231,18 @@ func (m *DammV2) BuyQuote(
 	return m.SwapQuote(ctx, baseMint, false, amountIn, slippageBps)
 }
 
+// SellQuote gets the exact quotation for selling a specified amount of base token to receive quote token.
+//
+// Example:
+//
+// result, poolState, _ := m.SellQuote(
+//
+//	ctx,
+//	baseMint, // base mint token
+//	amountIn, // amount to spend on selling
+//	slippageBps, // slippage // 250 = 2.5%
+//
+// )
 func (m *DammV2) SellQuote(
 	ctx context.Context,
 	baseMint solana.PublicKey,
@@ -198,6 +252,19 @@ func (m *DammV2) SellQuote(
 	return m.SwapQuote(ctx, baseMint, true, amountIn, slippageBps)
 }
 
+// BuyQuote gets the exact quotation for buying a specified amount of base token using quote token.
+//
+// Example:
+//
+// result, poolState, _ := BuyQuote(
+//
+//	ctx,
+//	rpcClient,
+//	baseMint, // base mint token
+//	amountIn, // amount to spend on buying
+//	slippageBps, // slippage // 250 = 2.5%
+//
+// )
 func BuyQuote(
 	ctx context.Context,
 	rpcClient *rpc.Client,
@@ -208,6 +275,19 @@ func BuyQuote(
 	return SwapQuote(ctx, rpcClient, baseMint, false, amountIn, slippageBps)
 }
 
+// SellQuote gets the exact quotation for selling a specified amount of base token to receive quote token.
+//
+// Example:
+//
+// result, poolState, _ := SellQuote(
+//
+//	ctx,
+//	rpcClient,
+//	baseMint, // base mint token
+//	amountIn, // amount to spend on selling
+//	slippageBps, // slippage // 250 = 2.5%
+//
+// )
 func SellQuote(
 	ctx context.Context,
 	rpcClient *rpc.Client,

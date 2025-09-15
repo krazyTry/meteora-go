@@ -10,6 +10,25 @@ import (
 	solanago "github.com/krazyTry/meteora-go/solana"
 )
 
+// Transfer transfers tokens from a Damm v2 pool.
+// This function is blocking and will wait for on-chain confirmation before returning.
+// This function is an example function
+//
+// Example:
+//
+// baseMint := solana.MustPublicKeyFromBase58("BHyqU2m7YeMFM3PaPXd2zdk7ApVtmWVsMiVK148vxRcS")
+//
+// sig, _ := meteoraDBC.Transfer(
+//
+//	ctx,
+//	wsClient,
+//	payer, // payer account
+//	from, // sender account
+//	to, // receiver account
+//	baseMint,// token address
+//	amount,// transfer amount
+//
+// )
 func (m *DammV2) Transfer(
 	ctx context.Context,
 	wsClient *ws.Client,

@@ -17,13 +17,18 @@ func GetLiquidityDelta(maxAmountTokenA, maxAmountTokenB, sqrtMaxPrice, sqrtMinPr
 	return liquidityDeltaFromAmountB.Floor()
 }
 
-// DepositQuote
+// DepositQuote represents a quote for depositing liquidity into a pool
 type DepositQuote struct {
-	ActualInputAmount   *big.Int // Actual input amount (after deducting fees)
-	ConsumedInputAmount *big.Int // Original input amount
-	LiquidityDelta      *big.Int // Liquidity to be added to the pool
-	OutputAmount        *big.Int // Calculated amount of the other token
-	MinOutAmount        *big.Int
+	// ActualInputAmount is the actual input amount after deducting fees
+	ActualInputAmount *big.Int
+	// ConsumedInputAmount is the original input amount before fee deduction
+	ConsumedInputAmount *big.Int
+	// LiquidityDelta is the amount of liquidity to be added to the pool
+	LiquidityDelta *big.Int
+	// OutputAmount is the calculated amount of the other token to be deposited
+	OutputAmount *big.Int
+	// MinOutAmount is the minimum output amount expected
+	MinOutAmount *big.Int
 }
 
 // GetDepositQuote

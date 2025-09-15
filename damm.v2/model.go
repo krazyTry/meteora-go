@@ -6,18 +6,25 @@ import (
 )
 
 type Pool struct {
+	// damm v2 pool state
 	*cp_amm.Pool
+	// damm v2 pool address
 	Address solana.PublicKey
 }
 
 type Position struct {
-	Position      solana.PublicKey
+	// damm v2 user position
+	Position solana.PublicKey
+	// damm v2 user position state
 	PositionState *cp_amm.Position
 }
 
 type UserPosition struct {
-	Position           solana.PublicKey
-	PositionState      *cp_amm.Position
+	// damm v2 user position
+	Position solana.PublicKey
+	// damm v2 user position state
+	PositionState *cp_amm.Position
+	// damm v2 user position nft account
 	PositionNftAccount solana.PublicKey
 }
 

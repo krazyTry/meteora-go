@@ -20,17 +20,7 @@ import (
 //
 // Example:
 //
-// result, poolState, configState, currentPoint, _ := SwapQuote(
-//
-//	ctx,
-//	rpcClient,
-//	baseMint, // pool (token) address
-//	false, // buy(quote=>base) sell(base => quote)
-//	amountIn, // amount to spend on selling or buying
-//	slippageBps, // slippage // 250 = 2.5%
-//	hasReferral, // default false, contact meteora
-//
-// )
+// result, poolState, configState, currentPoint, _ := SwapQuote(ctx, rpcClient, baseMint, false, amountIn, slippageBps, false)
 //
 // instructions, _ := SwapInstruction(
 //
@@ -44,7 +34,7 @@ import (
 //		}
 //		return referrer.PublicKey()
 //	}(), // referral account, contact meteora
-//	poolState.Address, // pool address
+//	poolState.Address, // dbc pool address
 //	poolState.VirtualPool, // dbc pool state
 //	configState, // dbc pool config
 //	swapBaseForQuote, // buy(quote=>base) sell(base => quote)
@@ -214,17 +204,7 @@ func SwapInstruction(
 //
 // Example:
 //
-// result, poolState, configState, currentPoint, _ := SwapQuote(
-//
-//	ctx,
-//	rpcClient,
-//	baseMint, // pool (token) address
-//	false, // buy(quote=>base) sell(base => quote)
-//	amountIn, // amount to spend on selling or buying
-//	slippageBps, // slippage // 250 = 2.5%
-//	hasReferral, // default false, contact meteora
-//
-// )
+// result, poolState, configState, currentPoint, _ := SwapQuote(ctx, rpcClient, baseMint, false, amountIn, slippageBps, false)
 //
 // instructions, _ := m.Swap(
 //
@@ -233,7 +213,7 @@ func SwapInstruction(
 //	payer.PublicKey(), // payer account
 //	owner.PublicKey(), // owner account
 //	nil, // referral account, contact meteora
-//	poolState.Address, // pool address
+//	poolState.Address, // dbc pool address
 //	poolState.VirtualPool, // dbc pool state
 //	configState, // dbc pool config
 //	swapBaseForQuote, // buy(quote=>base) sell(base => quote)
@@ -308,15 +288,7 @@ func (m *DBC) Swap(
 //
 // Example:
 //
-// result, poolState, configState, currentPoint, _ := BuyQuote(
-//
-//	ctx,
-//	baseMint, // pool (token) address
-//	amountIn, // amount to spend on buying
-//	slippageBps, // slippage // 250 = 2.5%
-//	hasReferral, // default false, contact meteora
-//
-// )
+// result, poolState, configState, currentPoint, _ := BuyQuote(ctx, rpcClient, baseMint, amountIn, slippageBps, false)
 //
 // instructions, _ := BuyInstruction(
 //
@@ -324,7 +296,7 @@ func (m *DBC) Swap(
 //	m.rpcClient,
 //	buyer.PublicKey(), // payer account
 //	referrer, // referral account, contact meteora
-//	poolState.Address, // pool address
+//	poolState.Address, // dbc pool address
 //	poolState.VirtualPool, // dbc pool state
 //	configState, // dbc pool config
 //	amountIn, // amount to spend on buying
@@ -366,22 +338,15 @@ func BuyInstruction(
 //
 // Example:
 //
-// result, poolState, configState, currentPoint, _ := BuyQuote(
+// result, poolState, configState, currentPoint, _ := BuyQuote(ctx, rpcClient, baseMint, amountIn, slippageBps, false)
 //
-//	ctx,
-//	baseMint, // pool (token) address
-//	amountIn, // amount to spend on buying
-//	slippageBps, // slippage // 250 = 2.5%
-//	hasReferral, // default false, contact meteora
-//
-// )
 // sig, _ := meteoraDBC.Buy(
 //
 //	ctx,
 //	wsClient,
 //	ownerWallet, // buyer
 //	nil, // referral account, contact meteora
-//	poolState.Address, // pool address
+//	poolState.Address, // dbc pool address
 //	poolState.VirtualPool, // dbc pool state
 //	configState, // dbc pool config
 //	amountIn, // amount to spend on buying
@@ -439,15 +404,7 @@ func (m *DBC) Buy(
 //
 // Example:
 //
-// result, poolState, configState, currentPoint, _ := SellQuote(
-//
-//	ctx,
-//	baseMint, // pool (token) address
-//	amountIn, // amount to spend on selling
-//	slippageBps, // slippage // 250 = 2.5%
-//	hasReferral, // default false, contact meteora
-//
-// )
+// result, poolState, configState, currentPoint, _ := SellQuote(ctx, rpcClient, baseMint, amountIn, slippageBps, false)
 //
 // instructions, _ := SellInstruction(
 //
@@ -455,7 +412,7 @@ func (m *DBC) Buy(
 //	m.rpcClient,
 //	seller.PublicKey(), // payer account
 //	referrer, // referral account, contact meteora
-//	poolState.Address, // pool address
+//	poolState.Address, // dbc pool address
 //	poolState.VirtualPool, // dbc pool state
 //	configState, // dbc pool config
 //	amountIn, // amount to spend on selling
@@ -497,22 +454,15 @@ func SellInstruction(
 //
 // Example:
 //
-// result, poolState, configState, currentPoint, _ := SellQuote(
+// result, poolState, configState, currentPoint, _ := SellQuote(ctx, rpcClient, baseMint, amountIn, slippageBps, false)
 //
-//	ctx,
-//	baseMint, // pool (token) address
-//	amountIn, // amount to spend on selling
-//	slippageBps, // slippage // 250 = 2.5%
-//	hasReferral, // default false, contact meteora
-//
-// )
 // sig, _ := meteoraDBC.Sell(
 //
 //	ctx,
 //	wsClient,
 //	ownerWallet, // seller
 //	nil, // referral account, contact meteora
-//	poolState.Address, // pool address
+//	poolState.Address, // dbc pool address
 //	poolState.VirtualPool, // dbc pool state
 //	configState, // dbc pool config
 //	amountIn, // amount to spend on selling

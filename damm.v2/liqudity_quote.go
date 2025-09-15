@@ -22,17 +22,50 @@ type DepositQuote struct {
 	OutputAmount        *big.Int // Calculated amount of the other token
 }
 
+// GetDepositQuote
+// It depends on the GetDepositQuote function.
+//
+// Example:
+//
+// baseMint := solana.MustPublicKeyFromBase58("BHyqU2m7YeMFM3PaPXd2zdk7ApVtmWVsMiVK148vxRcS")
+//
+// amountIn := new(big.Int).SetUint64(10_000_000)
+//
+// quote, virtualPool, _ := meteoraDammV2.GetDepositQuote(
+//
+//	ctx,
+//	baseMint,
+//	true, // true baseMintToken or false quoteMintToken
+//	amountIn, // planned amount to add
+//
+// )
 func (m *DammV2) GetDepositQuote(
 	ctx context.Context,
 	baseMint solana.PublicKey,
-	bAddBase bool,
+	bAddBase bool, // true baseMintToken or false quoteMintToken
 	amountIn *big.Int,
 ) (*DepositQuote, *Pool, error) {
 	return GetDepositQuote(ctx, m.rpcClient, baseMint, bAddBase, amountIn)
 }
 
-// GetDepositQuote Calculate the deposit quote for the liquidity pool
-
+// GetDepositQuote Calculates the deposit quote for adding liquidity to a pool based on a single token input.
+// This function is an example function. It only reads the 0th position of poolStates. For multi-pool scenarios, you need to implement it yourself.
+//
+// Example:
+//
+// baseMint := solana.MustPublicKeyFromBase58("BHyqU2m7YeMFM3PaPXd2zdk7ApVtmWVsMiVK148vxRcS")
+//
+// amountIn := new(big.Int).SetUint64(10_000_000)
+//
+// quote, virtualPool, _ := GetDepositQuote(
+//
+//	ctx,
+//	rpcClient,
+//	baseMint,
+//	true, // true baseMintToken or false quoteMintToken
+//	amountIn, // planned amount to add
+//
+// )
 func GetDepositQuote(
 	ctx context.Context,
 	rpcClient *rpc.Client,
@@ -41,7 +74,7 @@ func GetDepositQuote(
 	amountIn *big.Int,
 ) (*DepositQuote, *Pool, error) {
 
-	poolStates, err := GetPoolByBaseMint(ctx, rpcClient, baseMint)
+	poolStates, err := GetPoolsByBaseMint(ctx, rpcClient, baseMint)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -133,6 +166,22 @@ type WithdrawQuote struct {
 	OutQuoteAmount *big.Int
 }
 
+// GetWithdrawQuote
+// It depends on the GetWithdrawQuote function.
+//
+// Example:
+//
+// liquidityDelta, position, _ := meteoraDammV2.GetPositionLiquidity(ctx, baseMint, poolPartner.PublicKey())
+//
+// liquidityDelta = new(big.Int).Div(liquidityDelta, big.NewInt(2))
+//
+// quote, virtualPool, _ := meteoraDammV2.GetWithdrawQuote(
+//
+//	ctx,
+//	baseMint,
+//	liquidityDelta, // liquidity to be removed
+//
+// )
 func (m *DammV2) GetWithdrawQuote(
 	ctx context.Context,
 	baseMint solana.PublicKey,
@@ -141,14 +190,29 @@ func (m *DammV2) GetWithdrawQuote(
 	return GetWithdrawQuote(ctx, m.rpcClient, baseMint, liquidityDelta)
 }
 
-// getWithdrawQuote
+// GetWithdrawQuote Calculates the withdrawal quote for removing liquidity from a pool.
+// This function is an example function. It only reads the 0th element of poolState. For scenarios with multiple pools, you need to implement it yourself.
+//
+// Example:
+//
+// liquidityDelta, position, _ := meteoraDammV2.GetPositionLiquidity(ctx, baseMint, poolPartner.PublicKey())
+//
+// liquidityDelta = new(big.Int).Div(liquidityDelta, big.NewInt(2))
+//
+// quote, virtualPool, _ := meteoraDammV2.GetWithdrawQuote(
+//
+//	ctx,
+//	baseMint,
+//	liquidityDelta, // liquidity to be removed
+//
+// )
 func GetWithdrawQuote(
 	ctx context.Context,
 	rpcClient *rpc.Client,
 	baseMint solana.PublicKey,
 	liquidityDelta *big.Int,
 ) (*WithdrawQuote, *Pool, error) {
-	poolStates, err := GetPoolByBaseMint(ctx, rpcClient, baseMint)
+	poolStates, err := GetPoolsByBaseMint(ctx, rpcClient, baseMint)
 	if err != nil {
 		return nil, nil, err
 	}

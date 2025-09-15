@@ -17,6 +17,49 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+// CreateCustomizablePoolInstruction generates the instruction required for CreateCustomizablePool
+// The function includes the creation of the ATA account.
+//
+// Example:
+//
+// baseFeeParam, _ := cp_amm.GetBaseFeeParams(maxBaseFeeBps, minBaseFeeBps, feeSchedulerMode, numberOfPeriod, totalDuration)
+//
+// var dynamicFeeParam *cp_amm.DynamicFeeParameters
+//
+//	if useDynamicFee {
+//		dynamicFeeParam, _ = cp_amm.GetDynamicFeeParams(minBaseFeeBps, cp_amm.MAX_PRICE_CHANGE_BPS_DEFAULT)
+//	}
+//
+//	poolFees := cp_amm.PoolFeeParameters{
+//		BaseFee:    *baseFeeParam,
+//		DynamicFee: dynamicFeeParam,
+//		Padding:    [3]uint8{},
+//	}
+//
+// positionNft := solana.NewWallet()
+//
+// instructions, cpammPool, err := CreateCustomizablePoolInstruction(
+//
+//	ctx,
+//	m.rpcClient,
+//	payer.PublicKey(), // payer account
+//	m.poolCreator.PublicKey(), // pool creator account
+//	positionNft.PublicKey(),// position of the creator account
+//	initialPrice, // 1 base token = 1 quote token
+//	baseMint, // baseMintToken
+//	quoteMint, // quoteMintToken
+//	baseAmount, // baseMintAmount
+//	quoteAmount,// quoteMintAmount
+//	hasAlphaVault,
+//	activationType, // 0.ActivationTypeSlot or 1.ActivationTypeTimestamp
+//	collectFeeMode, // 0.CollectFeeModeBothToken 1.CollectFeeModeTokenA 2.CollectFeeModeTokenB
+//	activationPoint,
+//	cp_amm.MAX_SQRT_PRICE,
+//	cp_amm.MIN_SQRT_PRICE,
+//	poolFees,
+//	isLockLiquidity,
+//
+// )
 func CreateCustomizablePoolInstruction(
 	ctx context.Context,
 	rpcClient *rpc.Client,
@@ -239,6 +282,40 @@ func CreateCustomizablePoolInstruction(
 	return instructions, poolAddress, nil
 }
 
+// CreateCustomizablePool Creates a customizable pool with specific fee parameters, reward settings, and activation conditions.
+// The function depends on CreateCustomizablePoolInstruction.
+// The function is blocking; it will wait for on-chain confirmation before returning.
+// This function is an example function. The sqrtMaxPrice and sqrtMinPrice are hardcoded. If you want to modify them, you need to implement it yourself.
+//
+// Example:
+//
+// baseAmount := big.NewInt(1_000_000)
+//
+// quoteAmount := big.NewInt(1) // SOL
+//
+// sig, cpammPool, positionNft, _ := meteoraDammV2.CreateCustomizablePool(
+//
+//	ctx1,
+//	wsClient,
+//	payer, // payer account
+//	1, // 1 base token = 1 quote token
+//	baseMint, // baseMintToken
+//	solana.WrappedSol, // quoteMintToken
+//	baseAmount, // baseMintAmount
+//	quoteAmount, // quoteMintAmount
+//	false,
+//	cp_amm.ActivationTypeTimestamp, // 0.ActivationTypeSlot or 1.ActivationTypeTimestamp
+//	cp_amm.CollectFeeModeBothToken, // 0.CollectFeeModeBothToken 1.CollectFeeModeTokenA 2.CollectFeeModeTokenB
+//	nil,
+//	true,
+//	5000, // 50%
+//	25,   // 0.25%
+//	cp_amm.FeeSchedulerModeExponential,
+//	60,   // 60 peridos
+//	3600, // 60 * 60
+//	true,
+//
+// )
 func (m *DammV2) CreateCustomizablePool(
 	ctx context.Context,
 	wsClient *ws.Client,
@@ -329,6 +406,35 @@ func (m *DammV2) CreateCustomizablePool(
 	return sig.String(), cpammPool, positionNft, nil
 }
 
+// CreatePoolInstruction generates the instruction required for CreatePool
+// The function includes the creation of the ATA account.
+//
+// Example:
+//
+// config, _ := cp_amm.DeriveConfigAddress(configIndex)
+//
+// configState, _ := m.GetConfig(ctx, config)
+//
+// positionNft := solana.NewWallet()
+//
+// instructions, cpammPool, _ := CreatePoolInstruction(
+//
+//	ctx,
+//	m.rpcClient,
+//	payer.PublicKey(), // payer account
+//	m.poolCreator.PublicKey(), // pool creator account
+//	config, // damm v2 config address
+//	configState, // damm v2 config state
+//	positionNft.PublicKey(), // position of the pool creator account
+//	initialPrice, // 1 base token = 1 quote token
+//	baseMint, // baseMintToken
+//	quoteMint, // quoteMintToken
+//	baseAmount, // baseMintAmount
+//	quoteAmount, // quoteMintAmount
+//	activationPoint,
+//	isLockLiquidity,
+//
+// )
 func CreatePoolInstruction(
 	ctx context.Context,
 	rpcClient *rpc.Client,
@@ -337,7 +443,7 @@ func CreatePoolInstruction(
 	config solana.PublicKey,
 	configState *cp_amm.Config,
 	positionNft solana.PublicKey,
-	initialPrice float64,
+	initialPrice float64, // 1 base token = 1 quote token
 	baseMint solana.PublicKey,
 	quoteMint solana.PublicKey,
 	baseAmount *big.Int,
@@ -542,12 +648,37 @@ func CreatePoolInstruction(
 	return instructions, poolAddress, nil
 }
 
+// CreatePool Creates a new standard pool according to a predefined configuration.
+// The function depends on CreatePoolInstruction.
+// The function is blocking; it will wait for on-chain confirmation before returning.
+//
+// Example:
+//
+// baseAmount := big.NewInt(1_000_000)
+//
+// quoteAmount := big.NewInt(1) // SOL
+//
+// sig, cpammPool, positionNft, _ := meteoraDammV2.CreatePool(
+//
+//	ctx1,
+//	wsClient,
+//	payer, // payer account
+//	0, // configIndex = 0 // https://docs.meteora.ag/developer-guide/guides/damm-v2/pool-fee-configs#view-all-public-config-key-addresses-json
+//	1, // 1 base token = 1 quote token
+//	baseMint, // baseMintToken
+//	solana.WrappedSol, // quoteMintToken
+//	baseAmount, // baseMintAmount
+//	quoteAmount, // quoteMintAmount
+//	nil,
+//	true,
+//
+// )
 func (m *DammV2) CreatePool(
 	ctx context.Context,
 	wsClient *ws.Client,
 	payer *solana.Wallet,
-	configIndex uint64,
-	initialPrice float64,
+	configIndex uint64, // https://docs.meteora.ag/developer-guide/guides/damm-v2/pool-fee-configs#view-all-public-config-key-addresses-json
+	initialPrice float64, // 1 base token = 1 quote token
 	baseMint solana.PublicKey,
 	quoteMint solana.PublicKey,
 	baseAmount *big.Int,
@@ -608,6 +739,54 @@ func (m *DammV2) CreatePool(
 	return sig.String(), cpammPool, positionNft, nil
 }
 
+// CreateCustomizablePoolWithDynamicConfigInstruction generates the instruction required for CreateCustomizablePoolWithDynamicConfig
+// The function includes the creation of the ATA account.
+//
+// Example:
+//
+// config, _ := cp_amm.DeriveConfigAddress(configIndex)
+//
+// configState, _ := m.GetConfig(ctx, config)
+//
+// baseFeeParam, _ := cp_amm.GetBaseFeeParams(maxBaseFeeBps, minBaseFeeBps, feeSchedulerMode, numberOfPeriod, totalDuration)
+//
+// var dynamicFeeParam *cp_amm.DynamicFeeParameters
+//
+//	if useDynamicFee {
+//		dynamicFeeParam, _ = cp_amm.GetDynamicFeeParams(minBaseFeeBps, cp_amm.MAX_PRICE_CHANGE_BPS_DEFAULT)
+//	}
+//
+//	poolFees := cp_amm.PoolFeeParameters{
+//		BaseFee:    *baseFeeParam,
+//		DynamicFee: dynamicFeeParam,
+//		Padding:    [3]uint8{},
+//	}
+//
+// positionNft := solana.NewWallet()
+//
+// instructions, cpammPool, _ := CreateCustomizablePoolWithDynamicConfigInstruction(
+//
+//	ctx,
+//	m.rpcClient,
+//	payer.PublicKey(), // payer account
+//	m.poolCreator.PublicKey(), // pool creator account
+//	config, // damm v2 config address
+//	configState, // damm v2 config state
+//	positionNft.PublicKey(), // position of the pool creator account
+//	poolCreatorAuthority.PublicKey(), // authority of the pool creator account
+//	initialPrice, // 1 base token = 1 quote token
+//	baseMint, // baseMintToken
+//	quoteMint, // quoteMintToken
+//	baseAmount, // baseMintAmount
+//	quoteAmount, // quoteMintAmount
+//	hasAlphaVault,
+//	activationType, // 0.ActivationTypeSlot or 1.ActivationTypeTimestamp
+//	collectFeeMode, // 0.CollectFeeModeBothToken 1.CollectFeeModeTokenA 2.CollectFeeModeTokenB
+//	activationPoint,
+//	poolFees,
+//	isLockLiquidity,
+//
+// )
 func CreateCustomizablePoolWithDynamicConfigInstruction(
 	ctx context.Context,
 	rpcClient *rpc.Client,
@@ -832,6 +1011,42 @@ func CreateCustomizablePoolWithDynamicConfigInstruction(
 	return instructions, poolAddress, nil
 }
 
+// CreateCustomizablePoolWithDynamicConfig
+// The function depends on CreateCustomizablePoolWithDynamicConfigInstruction.
+// The function is blocking; it will wait for on-chain confirmation before returning.
+// This function requires contacting meteora to get a dedicated configIndex. The configuration of this configIndex fixes the poolCreatorAuthority within it.
+//
+// # This function has not completed verification
+//
+// Example:
+//
+// baseAmount := big.NewInt(1_000_000)
+// quoteAmount := big.NewInt(1) // SOL
+// sig, cpammPool, positionNft, _ := meteoraDammV2.CreateCustomizablePoolWithDynamicConfig(
+//
+//	ctx1,
+//	wsClient,
+//	payer, // payer account
+//	1, // dedicated configIndex obtained by contacting meteora
+//	poolCreatorAuthority, // poolCreatorAuthority configured in configIndex
+//	1, // 1 base token = 1 quote token
+//	baseMint, // baseMintToken
+//	solana.WrappedSol, // quoteMintToken
+//	baseAmount, // baseMintAmount
+//	quoteAmount, // quoteMintAmount
+//	false,
+//	cp_amm.ActivationTypeTimestamp, // 0.ActivationTypeSlot or 1.ActivationTypeTimestamp
+//	cp_amm.CollectFeeModeBothToken, // 0.CollectFeeModeBothToken 1.CollectFeeModeTokenA 2.CollectFeeModeTokenB
+//	nil,
+//	true,
+//	5000, // 50%
+//	25,   // 0.25%
+//	cp_amm.FeeSchedulerModeExponential,
+//	60,   // 60 peridos
+//	3600, // 60 * 60
+//	true,
+//
+// )
 func (m *DammV2) CreateCustomizablePoolWithDynamicConfig(
 	ctx context.Context,
 	wsClient *ws.Client,
@@ -962,10 +1177,23 @@ func (m *DammV2) CreateCustomizablePoolWithDynamicConfig(
 	return sig.String(), cpammPool, positionNft, nil
 }
 
+// GetPools gets all pools
+// It depends on the GetPools function.
+// This function will iterate through all pools. Use it sparingly unless necessary.
+//
+// Example:
+//
+// pools, _:= meteoraDammV2.GetPools(ctx)
 func (m *DammV2) GetPools(ctx context.Context) (map[solana.PublicKey]*Pool, error) {
 	return GetPools(ctx, m.rpcClient)
 }
 
+// GetPools gets all pools
+// This function will iterate through all pools. Use it sparingly unless necessary.
+//
+// Example:
+//
+// pools, _:= GetPools(ctx,rpcClient)
 func GetPools(
 	ctx context.Context,
 	rpcClient *rpc.Client,
@@ -995,14 +1223,25 @@ func GetPools(
 	return data, nil
 }
 
-func (m *DammV2) GetPoolByBaseMint(
+// GetPoolsByBaseMint gets pools by baseMint
+// It depends on the GetPoolsByBaseMint function.
+//
+// Example:
+//
+// pools, _:= meteoraDammV2.GetPoolsByBaseMint(ctx,baseMint)
+func (m *DammV2) GetPoolsByBaseMint(
 	ctx context.Context,
 	baseMint solana.PublicKey,
 ) ([]*Pool, error) {
-	return GetPoolByBaseMint(ctx, m.rpcClient, baseMint)
+	return GetPoolsByBaseMint(ctx, m.rpcClient, baseMint)
 }
 
-func GetPoolByBaseMint(
+// GetPoolsByBaseMint gets pools by baseMint
+//
+// Example:
+//
+// pools, _:= GetPoolsByBaseMint(ctx,rpcClient,baseMint)
+func GetPoolsByBaseMint(
 	ctx context.Context,
 	rpcClient *rpc.Client,
 	baseMint solana.PublicKey,

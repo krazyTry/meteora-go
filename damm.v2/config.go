@@ -178,6 +178,11 @@ import (
 // 	return sig.String(), nil
 // }
 
+// GetConfig Fetches the Config state of the program.
+//
+// Example:
+//
+// config, _ := meteoraDammV2.GetConfig(ctx, solana.MustPublicKeyFromBase58("82p7sVzQWZfCrmStPhsG8BYKwheQkUiXSs2wiqdhwNxr"))
 func (m *DammV2) GetConfig(ctx context.Context, config solana.PublicKey) (*cp_amm.Config, error) {
 	out, err := solanago.GetAccountInfo(ctx, m.rpcClient, config)
 	if err != nil {

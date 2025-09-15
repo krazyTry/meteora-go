@@ -378,7 +378,7 @@ func CreatePoolWithFirstBuInstruction(
 
 	instructions = append(instructions, syncNativeIx)
 
-	currentPoint, err := solanago.CurrenPoint(ctx, rpcClient, uint8(configState.ActivationType))
+	currentPoint, err := solanago.CurrentPoint(ctx, rpcClient, uint8(configState.ActivationType))
 	if err != nil {
 		return nil, err
 	}

@@ -14,6 +14,31 @@ import (
 	solanago "github.com/krazyTry/meteora-go/solana"
 )
 
+// SwapInstruction generates the instruction needed to swap
+//
+// Example:
+//
+// result, poolState, _ := SwapQuote( ctx, rpcClient, baseMint, false, amountIn, slippageBps)
+//
+// instructions, _ := SwapInstruction(
+//
+//	ctx,
+//	m.rpcClient,
+//	payer.PublicKey(), // payer account
+//	owner.PublicKey(), // owner account
+//	func() solana.PublicKey {
+//		if referrer == nil {
+//			return solana.PublicKey{}
+//		}
+//		return referrer.PublicKey()
+//	}(), // referral account, contact meteora
+//	poolState.Address, // damm v2 pool address
+//	poolState.Pool, // damm v2 pool state
+//	swapBaseForQuote, // buy(quote=>base) sell(base => quote)
+//	amountIn, // amount to spend on selling or buying
+//	result.MinSwapOutAmount,  // minimum amount to receive after accounting for slippage
+//
+// )
 func SwapInstruction(
 	ctx context.Context,
 	rpcClient *rpc.Client,
@@ -144,6 +169,28 @@ func SwapInstruction(
 	return instructions, nil
 }
 
+// Swap swaps between base and quote or quote and base on the Damm v2
+// It depends on the SwapInstruction function.
+// This function is blocking and will wait for on-chain confirmation before returning.
+//
+// Example:
+//
+// result, poolState, _ := SwapQuote( ctx, rpcClient, baseMint, false, amountIn, slippageBps)
+//
+// instructions, _ := meteoraDammV2.Swap(
+//
+//	ctx,
+//	wsClient,
+//	payer, // payer account
+//	owner, // owner account
+//	nil, // referral account, contact meteora
+//	poolState.Address, // damm v2 pool address
+//	poolState.Pool, // damm v2 pool state
+//	swapBaseForQuote, // buy(quote=>base) sell(base => quote)
+//	amountIn, // amount to spend on selling or buying
+//	result.MinSwapOutAmount,  // minimum amount to receive after accounting for slippage
+//
+// )
 func (m *DammV2) Swap(
 	ctx context.Context,
 	wsClient *ws.Client,
@@ -199,6 +246,24 @@ func (m *DammV2) Swap(
 	return sig.String(), nil
 }
 
+// BuyInstruction generates the instruction needed to buy
+//
+// Example:
+//
+// result, poolState, _ := BuyQuote(ctx, rpcClient, baseMint, amountIn, slippageBps)
+//
+// instructions, _ := BuyInstruction(
+//
+//	ctx,
+//	m.rpcClient,
+//	buyer.PublicKey(), // payer account
+//	referrer, // referral account, contact meteora
+//	poolState.Address, // damm v2 pool address
+//	poolState.Pool, // damm v2 pool state
+//	amountIn, // amount to spend on buying
+//	result.MinSwapOutAmount, // minimum amount to receive after accounting for slippage
+//
+// )
 func BuyInstruction(
 	ctx context.Context,
 	rpcClient *rpc.Client,
@@ -212,6 +277,26 @@ func BuyInstruction(
 	return SwapInstruction(ctx, rpcClient, buyer, buyer, referrer, poolAddress, poolState, false, amountIn, minimumAmountOut)
 }
 
+// Buy buys base tokens using quote tokens on the Dynamic Bonding Curve.
+// It depends on the BuyInstruction function.
+// This function is blocking and will wait for on-chain confirmation before returning.
+//
+// Example:
+//
+// result, poolState, _ := BuyQuote(ctx, rpcClient, baseMint, amountIn, slippageBps, false)
+//
+// sig, _ := meteoraDammV2.Buy(
+//
+//	ctx,
+//	wsClient,
+//	ownerWallet, // buyer
+//	nil, // referral account, contact meteora
+//	poolState.Address, // damm v2 pool address
+//	poolState.VirtualPool, // damm v2 pool state
+//	amountIn, // amount to spend on buying
+//	result.MinSwapOutAmount, // minimum amount to receive after accounting for slippage
+//
+// )
 func (m *DammV2) Buy(
 	ctx context.Context,
 	wsClient *ws.Client,
@@ -253,6 +338,24 @@ func (m *DammV2) Buy(
 	)
 }
 
+// SellInstruction generates the instruction needed to sell
+//
+// Example:
+//
+// result, poolState, _ := SellQuote(ctx, rpcClient, baseMint, amountIn, slippageBps, false)
+//
+// instructions, _ := SellInstruction(
+//
+//	ctx,
+//	m.rpcClient,
+//	seller.PublicKey(), // payer account
+//	referrer, // referral account, contact meteora
+//	poolState.Address, // damm v2 pool address
+//	poolState.Pool, // damm v2 pool state
+//	amountIn, // amount to spend on selling
+//	result.MinSwapOutAmount, // minimum amount to receive after accounting for slippage
+//
+// )
 func SellInstruction(
 	ctx context.Context,
 	rpcClient *rpc.Client,
@@ -266,6 +369,26 @@ func SellInstruction(
 	return SwapInstruction(ctx, rpcClient, seller, seller, referrer, poolAddress, poolState, true, amountIn, minimumAmountOut)
 }
 
+// Sell sells base tokens to receive quote tokens on the Dynamic Bonding Curve.
+// It depends on the SellInstruction function.
+// This function is blocking and will wait for on-chain confirmation before returning.
+//
+// Example:
+//
+// result, poolState, _ := SellQuote(ctx, rpcClient, baseMint, amountIn, slippageBps, false)
+//
+// sig, _ := meteoraDammV2.Sell(
+//
+//	ctx,
+//	wsClient,
+//	ownerWallet, // seller
+//	nil, // referral account, contact meteora
+//	poolState.Address, // damm v2 pool address
+//	poolState.Pool, // damm v2 pool state
+//	amountIn, // amount to spend on selling
+//	result.MinSwapOutAmount, // minimum amount to receive after accounting for slippage
+//
+// )
 func (m *DammV2) Sell(
 	ctx context.Context,
 	wsClient *ws.Client,

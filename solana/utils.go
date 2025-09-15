@@ -16,10 +16,11 @@ import (
 	"github.com/tidwall/gjson"
 )
 
+// GetRentExempt gets the latest rent exemption amount from the chain
 func GetRentExempt(ctx context.Context, rpcClient *rpc.Client) (uint64, error) {
 	lamports, err := rpcClient.GetMinimumBalanceForRentExemption(
 		ctx,
-		165, // SPL Token account 固定大小为 165 bytes
+		165, // SPL Token account fixed size is 165 bytes
 		rpc.CommitmentFinalized,
 	)
 	if err != nil {
@@ -28,16 +29,18 @@ func GetRentExempt(ctx context.Context, rpcClient *rpc.Client) (uint64, error) {
 	return lamports, nil
 }
 
-func SOLBalance(ctx context.Context, rpcClient *rpc.Client, wallet solana.PublicKey) (uint64, error) {
-	balanceResult, err := rpcClient.GetBalance(ctx, wallet, rpc.CommitmentFinalized)
+// SOLBalance gets the SOL balance of the specified account
+func SOLBalance(ctx context.Context, rpcClient *rpc.Client, account solana.PublicKey) (uint64, error) {
+	balanceResult, err := rpcClient.GetBalance(ctx, account, rpc.CommitmentFinalized)
 	if err != nil {
 		return 0, err
 	}
 	return balanceResult.Value, nil
 }
 
-func MintBalance(ctx context.Context, rpcClient *rpc.Client, wallet, baseMint solana.PublicKey) (uint64, error) {
-	resp, err := rpcClient.GetTokenAccountsByOwner(ctx, wallet, &rpc.GetTokenAccountsConfig{
+// MintBalance gets the token balance of the specified account for a given mint
+func MintBalance(ctx context.Context, rpcClient *rpc.Client, account, baseMint solana.PublicKey) (uint64, error) {
+	resp, err := rpcClient.GetTokenAccountsByOwner(ctx, account, &rpc.GetTokenAccountsConfig{
 		ProgramId: &solana.TokenProgramID,
 	}, &rpc.GetTokenAccountsOpts{
 		Encoding:   solana.EncodingJSONParsed,
@@ -78,7 +81,8 @@ func MintBalance(ctx context.Context, rpcClient *rpc.Client, wallet, baseMint so
 	return 0, nil
 }
 
-func CurrenPoint(ctx context.Context, rpcClient *rpc.Client, activationType uint8) (*big.Int, error) {
+// CurrentPoint gets the current point based on activation type
+func CurrentPoint(ctx context.Context, rpcClient *rpc.Client, activationType uint8) (*big.Int, error) {
 	var (
 		currentPoint *big.Int
 	)
@@ -111,6 +115,7 @@ func discriminator(name string) []byte {
 	return out[:]
 }
 
+// ComputeStructOffset gets the offset position of an object in a struct
 func ComputeStructOffset(x any, o string) uint64 {
 	t := reflect.TypeOf(x).Elem()
 	fields := make([]reflect.StructField, 0)
@@ -160,14 +165,17 @@ func GenProgramAccountFilter(key string, filter *Filter) *rpc.GetProgramAccounts
 	return opt
 }
 
+// GetAccountInfo gets account information
 func GetAccountInfo(ctx context.Context, rpcClient *rpc.Client, account solana.PublicKey) (*rpc.GetAccountInfoResult, error) {
 	return rpcClient.GetAccountInfoWithOpts(ctx, account, &rpc.GetAccountInfoOpts{Commitment: rpc.CommitmentFinalized})
 }
 
+// GetMultipleAccountInfo gets multiple account information in batch
 func GetMultipleAccountInfo(ctx context.Context, rpcClient *rpc.Client, accounts []solana.PublicKey) (*rpc.GetMultipleAccountsResult, error) {
 	return rpcClient.GetMultipleAccountsWithOpts(ctx, accounts, &rpc.GetMultipleAccountsOpts{Commitment: rpc.CommitmentFinalized, Encoding: solana.EncodingBase64})
 }
 
+// GetCurrentEpoch gets the current epoch information
 func GetCurrentEpoch(ctx context.Context, rpcClient *rpc.Client) (uint64, error) {
 	epochInfo, err := rpcClient.GetEpochInfo(ctx, rpc.CommitmentFinalized)
 	if err != nil {
@@ -176,6 +184,7 @@ func GetCurrentEpoch(ctx context.Context, rpcClient *rpc.Client) (uint64, error)
 	return epochInfo.Epoch, nil
 }
 
+// GetMultipleToken gets multiple mint token information in batch
 func GetMultipleToken(ctx context.Context, rpcClient *rpc.Client, tokens ...solana.PublicKey) ([]*Token, error) {
 	outs, err := GetMultipleAccountInfo(ctx, rpcClient, tokens)
 	if err != nil {
@@ -198,6 +207,7 @@ func GetMultipleToken(ctx context.Context, rpcClient *rpc.Client, tokens ...sola
 	return list, nil
 }
 
+// GetLatestBlockhash gets the latest blockhash
 func GetLatestBlockhash(ctx context.Context, rpcClient *rpc.Client) (solana.Hash, error) {
 
 	recent, err := rpcClient.GetLatestBlockhash(ctx, rpc.CommitmentFinalized)
@@ -207,6 +217,8 @@ func GetLatestBlockhash(ctx context.Context, rpcClient *rpc.Client) (solana.Hash
 	return recent.Value.Blockhash, nil
 }
 
+// SendTransaction sends a transaction and waits for on-chain validation to pass.
+// This is a blocking function.
 func SendTransaction(
 	ctx context.Context,
 	rpcClient *rpc.Client,

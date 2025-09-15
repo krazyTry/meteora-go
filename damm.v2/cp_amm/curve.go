@@ -19,12 +19,12 @@ func pow(base, exp decimal.Decimal) decimal.Decimal {
 		return N1
 	}
 
-	// 取绝对值
+	// Take absolute value
 	if invert {
 		exp = exp.Abs() // new(big.Int).Abs(exp)
 	}
 
-	// 如果过大 => 返回 0
+	// If too large => return 0
 	if exp.Cmp(MAX_EXPONENTIAL) > 0 {
 		return N0
 	}
@@ -32,13 +32,13 @@ func pow(base, exp decimal.Decimal) decimal.Decimal {
 	squaredBase := base // new(big.Int).Set(base)
 	result := N1        // new(big.Int).Set(ONE)
 
-	// 如果 base >= ONE
+	// If base >= ONE
 	if squaredBase.Cmp(result) >= 0 {
 		squaredBase = MAX.Div(squaredBase) //new(big.Int).Div(MAX, squaredBase)
 		invert = !invert
 	}
 
-	// 相当于循环 unrolled (展开)
+	// Equivalent to unrolled loop
 	bitChecks := []decimal.Decimal{
 		decimal.NewFromInt(0x1),
 		decimal.NewFromInt(0x2),
@@ -76,12 +76,12 @@ func pow(base, exp decimal.Decimal) decimal.Decimal {
 		squaredBase = dmath.Rsh(squaredBase.Mul(squaredBase), 64)
 	}
 
-	// 如果结果为 0
+	// If result is 0
 	if result.Sign() == 0 {
 		return decimal.Zero // big.NewInt(0)
 	}
 
-	// 如果 invert == true
+	// If invert == true
 	if invert {
 		result = MAX.Div(result) // new(big.Int).Div(MAX, result)
 	}
@@ -275,7 +275,7 @@ func GetSqrtPriceFromPrice(price decimal.Decimal, tokenADecimal, tokenBDecimal u
 	// 	return nil, fmt.Errorf("invalid price: %s", price)
 	// }
 
-	// 计算 10^(tokenADecimal - tokenBDecimal)
+	// Calculate 10^(tokenADecimal - tokenBDecimal)
 	decDiff := tokenADecimal - tokenBDecimal
 	// pow10 := new(big.Float).SetFloat64(math.Pow10(int(decDiff)))
 	pow10 := dmath.Pow10(int(decDiff))

@@ -12,20 +12,20 @@ import (
 	"github.com/gagliardetto/solana-go/rpc"
 )
 
-// TransferFee
+// TransferFee represents the transfer fee configuration for a specific epoch
 type TransferFee struct {
-	Epoch       uint64
-	MaximumFee  uint64
-	BasisPoints uint16
+	Epoch       uint64 // Epoch when this fee configuration is active
+	MaximumFee  uint64 // Maximum fee amount in token units
+	BasisPoints uint16 // Fee rate in basis points (1/10000)
 }
 
-// TransferFeeConfig
+// TransferFeeConfig represents the complete transfer fee configuration for a token
 type TransferFeeConfig struct {
-	TransferFeeConfigAuthority *solana.PublicKey
-	WithdrawWithheldAuthority  *solana.PublicKey
-	WithheldAmount             uint64
-	OlderTransferFee           TransferFee
-	NewerTransferFee           TransferFee
+	TransferFeeConfigAuthority *solana.PublicKey // Authority that can modify transfer fee configuration
+	WithdrawWithheldAuthority  *solana.PublicKey // Authority that can withdraw withheld fees
+	WithheldAmount             uint64            // Amount of fees currently withheld
+	OlderTransferFee           TransferFee       // Previous epoch's transfer fee configuration
+	NewerTransferFee           TransferFee       // Current/next epoch's transfer fee configuration
 }
 
 // parseCOptionPubkey
@@ -120,7 +120,7 @@ func getTransferFeeConfig(data []byte) (*TransferFeeConfig, error) {
 // GetEpochFee
 func GetEpochFee(cfg *TransferFeeConfig, currentEpoch uint64) TransferFee {
 	if cfg == nil {
-		return TransferFee{Epoch: 0, MaximumFee: 0, BasisPoints: 0} // SPL Token 返回 0 fee
+		return TransferFee{Epoch: 0, MaximumFee: 0, BasisPoints: 0} // SPL Token returns 0 fee
 	}
 	if currentEpoch >= cfg.NewerTransferFee.Epoch {
 		return cfg.NewerTransferFee

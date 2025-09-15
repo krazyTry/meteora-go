@@ -227,39 +227,39 @@ func TestDammV2(t *testing.T) {
 		fmt.Println("===========================")
 	}
 
-	// {
-	// 	mintWallet := solana.NewWallet()
-	// 	baseMint := mintWallet.PublicKey()
-	// 	fmt.Printf("new token mint address:%s(%s)\n", baseMint, mintWallet.PrivateKey)
+	{
+		mintWallet := solana.NewWallet()
+		baseMint := mintWallet.PublicKey()
+		fmt.Printf("new token mint address:%s(%s)\n", baseMint, mintWallet.PrivateKey)
 
-	// 	testCreateTokenMint(t, ctx, rpcClient, wsClient, mintWallet, payer, poolCreator)
+		testCreateTokenMint(t, ctx, rpcClient, wsClient, mintWallet, payer, poolCreator)
 
-	// 	{
-	// 		fmt.Println("ready CreatePool")
-	// 		ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
-	// 		defer cancel1()
-	// 		baseAmount := big.NewInt(1_000_000)
-	// 		quoteAmount := big.NewInt(1) // SOL
-	// 		sig, _, _, err := meteoraDammV2.CreatePool(
-	// 			ctx1,
-	// 			wsClient,
-	// 			payer,
-	// 			0,
-	// 			1, // 1 base token = 1 quote token
-	// 			baseMint,
-	// 			solana.WrappedSol,
-	// 			baseAmount,
-	// 			quoteAmount,
-	// 			nil,
-	// 			true,
-	// 		)
-	// 		if err != nil {
-	// 			t.Fatal("meteoraDammV2.CreatePool fail", err)
-	// 		}
-	// 		fmt.Println("success CreatePool sig:", sig)
-	// 	}
-	// 	testCpAmmPoolCheck(t, ctx, meteoraDammV2, baseMint)
-	// }
+		{
+			fmt.Println("ready CreatePool")
+			ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
+			defer cancel1()
+			baseAmount := big.NewInt(1_000_000)
+			quoteAmount := big.NewInt(1) // SOL
+			sig, _, _, err := meteoraDammV2.CreatePool(
+				ctx1,
+				wsClient,
+				payer,
+				0,
+				1, // 1 base token = 1 quote token
+				baseMint,
+				solana.WrappedSol,
+				baseAmount,
+				quoteAmount,
+				nil,
+				true,
+			)
+			if err != nil {
+				t.Fatal("meteoraDammV2.CreatePool fail", err)
+			}
+			fmt.Println("success CreatePool sig:", sig)
+		}
+		testCpAmmPoolCheck(t, ctx, meteoraDammV2, baseMint)
+	}
 
 	// {
 	// 	poolCreatorAuthority := solana.NewWallet()
@@ -703,7 +703,7 @@ func testCpAmmPoolCheck(t *testing.T, ctx context.Context, cpamm *dammV2.DammV2,
 	ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
 	defer cancel1()
 
-	pools, err := cpamm.GetPoolByBaseMint(ctx1, baseMint)
+	pools, err := cpamm.GetPoolsByBaseMint(ctx1, baseMint)
 	if err != nil {
 		t.Fatal("cpamm.GetPoolByBaseMint() fail", err)
 	}

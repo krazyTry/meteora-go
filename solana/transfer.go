@@ -9,6 +9,22 @@ import (
 	"github.com/gagliardetto/solana-go/rpc"
 )
 
+// TransferInstruction generates instructions for token transfer
+//
+// Example:
+//
+// instructions, _ := solanago.TransferInstruction(
+//
+//	ctx,
+//	rpcClient,
+//	payer.PublicKey(),
+//	sender.PublicKey(),
+//	receiver,
+//	baseMint,
+//	9,
+//	amount,
+//
+// )
 func TransferInstruction(
 	ctx context.Context,
 	rpcClient *rpc.Client,

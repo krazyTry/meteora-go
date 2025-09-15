@@ -17,6 +17,24 @@ import (
 	"github.com/gagliardetto/solana-go/rpc/ws"
 )
 
+// CreatePositionInstruction generates the instruction required for CreatePosition
+//
+// Example:
+//
+// poolStates, _ := m.GetPoolsByBaseMint(ctx, baseMint)
+// poolState := poolStates[0]
+//
+// positionNft := solana.NewWallet()
+//
+// instructions, _ := CreatePositionInstruction(
+//
+//	ctx,
+//	payer.PublicKey(), // payer account
+//	owner.PublicKey(), // owner of the position account to be created
+//	positionNft.PublicKey(), // owner's position
+//	poolState.Address, // damm v2 pool address
+//
+// )
 func CreatePositionInstruction(
 	ctx context.Context,
 	payer solana.PublicKey,
@@ -55,6 +73,22 @@ func CreatePositionInstruction(
 	return []solana.Instruction{createIx}, nil
 }
 
+// CreatePosition Creates a new position in an existing pool.
+// The function depends on CreatePositionInstruction.
+// The function is blocking; it will wait for on-chain confirmation before returning.
+// This function is an example function. It only reads the 0th element of poolStates. For multi-pool scenarios, you need to implement it yourself.
+//
+// Example:
+//
+// sig, positionNft, _ := meteoraDammV2.CreatePosition(
+//
+//	ctx,
+//	wsClient,
+//	payer, // payer account
+//	poolPartner, // owner of the position account to be created
+//	baseMint,
+//
+// )
 func (m *DammV2) CreatePosition(
 	ctx context.Context,
 	wsClient *ws.Client,
@@ -63,7 +97,7 @@ func (m *DammV2) CreatePosition(
 	baseMint solana.PublicKey,
 ) (string, *solana.Wallet, error) {
 
-	poolStates, err := m.GetPoolByBaseMint(ctx, baseMint)
+	poolStates, err := m.GetPoolsByBaseMint(ctx, baseMint)
 	if err != nil {
 		return "", nil, err
 	}
@@ -105,6 +139,28 @@ func (m *DammV2) CreatePosition(
 	return sig.String(), positionNft, nil
 }
 
+// ClosePositionInstruction generates the instruction required for ClosePosition
+//
+// Example:
+//
+// poolStates, _ := m.GetPoolsByBaseMint(ctx, baseMint)
+//
+// poolState := poolStates[0]
+//
+// var userPosition *UserPosition
+// userPositions, _ := m.GetUserPositionByUserAndPoolPDA(ctx, poolState.Address, owner.PublicKey())
+//
+// userPosition = userPositions[0]
+//
+// instructions, _ := ClosePositionInstruction(
+//
+//	ctx,
+//	payer.PublicKey(), // payer account
+//	owner.PublicKey(), // owner of the position account to be closed
+//	userPosition, // owner's position
+//	poolState.Address, // damm v2 pool address
+//
+// )
 func ClosePositionInstruction(
 	ctx context.Context,
 	payer solana.PublicKey,
@@ -131,6 +187,22 @@ func ClosePositionInstruction(
 	return []solana.Instruction{closeIx}, nil
 }
 
+// ClosePosition Closes a position with no liquidity.
+// The function depends on ClosePositionInstruction.
+// The function is blocking; it will wait for on-chain confirmation before returning.
+// This function is an example function. It only reads the 0th element of poolStates and userPositions. For multi-pool and multi-userPosition scenarios, you need to implement it yourself.
+//
+// Example:
+//
+// sig, _ := meteoraDammV2.ClosePosition(
+//
+//	ctx,
+//	wsClient,
+//	payer, // payer account
+//	poolPartner, // owner of the position account to be closed
+//	baseMint,
+//
+// )
 func (m *DammV2) ClosePosition(
 	ctx context.Context,
 	wsClient *ws.Client,
@@ -138,7 +210,7 @@ func (m *DammV2) ClosePosition(
 	owner *solana.Wallet,
 	baseMint solana.PublicKey,
 ) (string, error) {
-	poolStates, err := m.GetPoolByBaseMint(ctx, baseMint)
+	poolStates, err := m.GetPoolsByBaseMint(ctx, baseMint)
 	if err != nil {
 		return "", err
 	}
@@ -188,6 +260,47 @@ func (m *DammV2) ClosePosition(
 	return sig.String(), nil
 }
 
+// LockPositionInstruction generates the instruction required for LockPosition
+//
+// Example:
+//
+// liquidityDelta, _, err = meteoraDammV2.GetPositionLiquidity(ctx1, baseMint, poolPartner.PublicKey())
+//
+// numberOfPeriod := uint16(10)
+//
+// liquidityToLock := new(big.Int).Div(liquidityDelta, big.NewInt(2))
+//
+// cliffUnlockLiquidity := new(big.Int).Div(liquidityToLock, big.NewInt(2))
+// liquidityPerPeriod := new(big.Int).Div(new(big.Int).Sub(liquidityToLock, cliffUnlockLiquidity), new(big.Int).SetUint64(uint64(numberOfPeriod)))
+// loss := new(big.Int).Sub(liquidityToLock, new(big.Int).Add(cliffUnlockLiquidity, new(big.Int).Mul(liquidityPerPeriod, new(big.Int).SetUint64(uint64(numberOfPeriod)))))
+//
+// cliffUnlockLiquidity = new(big.Int).Add(cliffUnlockLiquidity, loss)
+//
+// vesting := solana.NewWallet()
+// poolStates, _ := m.GetPoolsByBaseMint(ctx, baseMint)
+//
+// poolState := poolStates[0]
+//
+// var userPosition *UserPosition
+// userPositions, _ := m.GetUserPositionByUserAndPoolPDA(ctx, poolState.Address, owner.PublicKey())
+//
+// userPosition = userPositions[0]
+//
+// instructions, _ := LockPositionInstruction(
+//
+//	ctx,
+//	payer.PublicKey(), // payer account
+//	owner.PublicKey(), // owner of the position to be locked
+//	userPosition, // owner's position
+//	poolState.Address, // damm v2 pool address
+//	nil,
+//	1,
+//	cliffUnlockLiquidity,
+//	liquidityPerPeriod,
+//	numberOfPeriod,
+//	vesting.PublicKey(),
+//
+// )
 func LockPositionInstruction(
 	ctx context.Context,
 	payer solana.PublicKey,
@@ -230,6 +343,42 @@ func LockPositionInstruction(
 	return []solana.Instruction{lockIx}, nil
 }
 
+// LockPosition Builds a transaction to lock a position with vesting schedule.
+// The function depends on LockPositionInstruction.
+// The function is blocking; it will wait for on-chain confirmation before returning.
+// This function is an example function. It only reads the 0th element of poolStates and userPositions. For multi-pool and multi-userPosition scenarios, you need to implement it yourself.
+//
+// Example:
+//
+// liquidityDelta, _, err = meteoraDammV2.GetPositionLiquidity(ctx1, baseMint, poolPartner.PublicKey())
+//
+// numberOfPeriod := uint16(10)
+//
+// liquidityToLock := new(big.Int).Div(liquidityDelta, big.NewInt(2))
+//
+// cliffUnlockLiquidity := new(big.Int).Div(liquidityToLock, big.NewInt(2))
+// liquidityPerPeriod := new(big.Int).Div(new(big.Int).Sub(liquidityToLock, cliffUnlockLiquidity), new(big.Int).SetUint64(uint64(numberOfPeriod)))
+// loss := new(big.Int).Sub(liquidityToLock, new(big.Int).Add(cliffUnlockLiquidity, new(big.Int).Mul(liquidityPerPeriod, new(big.Int).SetUint64(uint64(numberOfPeriod)))))
+//
+// cliffUnlockLiquidity = new(big.Int).Add(cliffUnlockLiquidity, loss)
+//
+// vesting := solana.NewWallet()
+//
+// sig, _ := meteoraDammV2.LockPosition(
+//
+//	ctx,
+//	wsClient,
+//	payer, // payer account
+//	poolPartner, // owner of the position to be locked
+//	baseMint,
+//	nil,
+//	1,
+//	cliffUnlockLiquidity,
+//	liquidityPerPeriod,
+//	numberOfPeriod,
+//	vesting,
+//
+// )
 func (m *DammV2) LockPosition(
 	ctx context.Context,
 	wsClient *ws.Client,
@@ -244,7 +393,7 @@ func (m *DammV2) LockPosition(
 	vesting *solana.Wallet,
 ) (string, error) {
 
-	poolStates, err := m.GetPoolByBaseMint(ctx, baseMint)
+	poolStates, err := m.GetPoolsByBaseMint(ctx, baseMint)
 	if err != nil {
 		return "", err
 	}
@@ -301,6 +450,27 @@ func (m *DammV2) LockPosition(
 	return sig.String(), nil
 }
 
+// PermanentLockPositionInstruction generates the instruction required for PermanentLockPosition
+//
+// Example:
+//
+// poolStates, _ := m.GetPoolsByBaseMint(ctx, baseMint)
+// poolState := poolStates[0]
+//
+// var userPosition *UserPosition
+// userPositions, _ := m.GetUserPositionByUserAndPoolPDA(ctx, poolState.Address, owner.PublicKey())
+//
+// userPosition = userPositions[0]
+//
+// instructions, _ := PermanentLockPositionInstruction(
+//
+//	ctx,
+//	owner.PublicKey(), // owner of the lock position
+//	userPosition, // position of the owner
+//	poolState.Address, // damm v2 pool address
+//	permanentLockLiquidity,
+//
+// )
 func PermanentLockPositionInstruction(
 	ctx context.Context,
 	owner solana.PublicKey,
@@ -328,6 +498,25 @@ func PermanentLockPositionInstruction(
 	return []solana.Instruction{lockIx}, nil
 }
 
+// PermanentLockPosition Builds a transaction to lock a position with vesting schedule.
+// The function depends on PermanentLockPositionInstruction.
+// The function is blocking; it will wait for on-chain confirmation before returning.
+// This function is an example function. It only reads the 0th element of poolStates and userPositions. For scenarios with multiple pools and multiple userPositions, you need to implement it yourself.
+//
+// Example:
+//
+// liquidityDelta, _, err = meteoraDammV2.GetPositionLiquidity(ctx1, baseMint, poolPartner.PublicKey())
+//
+// liquidityToLock := new(big.Int).Div(liquidityDelta, big.NewInt(2))
+// sig, _ := meteoraDammV2.PermanentLockPosition(
+//
+//	ctx,
+//	wsClient,
+//	poolPartner, // owner of the lock position
+//	baseMint,
+//	liquidityToLock,
+//
+// )
 func (m *DammV2) PermanentLockPosition(
 	ctx context.Context,
 	wsClient *ws.Client,
@@ -336,7 +525,7 @@ func (m *DammV2) PermanentLockPosition(
 	permanentLockLiquidity *big.Int,
 ) (string, error) {
 
-	poolStates, err := m.GetPoolByBaseMint(ctx, baseMint)
+	poolStates, err := m.GetPoolsByBaseMint(ctx, baseMint)
 	if err != nil {
 		return "", err
 	}
@@ -382,6 +571,37 @@ func (m *DammV2) PermanentLockPosition(
 	return sig.String(), nil
 }
 
+// SplitPositionInstruction generates the instruction required for SplitPosition
+//
+// Example:
+//
+// sig, position, _ := meteoraDammV2.CreatePosition(ctx1, wsClient, payer, newOwner, baseMint)
+//
+// newOwnerPositionNft = position
+//
+// poolStates, _ := m.GetPoolsByBaseMint(ctx, baseMint)
+// poolState := poolStates[0]
+//
+// var userPosition *UserPosition
+// userPositions, _ := m.GetUserPositionByUserAndPoolPDA(ctx, poolState.Address, owner.PublicKey())
+// userPosition = userPositions[0]
+//
+// instructions, _ := SplitPositionInstruction(
+//
+//	ctx,
+//	owner.PublicKey(), // account whose liquidity will be split
+//	userPosition, // position of the account whose liquidity will be split
+//	newOwner.PublicKey(), // new account
+//	newOwnerPositionNft.PublicKey(), // position of the new account
+//	poolState.Address, // damm v2 pool address
+//	50,
+//	0,
+//	50,
+//	50,
+//	50,
+//	50,
+//
+// )
 func SplitPositionInstruction(
 	ctx context.Context,
 	owner solana.PublicKey,
@@ -435,6 +655,34 @@ func SplitPositionInstruction(
 	return []solana.Instruction{splitIx}, nil
 }
 
+// SplitPosition Builds a transaction to lock a position with vesting schedule.
+// The function depends on SplitPositionInstruction.
+// The function is blocking; it will wait for on-chain confirmation before returning.
+// This function is an example function. It only reads the 0th element of poolStates and userPositions. For scenarios with multiple pools and multiple userPositions, you need to implement it yourself.
+//
+// Example:
+//
+// sig, position, _ := meteoraDammV2.CreatePosition(ctx1, wsClient, payer, poolCreator, baseMint)
+//
+// positionNft = position
+//
+// sig, _ := meteoraDammV2.SplitPosition(
+//
+//	ctx1,
+//	wsClient,
+//	payer,
+//	poolPartner, // account whose liquidity will be split
+//	poolCreator, // new account
+//	positionNft, // position of the new account
+//	baseMint,
+//	50,
+//	0,
+//	50,
+//	50,
+//	50,
+//	50,
+//
+// )
 func (m *DammV2) SplitPosition(
 	ctx context.Context,
 	wsClient *ws.Client,
@@ -450,7 +698,7 @@ func (m *DammV2) SplitPosition(
 	reward0Percentage uint8,
 	reward1Percentage uint8,
 ) (string, error) {
-	poolStates, err := m.GetPoolByBaseMint(ctx, baseMint)
+	poolStates, err := m.GetPoolsByBaseMint(ctx, baseMint)
 	if err != nil {
 		return "", err
 	}
@@ -509,6 +757,7 @@ func (m *DammV2) SplitPosition(
 	return sig.String(), nil
 }
 
+// getPositionNftAccountsByUser gets all position NFT accounts of an account
 func getPositionNftAccountsByUser(
 	ctx context.Context,
 	rpcClient *rpc.Client,
@@ -549,6 +798,21 @@ func getPositionNftAccountsByUser(
 	return data, nil
 }
 
+// GetUserPositionByUserAndPoolPDA gets userPositions based on damm v2 pool address and account address
+// It depends on the GetUserPositionByUserAndPoolPDA function.
+//
+// Example:
+//
+// poolStates, _ := m.GetPoolsByBaseMint(ctx, baseMint)
+// poolState := poolStates[0]
+//
+// userPositions, _ := meteoraDammV2.GetUserPositionByUserAndPoolPDA(
+//
+//	ctx,
+//	cpamm.Address,
+//	poolCreator.PublicKey(),
+//
+// )
 func (m *DammV2) GetUserPositionByUserAndPoolPDA(
 	ctx context.Context,
 	poolAddress solana.PublicKey,
@@ -557,6 +821,21 @@ func (m *DammV2) GetUserPositionByUserAndPoolPDA(
 	return GetUserPositionByUserAndPoolPDA(ctx, m.rpcClient, poolAddress, user)
 }
 
+// GetUserPositionByUserAndPoolPDA gets userPositions based on damm v2 pool address and account address
+//
+// Example:
+//
+// poolStates, _ := m.GetPoolsByBaseMint(ctx, baseMint)
+// poolState := poolStates[0]
+//
+// userPositions, _ := GetUserPositionByUserAndPoolPDA(
+//
+//	ctx,
+//	rpcClient,
+//	cpamm.Address,
+//	poolCreator.PublicKey(),
+//
+// )
 func GetUserPositionByUserAndPoolPDA(
 	ctx context.Context,
 	rpcClient *rpc.Client,
@@ -596,7 +875,7 @@ func GetUserPositionByUserAndPoolPDA(
 	return positionResult, nil
 }
 
-// fetchMultiplePositions
+// fetchMultiplePositions gets the position state of multiple positions
 func fetchMultiplePositions(
 	ctx context.Context,
 	rpcClient *rpc.Client,
@@ -626,6 +905,12 @@ func fetchMultiplePositions(
 	return data, nil
 }
 
+// GetUserPositionsByUser gets all positions of a user
+// It depends on the GetUserPositionsByUser function.
+//
+// Example:
+//
+// list, _ := meteoraDammV2.GetUserPositionsByUser(ctx, poolPartner.PublicKey())
 func (m *DammV2) GetUserPositionsByUser(
 	ctx context.Context,
 	user solana.PublicKey,
@@ -633,6 +918,11 @@ func (m *DammV2) GetUserPositionsByUser(
 	return GetUserPositionsByUser(ctx, m.rpcClient, user)
 }
 
+// GetUserPositionsByUser gets all positions of a user
+//
+// Example:
+//
+// list, _ := GetUserPositionsByUser(ctx, rpcClient, poolPartner.PublicKey())
 func GetUserPositionsByUser(
 	ctx context.Context,
 	rpcClient *rpc.Client,
@@ -675,6 +965,15 @@ func GetUserPositionsByUser(
 	return positionResult, nil
 }
 
+// GetPositionsByPoolPDA gets all positions of a damm v2 pool
+// It depends on the GetPositionsByPoolPDA function.
+//
+// Example:
+//
+// poolStates, _ := m.GetPoolsByBaseMint(ctx, baseMint)
+// poolState := poolStates[0]
+//
+// list, _ := meteoraDammV2.GetPositionsByPoolPDA(ctx, poolState.Address)
 func (m *DammV2) GetPositionsByPoolPDA(
 	ctx context.Context,
 	poolAddress solana.PublicKey,
@@ -682,6 +981,14 @@ func (m *DammV2) GetPositionsByPoolPDA(
 	return GetPositionsByPoolPDA(ctx, m.rpcClient, poolAddress)
 }
 
+// GetPositionsByPoolPDA gets all positions of a damm v2 pool
+//
+// Example:
+//
+// poolStates, _ := GetPoolsByBaseMint(ctx, rpcClient, baseMint)
+// poolState := poolStates[0]
+//
+// list, _ := GetPositionsByPoolPDA(ctx, rpcClient, poolState.Address)
 func GetPositionsByPoolPDA(
 	ctx context.Context,
 	rpcClient *rpc.Client,
@@ -692,8 +999,6 @@ func GetPositionsByPoolPDA(
 		Owner:  poolAddress,
 		Offset: solanago.ComputeStructOffset(new(cp_amm.Position), "Pool"),
 	})
-
-	// opt := solanago.GenProgramAccountFilter(cp_amm.AccountKeyPosition, &solanago.Filter{Owner: poolAddress, Offset: 8})
 
 	outs, err := rpcClient.GetProgramAccountsWithOpts(ctx, cp_amm.ProgramID, opt)
 	if err != nil {
@@ -723,6 +1028,7 @@ func GetPositionsByPoolPDA(
 	return list, nil
 }
 
+// canUnlockPosition checks if a position can be unlocked
 func canUnlockPosition(
 	positionState *cp_amm.Position,
 	vestings []*Vesting,

@@ -14,6 +14,8 @@ var (
 	transferFee = uint64(5000) // 0.000005 SOL
 )
 
+// Init performs initialization.
+// It completes the generation of poolAuthority, eventAuthority in the damm v2 pool.
 func Init() error {
 	var err error
 	poolAuthority, err = cp_amm.DerivePoolAuthorityPDA()
@@ -29,8 +31,7 @@ func Init() error {
 }
 
 type DammV2 struct {
-	rpcClient *rpc.Client
-
+	rpcClient   *rpc.Client
 	poolCreator *solana.Wallet
 }
 
@@ -38,10 +39,8 @@ func NewDammV2(
 	rpcClient *rpc.Client,
 	poolCreator *solana.Wallet,
 ) (*DammV2, error) {
-
-	m := &DammV2{
+	return &DammV2{
 		rpcClient:   rpcClient,
 		poolCreator: poolCreator,
-	}
-	return m, nil
+	}, nil
 }
