@@ -74,10 +74,12 @@ loop:
 				}
 				continue loop
 			}
-		case *token.Instruction:
+		case *system.Instruction:
 			switch inst.BaseVariant.TypeID {
 			case binary.TypeIDFromUint32(system.Instruction_Transfer, bin.LittleEndian): // wrapSOLIx ?
-
+			}
+		case *token.Instruction:
+			switch inst.BaseVariant.TypeID {
 			case binary.TypeIDFromUint8(token.Instruction_SyncNative): // syncNativeIx ?
 
 			case binary.TypeIDFromUint8(token.Instruction_CloseAccount):
