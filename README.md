@@ -153,6 +153,43 @@ Yes! The Meteora SDK supports both standard SPL tokens and Token-2022 program to
 
 Migration can either be handled automatically by the Meteora platform, or manually using the SDK’s MigrateToDammV2 function. This function takes care of the key steps in transitioning a DBC pool to a full AMM pool, including liquidity transfer and pool state updates.
 
+#### How can I quickly find my DAMM V2?
+
+```go
+func GetPoolDammV2(baseMint solana.PublicKey) (*dammV2.Pool, error) {
+	ctx1, cancel1 := context.WithTimeout(ctx, ttl30s)
+	defer cancel1()
+
+	// Get pools – since DAMM V2 allows anyone to create a pool, this returns an array
+	pools, _ := dammV2.GetPoolsByBaseMint(
+		ctx1,
+		rpcClient,
+		baseMint,
+	)
+	// Get all userPositions for our creator
+	userPositions, _ := dammV2.GetUserPositionsByUser(
+		ctx1,
+		rpcClient,
+		poolCreator,
+	)
+
+	// Match and retrieve the DAMM V2 pool that belongs to us
+	var pool *dammV2.Pool
+loop:
+	for _, v := range pools {
+		for _, vv := range userPositions {
+			if v.Address != vv.PositionState.Pool {
+				continue
+			}
+			pool = v
+			break loop
+		}
+	}
+
+	return pool, nil
+}
+```
+
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
