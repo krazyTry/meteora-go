@@ -99,7 +99,7 @@ func CreateLockerInstruction(
 // This function is called when lockedVestingParam is enabled in the config key.
 // This function is blocking and will wait for on-chain confirmation before returning.
 //
-// It is used for manually migrating dbc to damm.v2 and is the first step in the migration process.
+// It is used for manually migrating dbc to damm.v2 and is the second step in the migration process.
 //
 // Example:
 //
@@ -217,7 +217,7 @@ func MigrationDammV2CreateMetadataInstruction(
 // MigrationDammV2CreateMetadata creates a new DAMM V2 migration metadata account.
 // This function is blocking and will wait for on-chain confirmation before returning.
 //
-// It is used for manually migrating dbc to damm.v2 and is the second step in the migration process.
+// It is used for manually migrating dbc to damm.v2 and is the first step in the migration process.
 //
 // Example:
 //
@@ -400,8 +400,8 @@ func MigrationDammV2Instruction(
 // This function is blocking and will wait for on-chain confirmation before returning.
 //
 // The migration process consists of three steps:
-// 1. CreateLocker.
-// 2. MigrationDammV2CreateMetadata.
+// 1. MigrationDammV2CreateMetadata.
+// 2. CreateLocker.
 // 3. MigrationDammV2.
 //
 // partnerPositionNft is the partner's position in dammv2, which will be used later to claim the position fee.
