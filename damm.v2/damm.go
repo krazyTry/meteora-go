@@ -16,18 +16,17 @@ var (
 
 // Init performs initialization.
 // It completes the generation of poolAuthority, eventAuthority in the damm v2 pool.
-func Init() error {
+func init() {
 	var err error
 	poolAuthority, err = cp_amm.DerivePoolAuthorityPDA()
 	if err != nil {
-		return err
+		panic(err)
 	}
 
 	eventAuthority, err = cp_amm.DeriveEventAuthorityPDA()
 	if err != nil {
-		return err
+		panic(err)
 	}
-	return nil
 }
 
 type DammV2 struct {

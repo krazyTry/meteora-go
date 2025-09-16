@@ -30,33 +30,32 @@ var (
 
 // Init performs initialization.
 // It completes the generation of poolAuthority, eventAuthority, lockerEventAuthority, dammPoolAuthority, and dammEventAuthority in the dbc pool.
-func Init() error {
+func init() {
 	var err error
 	poolAuthority, err = dbc.DerivePoolAuthorityPDA()
 	if err != nil {
-		return err
+		panic(err)
 	}
 
 	eventAuthority, err = dbc.DeriveEventAuthorityPDA()
 	if err != nil {
-		return err
+		panic(err)
 	}
 
 	lockerEventAuthority, err = dbc.DeriveLockerEventAuthority()
 	if err != nil {
-		return err
+		panic(err)
 	}
 
 	dammPoolAuthority, err = dbc.DeriveDammV2PoolAuthority()
 	if err != nil {
-		return err
+		panic(err)
 	}
 
 	dammEventAuthority, err = dbc.DeriveDammV2EventAuthority()
 	if err != nil {
-		return err
+		panic(err)
 	}
-	return nil
 }
 
 // DBC

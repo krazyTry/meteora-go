@@ -74,10 +74,6 @@ func TestDammV2(t *testing.T) {
 
 	fmt.Printf("\n\n")
 
-	if err = dammV2.Init(); err != nil {
-		t.Fatal("dammV2.Init() fail", err)
-	}
-
 	meteoraDammV2, err := dammV2.NewDammV2(
 		rpcClient,
 		poolCreator,

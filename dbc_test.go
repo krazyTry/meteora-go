@@ -76,10 +76,6 @@ func TestDbc(t *testing.T) {
 	}
 	fmt.Printf("\n\n")
 
-	if err = dbc.Init(); err != nil {
-		t.Fatal("dbc.Init() fail", err)
-	}
-
 	meteoraDBC, err := dbc.NewDBC(rpcClient, config, poolCreator, poolPartner, leftoverReceiver)
 	if err != nil {
 		t.Fatal("NewMeteoraDBC() fail", err)
@@ -604,10 +600,6 @@ func TestDbc(t *testing.T) {
 		fmt.Println("claim fee completed")
 
 		fmt.Println("dbc closing work completed 66%")
-	}
-
-	if err = dammV2.Init(); err != nil {
-		t.Fatal("dammV2.Init() fail", err)
 	}
 
 	meteoraDammV2, err := dammV2.NewDammV2(rpcClient, poolCreator)
