@@ -366,10 +366,10 @@ func (m *DBC) Buy(
 	minimumAmountOut *big.Int,
 	currentPoint *big.Int,
 ) (string, error) {
-	rentExemptFee, err := solanago.GetRentExempt(ctx, m.rpcClient)
-	if err != nil {
-		return "", err
-	}
+	// rentExemptFee, err := solanago.GetRentExempt(ctx, m.rpcClient)
+	// if err != nil {
+	// 	return "", err
+	// }
 
 	lamportsSOL, err := solanago.SOLBalance(ctx, m.rpcClient, buyer.PublicKey())
 	if err != nil {
@@ -380,7 +380,7 @@ func (m *DBC) Buy(
 		return "", fmt.Errorf("buyer sol must be greater than %v", (rentExemptFee+transferFee)/1e9)
 	}
 
-	if amountIn.Cmp(new(big.Int).SetUint64(lamportsSOL+1)) < 0 {
+	if amountIn.Cmp(new(big.Int).SetUint64(lamportsSOL)) > 0 {
 		return "", fmt.Errorf("amountIn must be greater than %v SOL", (rentExemptFee+transferFee+1)/1e9)
 	}
 
@@ -491,10 +491,10 @@ func (m *DBC) Sell(
 		return "", fmt.Errorf("insufficient token balance")
 	}
 
-	rentExemptFee, err := solanago.GetRentExempt(ctx, m.rpcClient)
-	if err != nil {
-		return "", err
-	}
+	// rentExemptFee, err := solanago.GetRentExempt(ctx, m.rpcClient)
+	// if err != nil {
+	// 	return "", err
+	// }
 
 	lamportsSOL, err := solanago.SOLBalance(ctx, m.rpcClient, seller.PublicKey())
 	if err != nil {

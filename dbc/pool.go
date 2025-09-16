@@ -159,10 +159,10 @@ func (m *DBC) CreatePool(
 	uri string,
 ) (string, error) {
 
-	rentExemptFee, err := solanago.GetRentExempt(ctx, m.rpcClient)
-	if err != nil {
-		return "", err
-	}
+	// rentExemptFee, err := solanago.GetRentExempt(ctx, m.rpcClient)
+	// if err != nil {
+	// 	return "", err
+	// }
 
 	lamportsSOL, err := solanago.SOLBalance(ctx, m.rpcClient, payer.PublicKey())
 	if err != nil {
@@ -576,7 +576,7 @@ func GetPoolsByConfig(
 	configAddress solana.PublicKey,
 ) ([]*dbc.VirtualPool, error) {
 
-	opt := solanago.GenProgramAccountFilter(dbc.AccountKeyPoolConfig, &solanago.Filter{
+	opt := solanago.GenProgramAccountFilter(dbc.AccountKeyVirtualPool, &solanago.Filter{
 		Owner:  configAddress,
 		Offset: solanago.ComputeStructOffset(new(dbc.VirtualPool), "Config"),
 	})
@@ -597,7 +597,7 @@ func GetPoolsByConfig(
 		}
 		cfg, ok := obj.(*dbc.VirtualPool)
 		if !ok {
-			return nil, fmt.Errorf("obj.(*dbc.PoolConfig) fail")
+			return nil, fmt.Errorf("obj.(*dbc.VirtualPool) fail")
 		}
 		list = append(list, cfg)
 	}

@@ -11,7 +11,8 @@ var (
 	poolAuthority  solana.PublicKey
 	eventAuthority solana.PublicKey
 
-	transferFee = uint64(5000) // 0.000005 SOL
+	rentExemptFee = uint64(2_039_280)
+	transferFee   = uint64(5000) // 0.000005 SOL
 )
 
 // Init performs initialization.

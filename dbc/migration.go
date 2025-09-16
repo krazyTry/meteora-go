@@ -301,12 +301,12 @@ func MigrationDammV2Instruction(
 	configState *dbc.PoolConfig,
 	partnerPositionNft *solana.Wallet,
 	creatorPositionNft *solana.Wallet,
-) ([]solana.Instruction, error) {
+) ([]solana.Instruction, solana.PublicKey, error) {
 
 	switch poolState.MigrationProgress {
 	case dbc.MigrationProgressLockedVesting:
 	default:
-		return nil, ErrMigrationProgressState
+		return nil, solana.PublicKey{}, ErrMigrationProgressState
 	}
 
 	quoteMint := configState.QuoteMint
@@ -316,44 +316,44 @@ func MigrationDammV2Instruction(
 
 	migrationMetadata, err := dbc.DeriveDammV2MigrationMetadataPDA(poolAddress)
 	if err != nil {
-		return nil, err
+		return nil, solana.PublicKey{}, err
 	}
 
 	dammConfig := dbc.GetDammV2Config(configState.MigrationFeeOption)
 
 	dammPoolAddress, err := dbc.DeriveDammV2PoolPDA(dammConfig, baseMint, quoteMint)
 	if err != nil {
-		return nil, err
+		return nil, solana.PublicKey{}, err
 	}
 
 	partnerPosition, err := dbc.DerivePosition(partnerPositionNft.PublicKey())
 	if err != nil {
-		return nil, err
+		return nil, solana.PublicKey{}, err
 	}
 
 	partnerPositionNftAccount, err := dbc.DerivePositionNftAccount(partnerPositionNft.PublicKey())
 	if err != nil {
-		return nil, err
+		return nil, solana.PublicKey{}, err
 	}
 
 	creatorPosition, err := dbc.DerivePosition(creatorPositionNft.PublicKey())
 	if err != nil {
-		return nil, err
+		return nil, solana.PublicKey{}, err
 	}
 
 	creatorPositionNftAccount, err := dbc.DerivePositionNftAccount(creatorPositionNft.PublicKey())
 	if err != nil {
-		return nil, err
+		return nil, solana.PublicKey{}, err
 	}
 
 	tokenBaseVault, err := dbc.DeriveDammV2TokenVaultPDA(dammPoolAddress, baseMint)
 	if err != nil {
-		return nil, err
+		return nil, solana.PublicKey{}, err
 	}
 
 	tokenQuoteVault, err := dbc.DeriveDammV2TokenVaultPDA(dammPoolAddress, quoteMint)
 	if err != nil {
-		return nil, err
+		return nil, solana.PublicKey{}, err
 	}
 
 	var instructions []solana.Instruction
@@ -389,11 +389,11 @@ func MigrationDammV2Instruction(
 		},
 	)
 	if err != nil {
-		return nil, err
+		return nil, solana.PublicKey{}, err
 	}
 
 	instructions = append(instructions, migrationIx)
-	return instructions, nil
+	return instructions, dammPoolAddress, nil
 }
 
 // MigrationDammV2 migrates the Dynamic Bonding Curve pool to DAMM V2.
@@ -423,21 +423,21 @@ func (m *DBC) MigrationDammV2(
 	wsClient *ws.Client,
 	payer *solana.Wallet,
 	baseMint solana.PublicKey,
-) (string, *solana.Wallet, *solana.Wallet, error) {
+) (string, solana.PublicKey, *solana.Wallet, *solana.Wallet, error) {
 	poolState, err := m.GetPoolByBaseMint(ctx, baseMint)
 	if err != nil {
-		return "", nil, nil, err
+		return "", solana.PublicKey{}, nil, nil, err
 	}
 
 	configState, err := m.GetConfig(ctx, poolState.Config)
 	if err != nil {
-		return "", nil, nil, err
+		return "", solana.PublicKey{}, nil, nil, err
 	}
 
 	partnerPositionNft := solana.NewWallet()
 	creatorPositionNft := solana.NewWallet()
 
-	instructions, err := MigrationDammV2Instruction(
+	instructions, dammPoolAddress, err := MigrationDammV2Instruction(
 		ctx,
 		payer.PublicKey(),
 		poolState.Address,
@@ -447,7 +447,7 @@ func (m *DBC) MigrationDammV2(
 		creatorPositionNft,
 	)
 	if err != nil {
-		return "", nil, nil, err
+		return "", solana.PublicKey{}, nil, nil, err
 	}
 
 	sig, err := solanago.SendTransaction(ctx,
@@ -471,8 +471,8 @@ func (m *DBC) MigrationDammV2(
 		},
 	)
 	if err != nil {
-		return "", nil, nil, err
+		return "", solana.PublicKey{}, nil, nil, err
 	}
 
-	return sig.String(), partnerPositionNft, creatorPositionNft, nil
+	return sig.String(), dammPoolAddress, partnerPositionNft, creatorPositionNft, nil
 }

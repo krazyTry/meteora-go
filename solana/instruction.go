@@ -2,10 +2,12 @@ package solana
 
 import (
 	"context"
+	bin "encoding/binary"
 
 	binary "github.com/gagliardetto/binary"
 	"github.com/gagliardetto/solana-go"
 	associatedtokenaccount "github.com/gagliardetto/solana-go/programs/associated-token-account"
+	"github.com/gagliardetto/solana-go/programs/system"
 	"github.com/gagliardetto/solana-go/programs/token"
 	"github.com/gagliardetto/solana-go/rpc"
 )
@@ -69,11 +71,15 @@ loop:
 				}
 				if !bJump {
 					startInstruction = append(startInstruction, v)
-					continue loop
 				}
+				continue loop
 			}
 		case *token.Instruction:
 			switch inst.BaseVariant.TypeID {
+			case binary.TypeIDFromUint32(system.Instruction_Transfer, bin.LittleEndian): // wrapSOLIx ?
+
+			case binary.TypeIDFromUint8(token.Instruction_SyncNative): // syncNativeIx ?
+
 			case binary.TypeIDFromUint8(token.Instruction_CloseAccount):
 				vs := v.Accounts()
 				bJump := false
@@ -87,8 +93,8 @@ loop:
 				}
 				if !bJump {
 					endInstruction = append(endInstruction, v)
-					continue loop
 				}
+				continue loop
 			}
 		default:
 		}

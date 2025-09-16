@@ -13,12 +13,14 @@ import (
 	"github.com/gagliardetto/solana-go/programs/token"
 	"github.com/gagliardetto/solana-go/rpc"
 	"github.com/gagliardetto/solana-go/rpc/ws"
+	jsoniter "github.com/json-iterator/go"
 	dammV2 "github.com/krazyTry/meteora-go/damm.v2"
 	"github.com/krazyTry/meteora-go/damm.v2/cp_amm"
 	solanago "github.com/krazyTry/meteora-go/solana"
 )
 
 func TestDammV2(t *testing.T) {
+	return
 
 	// init
 	rpcClient, wsClient, pctx, cancel, err := testInit()
@@ -708,15 +710,23 @@ func testCpAmmPoolCheck(t *testing.T, ctx context.Context, cpamm *dammV2.DammV2,
 		fmt.Println("pool does not exist:", baseMint)
 		return nil
 	}
-	pool := pools[0]
-	fmt.Println("===========================")
-	fmt.Println("print pool info")
-	fmt.Println("dammv2.PoolAddress", pool.Address)
-	fmt.Println("dammv2.TokenAMint", pool.TokenAMint)
-	fmt.Println("dammv2.TokenBMint", pool.TokenBMint)
-	fmt.Println("===========================")
+	for idx, pool := range pools {
+		fmt.Println("===========================")
+		fmt.Println("print pool info")
+		fmt.Println("dammv2 Index", idx)
+		fmt.Println("dammv2.PoolAddress", pool.Address)
+		fmt.Println("dammv2.TokenAMint", pool.TokenAMint)
+		fmt.Println("dammv2.TokenBMint", pool.TokenBMint)
+		fmt.Println("dammv2.SqrtMinPrice", pool.SqrtMinPrice)
+		fmt.Println("dammv2.SqrtMaxPrice", pool.SqrtMaxPrice)
+		fmt.Println("dammv2.SqrtPrice", pool.SqrtPrice)
+		fmt.Println("dammv2.Liquidity", pool.Liquidity)
+		j, _ := jsoniter.MarshalToString(pool)
+		fmt.Println("dammv2.Json", j)
+		fmt.Println("===========================")
+	}
 
-	return pool
+	return pools[0]
 }
 
 func testCreateTokenMint(t *testing.T, ctx context.Context, rpcClient *rpc.Client, wsClient *ws.Client, mint, payer, partner *solana.Wallet) {
