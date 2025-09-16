@@ -184,3 +184,15 @@ const (
 	PartnerWithdrawMigrationFeeFlag WithdrawMigrationFeeFlag = iota
 	CreatorWithdrawMigrationFeeFlag
 )
+
+type MigrationFeeWithdrawStatus uint8
+
+func (m MigrationFeeWithdrawStatus) IsPartnerWithdraw() uint8 {
+	partnerMask := uint8(1) << 0 // 0x01
+	return uint8(m) & partnerMask
+}
+
+func (m MigrationFeeWithdrawStatus) IsCreatorWithdraw() uint8 {
+	creatorMask := uint8(1) << 1 // 0x01
+	return uint8(m) & creatorMask
+}

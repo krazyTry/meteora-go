@@ -5034,7 +5034,7 @@ type VirtualPool struct {
 	IsCreatorWithdrawSurplus uint8 `json:"isCreatorWithdrawSurplus"`
 
 	// Migration fee withdrawal status (first bit for partner, second bit for creator)
-	MigrationFeeWithdrawStatus uint8 `json:"migrationFeeWithdrawStatus"`
+	MigrationFeeWithdrawStatus MigrationFeeWithdrawStatus `json:"migrationFeeWithdrawStatus"`
 
 	// Pool performance metrics
 	Metrics PoolMetrics `json:"metrics"`
