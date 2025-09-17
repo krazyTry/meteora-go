@@ -38,9 +38,9 @@ type DammV2 struct {
 func NewDammV2(
 	rpcClient *rpc.Client,
 	poolCreator *solana.Wallet,
-) (*DammV2, error) {
+) *DammV2 {
 	return &DammV2{
 		rpcClient:   rpcClient,
 		poolCreator: poolCreator,
-	}, nil
+	}
 }

@@ -92,13 +92,12 @@ func NewDBC(
 	poolCreator *solana.Wallet,
 	poolPartner *solana.Wallet,
 	leftoverReceiver *solana.Wallet,
-) (*DBC, error) {
-
+) *DBC {
 	return &DBC{
 		rpcClient:        rpcClient,
 		config:           config,
 		feeClaimer:       poolPartner,
 		leftoverReceiver: leftoverReceiver,
 		poolCreator:      poolCreator,
-	}, nil
+	}
 }

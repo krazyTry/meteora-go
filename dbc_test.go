@@ -77,10 +77,7 @@ func TestDbc(t *testing.T) {
 	}
 	fmt.Printf("\n\n")
 
-	meteoraDBC, err := dbc.NewDBC(rpcClient, config, poolCreator, poolPartner, leftoverReceiver)
-	if err != nil {
-		t.Fatal("NewMeteoraDBC() fail", err)
-	}
+	meteoraDBC := dbc.NewDBC(rpcClient, config, poolCreator, poolPartner, leftoverReceiver)
 
 	// Check if the configuration creation function is ok
 	testDBCBuildCurveCheck(t)
@@ -603,10 +600,7 @@ func TestDbc(t *testing.T) {
 		fmt.Println("dbc closing work completed 66%")
 	}
 
-	meteoraDammV2, err := dammV2.NewDammV2(rpcClient, poolCreator)
-	if err != nil {
-		t.Fatal("NewDammV2() fail", err)
-	}
+	meteoraDammV2 := dammV2.NewDammV2(rpcClient, poolCreator)
 
 	testCpAmmPoolCheck(t, ctx, meteoraDammV2, baseMint)
 

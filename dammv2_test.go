@@ -76,13 +76,10 @@ func TestDammV2(t *testing.T) {
 
 	fmt.Printf("\n\n")
 
-	meteoraDammV2, err := dammV2.NewDammV2(
+	meteoraDammV2 := dammV2.NewDammV2(
 		rpcClient,
 		poolCreator,
 	)
-	if err != nil {
-		t.Fatal("NewDammV2() fail", err)
-	}
 
 	// {
 	// 	mintWallet := solana.NewWallet()
