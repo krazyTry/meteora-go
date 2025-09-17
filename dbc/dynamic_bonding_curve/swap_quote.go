@@ -10,7 +10,7 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-func getSwapAmountFromQuoteToBase(curve []LiquidityDistributionConfig, currentSqrtPrice binary.Uint128, amountIn, stopSqrtPrice decimal.Decimal) (decimal.Decimal, binary.Uint128, decimal.Decimal, error) {
+func calculateQuoteToBaseFromAmountIn(curve []LiquidityDistributionConfig, currentSqrtPrice binary.Uint128, amountIn, stopSqrtPrice decimal.Decimal) (decimal.Decimal, binary.Uint128, decimal.Decimal, error) {
 	if amountIn.IsZero() {
 		return N0, currentSqrtPrice, N0, nil
 	}
@@ -87,7 +87,7 @@ func getSwapAmountFromQuoteToBase(curve []LiquidityDistributionConfig, currentSq
 	return totalOutput, u128.GenUint128FromString(currentSqrtPriceLocal.String()), amountLeft, nil
 }
 
-func getSwapAmountFromBaseToQuote(curve []LiquidityDistributionConfig, sqrtStartPrice binary.Uint128, amountIn decimal.Decimal) (decimal.Decimal, binary.Uint128, decimal.Decimal, error) {
+func calculateBaseToQuoteFromAmountIn(curve []LiquidityDistributionConfig, sqrtStartPrice binary.Uint128, amountIn decimal.Decimal) (decimal.Decimal, binary.Uint128, decimal.Decimal, error) {
 
 	if amountIn.IsZero() {
 		return N0, sqrtStartPrice, N0, nil
@@ -215,7 +215,7 @@ func GetSwapAmountFromQuote(configState *PoolConfig, amountIn decimal.Decimal, s
 	}
 
 	// calculate swap amount
-	amountOut, _, _, err := getSwapAmountFromQuoteToBase(configState.Curve[:], configState.SqrtStartPrice, inAmount, U128_MAX)
+	amountOut, _, _, err := calculateQuoteToBaseFromAmountIn(configState.Curve[:], configState.SqrtStartPrice, inAmount, U128_MAX)
 	if err != nil {
 		return decimal.Decimal{}, err
 	}

@@ -88,7 +88,7 @@ func SwapQuote(
 		configState,
 		swapBaseForQuote,
 		decimal.NewFromBigInt(amountIn, 0),
-		decimal.NewFromUint64(uint64(slippageBps)),
+		decimal.NewFromUint64(slippageBps),
 		hasReferral,
 		decimal.NewFromBigInt(currentPoint, 0),
 	)

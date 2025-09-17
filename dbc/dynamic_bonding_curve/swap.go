@@ -76,9 +76,9 @@ func getSwapResult(
 	)
 
 	if tradeDirection == TradeDirectionBaseToQuote {
-		outputAmount, nextSqrtPrice, _, err = getSwapAmountFromBaseToQuote(configState.Curve[:], poolState.SqrtPrice, actualAmountIn)
+		outputAmount, nextSqrtPrice, _, err = calculateBaseToQuoteFromAmountIn(configState.Curve[:], poolState.SqrtPrice, actualAmountIn)
 	} else {
-		outputAmount, nextSqrtPrice, _, err = getSwapAmountFromQuoteToBase(configState.Curve[:], poolState.SqrtPrice, actualAmountIn, U128_MAX)
+		outputAmount, nextSqrtPrice, _, err = calculateQuoteToBaseFromAmountIn(configState.Curve[:], poolState.SqrtPrice, actualAmountIn, U128_MAX)
 	}
 	if err != nil {
 		return nil, err

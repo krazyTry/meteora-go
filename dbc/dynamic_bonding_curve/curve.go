@@ -229,13 +229,10 @@ type FirstCurveResult struct {
 
 // getFirstCurve
 func getFirstCurve(
-	migrationSqrtPrice, migrationBaseAmount, swapAmount, migrationQuoteThreshold decimal.Decimal,
-	migrationFeePercent uint8,
-) (*FirstCurveResult, error) {
-	migrationFeePercentDecimal := decimal.NewFromUint64(uint64(migrationFeePercent))
-
+	migrationSqrtPrice, migrationBaseAmount, swapAmount, migrationQuoteThreshold, migrationFeePercent decimal.Decimal,
+) (decimal.Decimal, []LiquidityDistributionParameters, error) {
 	// denominator = swapAmount * (1 - migrationFeePercent/100)
-	denominator := swapAmount.Mul(N1.Sub(migrationFeePercentDecimal.Div(N100)))
+	denominator := swapAmount.Mul(N1.Sub(migrationFeePercent.Div(N100)))
 
 	// sqrtStartPrice = migrationSqrtPrice * migrationBaseAmount / denominator
 	sqrtStartPriceDecimal := migrationSqrtPrice.Mul(migrationBaseAmount).Div(denominator)
@@ -243,16 +240,12 @@ func getFirstCurve(
 	sqrtStartPrice := sqrtStartPriceDecimal.Floor()
 	liquidity, err := getLiquidity(swapAmount, migrationQuoteThreshold, sqrtStartPrice, migrationSqrtPrice)
 	if err != nil {
-		return nil, err
+		return decimal.Decimal{}, nil, err
 	}
-
-	return &FirstCurveResult{
-		SqrtStartPrice: sqrtStartPrice,
-		Curve: []LiquidityDistributionParameters{
-			{
-				SqrtPrice: u128.GenUint128FromString(migrationSqrtPrice.String()),
-				Liquidity: u128.GenUint128FromString(liquidity.String()),
-			},
+	return sqrtStartPrice, []LiquidityDistributionParameters{
+		{
+			SqrtPrice: u128.GenUint128FromString(migrationSqrtPrice.String()),
+			Liquidity: u128.GenUint128FromString(liquidity.String()),
 		},
 	}, nil
 }

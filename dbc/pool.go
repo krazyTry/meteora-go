@@ -479,24 +479,6 @@ func (m *DBC) CreatePoolWithFirstBuy(
 	payer := payerAndBuyer
 	buyer := payerAndBuyer
 
-	rentExemptFee, err := solanago.GetRentExempt(ctx, m.rpcClient)
-	if err != nil {
-		return "", err
-	}
-
-	lamportsSOL, err := solanago.SOLBalance(ctx, m.rpcClient, buyer.PublicKey())
-	if err != nil {
-		return "", err
-	}
-
-	if lamportsSOL < rentExemptFee+transferFee {
-		return "", fmt.Errorf("buyer sol must be greater than %v", float64(rentExemptFee+transferFee)/1e9)
-	}
-
-	if amountIn.Cmp(new(big.Int).SetUint64(lamportsSOL+1)) > 0 {
-		return "", fmt.Errorf("amountIn must be greater than %v SOL", float64(rentExemptFee+transferFee+1)/1e9)
-	}
-
 	configState, err := m.GetConfig(ctx, m.config.PublicKey())
 	if err != nil {
 		return "", err
@@ -517,7 +499,7 @@ func (m *DBC) CreatePoolWithFirstBuy(
 		symbol,
 		uri,
 		buyer.PublicKey(),
-		new(big.Int).Sub(amountIn, new(big.Int).SetUint64(rentExemptFee+transferFee)),
+		amountIn,
 		slippageBps,
 	)
 	if err != nil {

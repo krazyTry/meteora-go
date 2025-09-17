@@ -157,14 +157,16 @@ func BuildCurve(param BuildCurveParam) (*ConfigParameters, error) {
 
 	swapAmount := totalSupply.Sub(migrationBaseAmount).Sub(totalVestingAmount).Sub(totalLeftover)
 
-	firstCurve, err := getFirstCurve(migrateSqrtPrice, migrationBaseAmount, swapAmount, migrationQuoteThresholdInLamport, param.MigrationFee.FeePercentage)
+	sqrtStartPrice, curve, err := getFirstCurve(
+		migrateSqrtPrice,
+		migrationBaseAmount,
+		swapAmount,
+		migrationQuoteThresholdInLamport,
+		decimal.NewFromUint64(uint64(param.MigrationFee.FeePercentage)),
+	)
 	if err != nil {
 		return nil, err
 	}
-
-	sqrtStartPrice := firstCurve.SqrtStartPrice
-
-	curve := firstCurve.Curve
 
 	totalDynamicSupply, err := getTotalSupplyFromCurve(
 		migrationQuoteThresholdInLamport,
