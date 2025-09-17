@@ -352,12 +352,12 @@ func CreatePoolWithFirstBuInstruction(
 
 	instructions = append(instructions, createPoolIx)
 
-	userInputTokenAccount, err := solanago.PrepareTokenATA(ctx, rpcClient, buyer, quoteMint, payer, &instructions)
+	userInputTokenAccount, err := solanago.PrepareTokenATA(ctx, rpcClient, buyer, quoteMint, buyer, &instructions)
 	if err != nil {
 		return nil, err
 	}
 
-	userOutputTokenAccount, err := solanago.PrepareTokenATA(ctx, rpcClient, buyer, baseMint, payer, &instructions)
+	userOutputTokenAccount, err := solanago.PrepareTokenATA(ctx, rpcClient, buyer, baseMint, buyer, &instructions)
 	if err != nil {
 		return nil, err
 	}
@@ -414,7 +414,7 @@ func CreatePoolWithFirstBuInstruction(
 		quoteVault,
 		baseMint,
 		quoteMint,
-		payer,
+		buyer,
 		tokenBaseProgram,
 		tokenQuoteProgram,
 		solana.PublicKey{},
@@ -472,7 +472,6 @@ func (m *DBC) CreatePoolWithFirstBuy(
 	name string,
 	symbol string,
 	uri string,
-	// buyer *solana.Wallet,
 	amountIn *big.Int,
 	slippageBps uint64, // 250 = 2.5%
 ) (string, error) {
@@ -480,10 +479,10 @@ func (m *DBC) CreatePoolWithFirstBuy(
 	payer := payerAndBuyer
 	buyer := payerAndBuyer
 
-	// rentExemptFee, err := solanago.GetRentExempt(ctx, m.rpcClient)
-	// if err != nil {
-	// 	return "", err
-	// }
+	rentExemptFee, err := solanago.GetRentExempt(ctx, m.rpcClient)
+	if err != nil {
+		return "", err
+	}
 
 	lamportsSOL, err := solanago.SOLBalance(ctx, m.rpcClient, buyer.PublicKey())
 	if err != nil {

@@ -42,7 +42,6 @@ import (
 func SwapInstruction(
 	ctx context.Context,
 	rpcClient *rpc.Client,
-	payer solana.PublicKey,
 	owner solana.PublicKey,
 	referrer solana.PublicKey,
 	poolAddress solana.PublicKey,
@@ -59,12 +58,12 @@ func SwapInstruction(
 
 	inputMint, outputMint, inputMintProgram, outputMintProgram := cp_amm.PrepareSwapParams(swapBaseForQuote, poolState)
 
-	inputTokenAccount, err := solanago.PrepareTokenATA(ctx, rpcClient, owner, inputMint, payer, &instructions)
+	inputTokenAccount, err := solanago.PrepareTokenATA(ctx, rpcClient, owner, inputMint, owner, &instructions)
 	if err != nil {
 		return nil, err
 	}
 
-	outputTokenAccount, err := solanago.PrepareTokenATA(ctx, rpcClient, owner, outputMint, payer, &instructions)
+	outputTokenAccount, err := solanago.PrepareTokenATA(ctx, rpcClient, owner, outputMint, owner, &instructions)
 	if err != nil {
 		return nil, err
 	}
@@ -77,12 +76,12 @@ func SwapInstruction(
 	if !referrer.Equals(solana.PublicKey{}) {
 		switch poolState.CollectFeeMode {
 		case cp_amm.CollectFeeModeOnlyA:
-			referralTokenAccount, err = solanago.PrepareTokenATA(ctx, rpcClient, referrer, baseMint, payer, &instructions)
+			referralTokenAccount, err = solanago.PrepareTokenATA(ctx, rpcClient, referrer, baseMint, owner, &instructions)
 			if err != nil {
 				return nil, err
 			}
 		case cp_amm.CollectFeeModeOnlyB:
-			referralTokenAccount, err = solanago.PrepareTokenATA(ctx, rpcClient, referrer, quoteMint, payer, &instructions)
+			referralTokenAccount, err = solanago.PrepareTokenATA(ctx, rpcClient, referrer, quoteMint, owner, &instructions)
 			if err != nil {
 				return nil, err
 			}
@@ -124,7 +123,7 @@ func SwapInstruction(
 		quoteVault,
 		baseMint,
 		quoteMint,
-		payer,
+		owner,
 		inputMintProgram,
 		outputMintProgram,
 		referralTokenAccount,
@@ -207,7 +206,6 @@ func (m *DammV2) Swap(
 	instructions, err := SwapInstruction(
 		ctx,
 		m.rpcClient,
-		payer.PublicKey(),
 		owner.PublicKey(),
 		func() solana.PublicKey {
 			if referrer == nil {
@@ -274,7 +272,7 @@ func BuyInstruction(
 	amountIn *big.Int,
 	minimumAmountOut *big.Int,
 ) ([]solana.Instruction, error) {
-	return SwapInstruction(ctx, rpcClient, buyer, buyer, referrer, poolAddress, poolState, false, amountIn, minimumAmountOut)
+	return SwapInstruction(ctx, rpcClient, buyer, referrer, poolAddress, poolState, false, amountIn, minimumAmountOut)
 }
 
 // Buy buys base tokens using quote tokens on the Dynamic Bonding Curve.
@@ -366,7 +364,7 @@ func SellInstruction(
 	amountIn *big.Int,
 	minimumAmountOut *big.Int,
 ) ([]solana.Instruction, error) {
-	return SwapInstruction(ctx, rpcClient, seller, seller, referrer, poolAddress, poolState, true, amountIn, minimumAmountOut)
+	return SwapInstruction(ctx, rpcClient, seller, referrer, poolAddress, poolState, true, amountIn, minimumAmountOut)
 }
 
 // Sell sells base tokens to receive quote tokens on the Dynamic Bonding Curve.

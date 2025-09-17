@@ -46,7 +46,6 @@ import (
 func SwapInstruction(
 	ctx context.Context,
 	rpcClient *rpc.Client,
-	payer solana.PublicKey,
 	owner solana.PublicKey,
 	referrer solana.PublicKey,
 	poolAddress solana.PublicKey,
@@ -74,12 +73,12 @@ func SwapInstruction(
 
 	var instructions []solana.Instruction
 
-	inputTokenAccount, err := solanago.PrepareTokenATA(ctx, rpcClient, owner, inputMint, payer, &instructions)
+	inputTokenAccount, err := solanago.PrepareTokenATA(ctx, rpcClient, owner, inputMint, owner, &instructions)
 	if err != nil {
 		return nil, err
 	}
 
-	outputTokenAccount, err := solanago.PrepareTokenATA(ctx, rpcClient, owner, outputMint, payer, &instructions)
+	outputTokenAccount, err := solanago.PrepareTokenATA(ctx, rpcClient, owner, outputMint, owner, &instructions)
 	if err != nil {
 		return nil, err
 	}
@@ -92,12 +91,12 @@ func SwapInstruction(
 	if !referrer.Equals(solana.PublicKey{}) {
 		switch configState.CollectFeeMode {
 		case dbc.CollectFeeModeQuoteToken:
-			referralTokenAccount, err = solanago.PrepareTokenATA(ctx, rpcClient, referrer, quoteMint, payer, &instructions)
+			referralTokenAccount, err = solanago.PrepareTokenATA(ctx, rpcClient, referrer, quoteMint, owner, &instructions)
 			if err != nil {
 				return nil, err
 			}
 		case dbc.CollectFeeModeOutputToken:
-			referralTokenAccount, err = solanago.PrepareTokenATA(ctx, rpcClient, referrer, baseMint, payer, &instructions)
+			referralTokenAccount, err = solanago.PrepareTokenATA(ctx, rpcClient, referrer, baseMint, owner, &instructions)
 			if err != nil {
 				return nil, err
 			}
@@ -152,7 +151,7 @@ func SwapInstruction(
 		quoteVault,
 		baseMint,
 		quoteMint,
-		payer,
+		owner,
 		inputMintProgram,
 		outputMintProgram,
 		referralTokenAccount,
@@ -239,7 +238,6 @@ func (m *DBC) Swap(
 
 	instructions, err := SwapInstruction(ctx,
 		m.rpcClient,
-		payer.PublicKey(),
 		owner.PublicKey(),
 		func() solana.PublicKey {
 			if referrer == nil {
@@ -319,7 +317,6 @@ func BuyInstruction(
 	return SwapInstruction(
 		ctx,
 		rpcClient,
-		buyer,
 		buyer,
 		referrer,
 		poolAddress,
@@ -435,7 +432,6 @@ func SellInstruction(
 	return SwapInstruction(
 		ctx,
 		rpcClient,
-		seller,
 		seller,
 		referrer,
 		poolAddress,

@@ -1,8 +1,10 @@
 # Meteora SDK library for Go
 
-[![GoDoc](https://godoc.org/github.com/krazyTry/meteora-go?status.svg)](https://pkg.go.dev/github.com/krazyTry/meteora-go) 
+[![Go Reference](https://pkg.go.dev/badge/github.com/krazyTry/meteora-go.svg)](https://pkg.go.dev/github.com/krazyTry/meteora-go)
 [![GitHub tag (latest SemVer pre-release)](https://img.shields.io/github/v/tag/krazyTry/meteora-go?include_prereleases&label=release-tag)](https://github.com/krazyTry/meteora-go/releases)
 [![Go Report Card](https://goreportcard.com/badge/github.com/krazyTry/meteora-go)](https://goreportcard.com/report/github.com/krazyTry/meteora-go)
+[![Open Source Helpers](https://www.codetriage.com/krazytry/meteora-go/badges/users.svg)](https://www.codetriage.com/krazytry/meteora-go)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/krazyTry/meteora-go/blob/master/LICENSE.md)
 
 Go SDK for interacting with the **Meteora Protocol** on Solana.  
 Currently supports **Dynamic Bonding Curves (DBC)** and **Dynamic AMM (DAMM v2)**.
