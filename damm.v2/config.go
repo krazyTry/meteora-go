@@ -179,12 +179,22 @@ import (
 // }
 
 // GetConfig Fetches the Config state of the program.
+// The function depends on GetConfig.
 //
 // Example:
 //
 // config, _ := meteoraDammV2.GetConfig(ctx, solana.MustPublicKeyFromBase58("82p7sVzQWZfCrmStPhsG8BYKwheQkUiXSs2wiqdhwNxr"))
 func (m *DammV2) GetConfig(ctx context.Context, config solana.PublicKey) (*cp_amm.Config, error) {
-	out, err := solanago.GetAccountInfo(ctx, m.rpcClient, config)
+	return GetConfig(ctx, m.rpcClient, config)
+}
+
+// GetConfig Fetches the Config state of the program.
+//
+// Example:
+//
+// config, _ := GetConfig(ctx, rpcClient, solana.MustPublicKeyFromBase58("82p7sVzQWZfCrmStPhsG8BYKwheQkUiXSs2wiqdhwNxr"))
+func GetConfig(ctx context.Context, rpcClient *rpc.Client, configAddress solana.PublicKey) (*cp_amm.Config, error) {
+	out, err := solanago.GetAccountInfo(ctx, rpcClient, configAddress)
 	if err != nil {
 		if err == rpc.ErrNotFound {
 			return nil, nil

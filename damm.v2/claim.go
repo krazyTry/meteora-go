@@ -348,13 +348,25 @@ func (m *DammV2) ClaimReward(
 }
 
 // GetUnclaimedFee gets the unclaimed fee of a position
+// The function depends on GetUnclaimedFee.
 func (m *DammV2) GetUnclaimedFee(poolState *cp_amm.Pool, position *cp_amm.Position) (uint64, uint64) {
+	return GetUnclaimedFee(poolState, position)
+}
+
+// GetUnclaimedFee gets the unclaimed fee of a position
+func GetUnclaimedFee(poolState *cp_amm.Pool, position *cp_amm.Position) (uint64, uint64) {
 	feeBaseToken, feeQuoteToken := cp_amm.CalculateUnClaimFee(poolState, position)
 	return feeBaseToken.BigInt().Uint64(), feeQuoteToken.BigInt().Uint64()
 }
 
 // GetUnclaimedRewards gets the unclaimed rewards of a position
+// The function depends on GetUnclaimedRewards.
 func (m *DammV2) GetUnclaimedRewards(poolState *cp_amm.Pool, position *cp_amm.Position) []uint64 {
+	return GetUnclaimedRewards(poolState, position)
+}
+
+// GetUnclaimedRewards gets the unclaimed rewards of a position
+func GetUnclaimedRewards(poolState *cp_amm.Pool, position *cp_amm.Position) []uint64 {
 	rewards := cp_amm.CalculateUnClaimReward(poolState, position)
 	var list []uint64
 	for _, v := range rewards {
