@@ -44,6 +44,13 @@ func PrepareTokenATA(
 	return tokenATA, nil
 }
 
+var (
+	ataInstructionTypeID          = binary.NoTypeIDDefaultID
+	transferInstructionTypeID     = binary.TypeIDFromUint32(system.Instruction_Transfer, bin.LittleEndian)
+	syncNativeInstructionTypeID   = binary.TypeIDFromUint8(token.Instruction_SyncNative)
+	closeAccountInstructionTypeID = binary.TypeIDFromUint8(token.Instruction_CloseAccount)
+)
+
 // SplitInstructions splits instructions into three phases: start, middle, end.
 // The start and end phases will attempt to deduplicate specific types to avoid multiple identical instructions.
 func SplitInstructions(oldInstructions []solana.Instruction) ([]solana.Instruction, []solana.Instruction, []solana.Instruction) {
@@ -116,6 +123,134 @@ func MergeInstructions(oldInstructions []solana.Instruction) []solana.Instructio
 	newInstructions = append(newInstructions, startInstruction...)
 	newInstructions = append(newInstructions, middleInstruction...)
 	newInstructions = append(newInstructions, endInstruction...)
+
+	return newInstructions
+}
+
+// MergeInstructions2 merges instructions
+func MergeInstructions2(oldInstructions []solana.Instruction) []solana.Instruction {
+	var (
+		ataCreateInstructions    []*associatedtokenaccount.Create
+		transferInstructions     []*system.Transfer
+		closeAccountInstructions []*token.CloseAccount
+		syncNativeInstructions   []*token.SyncNative
+
+		newInstructions []solana.Instruction
+	)
+
+	for _, v := range oldInstructions {
+		switch inst := v.(type) {
+		case *associatedtokenaccount.Instruction:
+			if inst.TypeID != ataInstructionTypeID {
+				newInstructions = append(newInstructions, v)
+				break
+			}
+
+			ataCreate, ok := inst.Impl.(associatedtokenaccount.Create)
+			if !ok {
+				newInstructions = append(newInstructions, v)
+				break
+			}
+
+			// deduplicate
+			bSave := false
+			for _, instruction := range ataCreateInstructions {
+				if ataCreate.Mint != instruction.Mint ||
+					ataCreate.Payer != instruction.Payer ||
+					ataCreate.Wallet != instruction.Wallet {
+					continue
+				}
+
+				bSave = true
+				break
+			}
+
+			if !bSave {
+				ataCreateInstructions = append(ataCreateInstructions, &ataCreate)
+				newInstructions = append(newInstructions, v)
+			}
+		case *system.Instruction:
+			if inst.TypeID != transferInstructionTypeID {
+				newInstructions = append(newInstructions, v)
+				break
+			}
+
+			transfer, ok := inst.Impl.(system.Transfer)
+			if !ok {
+				newInstructions = append(newInstructions, v)
+				break
+			}
+
+			// deduplicate
+			bSave := false
+			for _, instruction := range transferInstructions {
+				if transfer.GetFundingAccount().PublicKey != instruction.GetFundingAccount().PublicKey ||
+					transfer.GetRecipientAccount().PublicKey != instruction.GetRecipientAccount().PublicKey {
+					continue
+				}
+
+				bSave = true
+				// add lamports to first
+				*instruction.Lamports += *transfer.Lamports
+				break
+			}
+			if !bSave {
+				transferInstructions = append(transferInstructions, &transfer)
+				newInstructions = append(newInstructions, v)
+			}
+		case *token.Instruction:
+			switch inst.TypeID {
+			case syncNativeInstructionTypeID:
+				syncNative, ok := inst.Impl.(token.SyncNative)
+				if !ok {
+					newInstructions = append(newInstructions, v)
+					break
+				}
+				// deduplicate
+				bSave := false
+				for _, instruction := range syncNativeInstructions {
+					if syncNative.GetTokenAccount().PublicKey != instruction.GetTokenAccount().PublicKey {
+						continue
+					}
+
+					bSave = true
+					break
+				}
+				if !bSave {
+					syncNativeInstructions = append(syncNativeInstructions, &syncNative)
+					newInstructions = append(newInstructions, v)
+				}
+			case closeAccountInstructionTypeID:
+				closeAccount, ok := inst.Impl.(token.CloseAccount)
+				if !ok {
+					newInstructions = append(newInstructions, v)
+					break
+				}
+
+				// deduplicate
+				bSave := false
+				for _, instruction := range closeAccountInstructions {
+					if closeAccount.GetAccount().PublicKey != instruction.GetAccount().PublicKey ||
+						closeAccount.GetDestinationAccount().PublicKey != instruction.GetDestinationAccount().PublicKey ||
+						closeAccount.GetOwnerAccount().PublicKey != instruction.GetOwnerAccount().PublicKey {
+						continue
+					}
+
+					bSave = true
+					break
+				}
+
+				if !bSave {
+					closeAccountInstructions = append(closeAccountInstructions, &closeAccount)
+					newInstructions = append(newInstructions, v)
+				}
+			default:
+				newInstructions = append(newInstructions, v)
+			}
+		default:
+			newInstructions = append(newInstructions, v)
+		}
+	}
 
 	return newInstructions
 }
