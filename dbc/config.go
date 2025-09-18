@@ -77,6 +77,9 @@ func (m *DBC) CreateConfig(
 	quoteMint solana.PublicKey,
 	cfg *dbc.ConfigParameters,
 ) (string, error) {
+	if cfg.CreatorLpPercentage+cfg.CreatorLockedLpPercentage+cfg.PartnerLpPercentage+cfg.PartnerLockedLpPercentage != 100 {
+		return "", fmt.Errorf("100 != cfg.CreatorLpPercentage+cfg.CreatorLockedLpPercentage+cfg.PartnerLpPercentage+cfg.PartnerLockedLpPercentage")
+	}
 
 	instructions, err := CreateConfigInstruction(
 		ctx,

@@ -538,19 +538,19 @@ func getLockedVestingParams(
 }
 
 func getMigrationQuoteAmountFromMigrationQuoteThreshold(
-	migrationQuoteThreshold decimal.Decimal,
-	migrationFeePercent uint8,
+	migrationQuoteThreshold, migrationFeePercent decimal.Decimal,
+	// migrationFeePercent uint8,
 ) decimal.Decimal {
-	return migrationQuoteThreshold.Mul(N100.Sub(decimal.NewFromUint64(uint64(migrationFeePercent)))).Div(N100)
+	return migrationQuoteThreshold.Mul(N100.Sub(migrationFeePercent)).Div(N100)
 }
 
 func getMigrationQuoteThresholdFromMigrationQuoteAmount(
-	migrationQuoteAmount decimal.Decimal,
-	migrationFeePercent uint8,
+	migrationQuoteAmount, migrationFeePercent decimal.Decimal,
+	// migrationFeePercent uint8,
 ) decimal.Decimal {
 	return migrationQuoteAmount.
 		Mul(N100).
-		Div(N100.Sub(decimal.NewFromUint64(uint64(migrationFeePercent))))
+		Div(N100.Sub(migrationFeePercent))
 }
 
 func getBaseFeeParams(baseFeeParams BaseFeeParams, tokenQuoteDecimal TokenDecimal, activationType ActivationType) (BaseFeeParameters, error) {
@@ -738,7 +738,7 @@ func getTotalSupplyFromCurve(
 		return N0, err
 	}
 
-	migrationQuoteAmount := getMigrationQuoteAmountFromMigrationQuoteThreshold(migrationQuoteThreshold, migrationFeePercent)
+	migrationQuoteAmount := getMigrationQuoteAmountFromMigrationQuoteThreshold(migrationQuoteThreshold, decimal.NewFromUint64(uint64(migrationFeePercent)))
 
 	migrationBaseAmount, err := getMigrationBaseToken(convertDecimalToBN(migrationQuoteAmount), sqrtMigrationPrice, migrationOption)
 	if err != nil {

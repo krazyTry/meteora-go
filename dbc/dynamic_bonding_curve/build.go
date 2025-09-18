@@ -135,7 +135,7 @@ func BuildCurve(param BuildCurveParam) (*ConfigParameters, error) {
 
 	migrationQuoteAmount := getMigrationQuoteAmountFromMigrationQuoteThreshold(
 		decimal.NewFromFloat(param.MigrationQuoteThreshold),
-		param.MigrationFee.FeePercentage,
+		decimal.NewFromUint64(uint64(param.MigrationFee.FeePercentage)),
 	)
 
 	migrationPrice := migrationQuoteAmount.DivRound(migrationBaseSupply, 38)
@@ -265,7 +265,7 @@ func BuildCurveWithMarketCap(param BuildCurveWithMarketCapParam) (*ConfigParamet
 
 	migrationQuoteThreshold := getMigrationQuoteThresholdFromMigrationQuoteAmount(
 		migrationQuoteAmount,
-		param.MigrationFee.FeePercentage,
+		decimal.NewFromUint64(uint64(param.MigrationFee.FeePercentage)),
 	).InexactFloat64()
 
 	return BuildCurve(BuildCurveParam{
@@ -310,7 +310,7 @@ func BuildCurveWithTwoSegments(param BuildCurveWithTwoSegmentsParam) (*ConfigPar
 		decimal.NewFromInt(param.PercentageSupplyOnMigration),
 	)
 
-	migrationQuoteThreshold := getMigrationQuoteThresholdFromMigrationQuoteAmount(migrationQuoteAmount, param.MigrationFee.FeePercentage)
+	migrationQuoteThreshold := getMigrationQuoteThresholdFromMigrationQuoteAmount(migrationQuoteAmount, decimal.NewFromUint64(uint64(param.MigrationFee.FeePercentage)))
 
 	migrationPrice := migrationQuoteAmount.Div(migrationBaseSupply)
 
@@ -560,7 +560,7 @@ func BuildCurveWithLiquidityWeights(param BuildCurveWithLiquidityWeightsParam) (
 
 	mqThreshold := getMigrationQuoteThresholdFromMigrationQuoteAmount(
 		migrationQuoteAmount,
-		param.MigrationFee.FeePercentage,
+		decimal.NewFromUint64(uint64(param.MigrationFee.FeePercentage)),
 	).Round(8)
 
 	mqThresholdLamports := convertDecimalToBN(mqThreshold)
