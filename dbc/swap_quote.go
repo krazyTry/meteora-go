@@ -74,7 +74,7 @@ func SwapQuote(
 		return nil, nil, nil, nil, err
 	}
 
-	if poolState.IsMigrated == dbc.IsMigratedCompleted {
+	if poolState.IsMigrated == dbc.IsMigratedCompleted || poolState.QuoteReserve >= configState.MigrationQuoteThreshold {
 		return nil, nil, nil, nil, ErrPoolCompleted
 	}
 
