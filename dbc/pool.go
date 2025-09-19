@@ -159,6 +159,13 @@ func (m *DBC) CreatePool(
 	uri string,
 ) (string, error) {
 
+	if m.config.Equals(zeroPublicKey) {
+		return "", fmt.Errorf("config public_key must be set or run InitConfig to set it")
+	}
+
+	if m.poolCreator == nil {
+		return "", fmt.Errorf("creator wallet is nil")
+	}
 	// rentExemptFee, err := solanago.GetRentExempt(ctx, m.rpcClient)
 	// if err != nil {
 	// 	return "", err
@@ -173,7 +180,7 @@ func (m *DBC) CreatePool(
 		return "", fmt.Errorf("buyer sol must be greater than %v", (rentExemptFee+transferFee)/1e9)
 	}
 
-	configState, err := m.GetConfig(ctx, m.config.PublicKey())
+	configState, err := m.GetConfig(ctx, m.config)
 	if err != nil {
 		return "", err
 	}
@@ -182,7 +189,7 @@ func (m *DBC) CreatePool(
 		ctx,
 		payer.PublicKey(),
 		m.poolCreator.PublicKey(),
-		m.config.PublicKey(),
+		m.config,
 		configState,
 		baseMint.PublicKey(),
 		solana.WrappedSol,
@@ -475,11 +482,17 @@ func (m *DBC) CreatePoolWithFirstBuy(
 	amountIn *big.Int,
 	slippageBps uint64, // 250 = 2.5%
 ) (string, error) {
+	if m.config.Equals(zeroPublicKey) {
+		return "", fmt.Errorf("config public_key must be set or run InitConfig to set it")
+	}
+	if m.poolCreator == nil {
+		return "", fmt.Errorf("creator wallet is nil")
+	}
 
 	payer := payerAndBuyer
 	buyer := payerAndBuyer
 
-	configState, err := m.GetConfig(ctx, m.config.PublicKey())
+	configState, err := m.GetConfig(ctx, m.config)
 	if err != nil {
 		return "", err
 	}
@@ -489,7 +502,7 @@ func (m *DBC) CreatePoolWithFirstBuy(
 		m.rpcClient,
 		payer.PublicKey(),
 		m.poolCreator.PublicKey(),
-		m.config.PublicKey(),
+		m.config,
 		configState,
 		baseMint.PublicKey(),
 		solana.WrappedSol,
@@ -537,7 +550,7 @@ func (m *DBC) CreatePoolWithFirstBuy(
 //
 // pools, _ := meteoraDBC.GetPoolsByConfig(ctx)
 func (m *DBC) GetPoolsByConfig(ctx context.Context) ([]*dbc.VirtualPool, error) {
-	return GetPoolsByConfig(ctx, m.rpcClient, m.config.PublicKey())
+	return GetPoolsByConfig(ctx, m.rpcClient, m.config)
 }
 
 // GetPoolsByConfig Retrieves all pools by config key address.

@@ -148,6 +148,9 @@ func (m *DBC) ClaimPartnerTradingFee(
 	claimBase bool,
 	maxAmount uint64,
 ) (string, error) {
+	if m.feeClaimer == nil {
+		return "", fmt.Errorf("partner wallet is nil")
+	}
 
 	if maxAmount <= 0 {
 		return "", fmt.Errorf("claim amount must be greater than 0")
@@ -337,6 +340,9 @@ func (m *DBC) ClaimCreatorTradingFee(
 	claimBase bool,
 	maxAmount uint64,
 ) (string, error) {
+	if m.poolCreator == nil {
+		return "", fmt.Errorf("creator wallet is nil")
+	}
 
 	if maxAmount <= 0 {
 		return "", fmt.Errorf("claim amount must be greater than 0")

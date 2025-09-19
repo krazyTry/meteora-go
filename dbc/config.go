@@ -66,6 +66,7 @@ func CreateConfigInstruction(
 //	ctx,
 //	wsClient,
 //	payerWallet, // payer account
+//	configWallet, // config account
 //	quoteMint, // quoteMintToken eg: solana.WrappedSol
 //	cfg, // configuration eg: BuildCurve | BuildCurveWithMarketCap | BuildCurveWithTwoSegments | BuildCurveWithLiquidityWeights
 //
@@ -74,9 +75,16 @@ func (m *DBC) CreateConfig(
 	ctx context.Context,
 	wsClient *ws.Client,
 	payer *solana.Wallet,
+	config *solana.Wallet,
 	quoteMint solana.PublicKey,
 	cfg *dbc.ConfigParameters,
 ) (string, error) {
+	if m.feeClaimer == nil {
+		return "", fmt.Errorf("partner is nil")
+	}
+	if m.leftoverReceiver == nil {
+		return "", fmt.Errorf("leftoverReceiver is nil")
+	}
 	if cfg.CreatorLpPercentage+cfg.CreatorLockedLpPercentage+cfg.PartnerLpPercentage+cfg.PartnerLockedLpPercentage != 100 {
 		return "", fmt.Errorf("100 != cfg.CreatorLpPercentage+cfg.CreatorLockedLpPercentage+cfg.PartnerLpPercentage+cfg.PartnerLockedLpPercentage")
 	}
@@ -84,7 +92,7 @@ func (m *DBC) CreateConfig(
 	instructions, err := CreateConfigInstruction(
 		ctx,
 		payer.PublicKey(),
-		m.config.PublicKey(),
+		config.PublicKey(),
 		m.feeClaimer.PublicKey(),
 		m.leftoverReceiver.PublicKey(),
 		quoteMint,
@@ -103,8 +111,8 @@ func (m *DBC) CreateConfig(
 			switch {
 			case key.Equals(payer.PublicKey()):
 				return &payer.PrivateKey
-			case key.Equals(m.config.PublicKey()):
-				return &m.config.PrivateKey
+			case key.Equals(config.PublicKey()):
+				return &config.PrivateKey
 			default:
 				return nil
 			}
@@ -254,18 +262,28 @@ func (m *DBC) InitConfig(
 	payerWallet *solana.Wallet,
 	quoteMint solana.PublicKey,
 	cfg *dbc.ConfigParameters,
-) error {
-	config, err := m.GetConfig(ctx, m.config.PublicKey())
+) (string, *dbc.PoolConfig, error) {
+	if !m.config.Equals(zeroPublicKey) {
+		config, err := m.GetConfig(ctx, m.config)
+		if err != nil {
+			return "", nil, err
+		}
+
+		if config == nil {
+			return "", nil, fmt.Errorf("config not exist")
+		}
+
+		return m.config.String(), config, nil
+	}
+
+	configWallet := solana.NewWallet()
+	m.config = configWallet.PublicKey()
+	if _, err := m.CreateConfig(ctx, wsClient, payerWallet, configWallet, quoteMint, cfg); err != nil {
+		return "", nil, err
+	}
+	config, err := m.GetConfig(ctx, m.config)
 	if err != nil {
-		return err
+		return "", nil, err
 	}
-
-	if config != nil {
-		return nil
-	}
-
-	if _, err = m.CreateConfig(ctx, wsClient, payerWallet, quoteMint, cfg); err != nil {
-		return err
-	}
-	return nil
+	return m.config.String(), config, nil
 }

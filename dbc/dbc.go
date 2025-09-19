@@ -10,6 +10,7 @@ import (
 )
 
 var (
+	zeroPublicKey = solana.PublicKey{}
 	// ErrPoolCompleted dbc pool has been converted to dammv2
 	ErrPoolCompleted = errors.New("virtual pool is completed")
 
@@ -61,11 +62,11 @@ func init() {
 
 // DBC
 type DBC struct {
-	rpcClient        *rpc.Client    // solana rpc client
-	config           *solana.Wallet // config wallet
-	feeClaimer       *solana.Wallet // partner wallet
-	leftoverReceiver *solana.Wallet // leftover receiver account wallet
-	poolCreator      *solana.Wallet // pool creator account wallet
+	rpcClient        *rpc.Client      // solana rpc client
+	config           solana.PublicKey // config wallet
+	feeClaimer       *solana.Wallet   // partner wallet
+	leftoverReceiver *solana.Wallet   // leftover receiver account wallet
+	poolCreator      *solana.Wallet   // pool creator account wallet
 }
 
 // NewDBC creates a meteora dbc object.
@@ -88,16 +89,39 @@ type DBC struct {
 // )
 func NewDBC(
 	rpcClient *rpc.Client,
-	config *solana.Wallet,
-	poolCreator *solana.Wallet,
-	poolPartner *solana.Wallet,
-	leftoverReceiver *solana.Wallet,
+	opts ...Option,
 ) *DBC {
-	return &DBC{
-		rpcClient:        rpcClient,
-		config:           config,
-		feeClaimer:       poolPartner,
-		leftoverReceiver: leftoverReceiver,
-		poolCreator:      poolCreator,
+	o := &DBC{
+		rpcClient: rpcClient,
+	}
+
+	for _, fn := range opts {
+		fn(o)
+	}
+
+	return o
+}
+
+type Option func(*DBC)
+
+func WithConfigPublicKey(config solana.PublicKey) Option {
+	return func(dbc *DBC) {
+		dbc.config = config
+	}
+}
+
+func WithPartner(feeClaimer *solana.Wallet) Option {
+	return func(dbc *DBC) {
+		dbc.feeClaimer = feeClaimer
+	}
+}
+func WithLeftoverReceiver(leftoverReceiver *solana.Wallet) Option {
+	return func(dbc *DBC) {
+		dbc.leftoverReceiver = leftoverReceiver
+	}
+}
+func WithCreator(poolCreator *solana.Wallet) Option {
+	return func(dbc *DBC) {
+		dbc.poolCreator = poolCreator
 	}
 }

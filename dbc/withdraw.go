@@ -100,7 +100,9 @@ func (m *DBC) WithdrawLeftover(
 	payer *solana.Wallet,
 	baseMint solana.PublicKey,
 ) (string, error) {
-
+	if m.leftoverReceiver == nil {
+		return "", fmt.Errorf("leftoverReceiver wallet is nil")
+	}
 	poolState, err := m.GetPoolByBaseMint(ctx, baseMint)
 	if err != nil {
 		return "", err
@@ -242,6 +244,10 @@ func (m *DBC) WithdrawPartnerSurplus(
 	payer *solana.Wallet,
 	baseMint solana.PublicKey,
 ) (string, error) {
+	if m.feeClaimer == nil {
+		return "", fmt.Errorf("partner wallet is nil")
+	}
+
 	poolState, err := m.GetPoolByBaseMint(ctx, baseMint)
 	if err != nil {
 		return "", err
@@ -384,7 +390,9 @@ func (m *DBC) WithdrawCreatorSurplus(
 	payer *solana.Wallet,
 	baseMint solana.PublicKey,
 ) (string, error) {
-
+	if m.poolCreator == nil {
+		return "", fmt.Errorf("creator wallet is nil")
+	}
 	poolState, err := m.GetPoolByBaseMint(ctx, baseMint)
 	if err != nil {
 		return "", err
@@ -527,6 +535,10 @@ func (m *DBC) WithdrawPartnerMigrationFee(
 	payer *solana.Wallet,
 	baseMint solana.PublicKey,
 ) (string, error) {
+	if m.feeClaimer == nil {
+		return "", fmt.Errorf("partner wallet is nil")
+	}
+
 	poolState, err := m.GetPoolByBaseMint(ctx, baseMint)
 	if err != nil {
 		return "", err
@@ -596,6 +608,9 @@ func (m *DBC) WithdrawCreatorMigrationFee(
 	payer *solana.Wallet,
 	baseMint solana.PublicKey,
 ) (string, error) {
+	if m.poolCreator == nil {
+		return "", fmt.Errorf("creator wallet is nil")
+	}
 	poolState, err := m.GetPoolByBaseMint(ctx, baseMint)
 	if err != nil {
 		return "", err

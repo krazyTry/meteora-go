@@ -37,10 +37,21 @@ type DammV2 struct {
 
 func NewDammV2(
 	rpcClient *rpc.Client,
-	poolCreator *solana.Wallet,
+	opts ...Option,
 ) *DammV2 {
-	return &DammV2{
-		rpcClient:   rpcClient,
-		poolCreator: poolCreator,
+	o := &DammV2{
+		rpcClient: rpcClient,
+	}
+	for _, fn := range opts {
+		fn(o)
+	}
+	return o
+}
+
+type Option func(*DammV2)
+
+func WithCreator(poolCreator *solana.Wallet) Option {
+	return func(dbc *DammV2) {
+		dbc.poolCreator = poolCreator
 	}
 }

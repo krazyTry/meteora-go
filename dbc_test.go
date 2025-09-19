@@ -77,7 +77,12 @@ func TestDbc(t *testing.T) {
 	}
 	fmt.Printf("\n\n")
 
-	meteoraDBC := dbc.NewDBC(rpcClient, config, poolCreator, poolPartner, leftoverReceiver)
+	meteoraDBC := dbc.NewDBC(rpcClient,
+		dbc.WithConfigPublicKey(config.PublicKey()),
+		dbc.WithCreator(poolCreator),
+		dbc.WithPartner(poolPartner),
+		dbc.WithLeftoverReceiver(leftoverReceiver),
+	)
 
 	// Check if the configuration creation function is ok
 	testDBCBuildCurveCheck(t)
@@ -87,7 +92,7 @@ func TestDbc(t *testing.T) {
 		ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
 		defer cancel1()
 		fmt.Println("try to initialize config")
-		if err = meteoraDBC.InitConfig(ctx1, wsClient, payer, solana.WrappedSol, testDBCGenConfig()); err != nil {
+		if _, _, err = meteoraDBC.InitConfig(ctx1, wsClient, payer, solana.WrappedSol, testDBCGenConfig()); err != nil {
 			t.Fatal("dbc.InitConfig() fail", err)
 		}
 		fmt.Println("initialization config completed")
@@ -600,7 +605,7 @@ func TestDbc(t *testing.T) {
 		fmt.Println("dbc closing work completed 66%")
 	}
 
-	meteoraDammV2 := dammV2.NewDammV2(rpcClient, poolCreator)
+	meteoraDammV2 := dammV2.NewDammV2(rpcClient, dammV2.WithCreator(poolCreator))
 
 	testCpAmmPoolCheck(t, ctx, meteoraDammV2, baseMint)
 

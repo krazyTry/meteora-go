@@ -78,7 +78,7 @@ func TestDammV2(t *testing.T) {
 
 	meteoraDammV2 := dammV2.NewDammV2(
 		rpcClient,
-		poolCreator,
+		dammV2.WithCreator(poolCreator),
 	)
 
 	// {
@@ -124,6 +124,7 @@ func TestDammV2(t *testing.T) {
 	// 		if err != nil {
 	// 			t.Fatal("dammV2.CreatePoolInstruction fail", err)
 	// 		}
+	// 		quoteAmount = big.NewInt(2) // SOL
 	// 		instructions2, _, err := dammV2.CreatePoolInstruction(
 	// 			ctx,
 	// 			rpcClient,
@@ -145,7 +146,7 @@ func TestDammV2(t *testing.T) {
 	// 		}
 
 	// 		instructions := append(instructions1, instructions2...)
-	// 		fmt.Println(len(instructions), len(solanago.MergeInstructions(instructions)))
+	// 		fmt.Println(len(instructions), len(solanago.MergeInstructions2(instructions)))
 	// 	}
 
 	// 	return
