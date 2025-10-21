@@ -364,7 +364,7 @@ func CreatePoolWithFirstBuInstruction(
 		return nil, err
 	}
 
-	userOutputTokenAccount, err := solanago.PrepareTokenATA(ctx, rpcClient, buyer, baseMint, buyer, &instructions)
+	userOutputTokenAccount, err := solanago.PrepareTokenATAWithFirst(ctx, rpcClient, buyer, baseMint, buyer, &instructions)
 	if err != nil {
 		return nil, err
 	}

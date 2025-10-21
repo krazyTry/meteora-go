@@ -44,6 +44,31 @@ func PrepareTokenATA(
 	return tokenATA, nil
 }
 
+func PrepareTokenATAWithFirst(
+	ctx context.Context,
+	rpcClient *rpc.Client,
+	owner solana.PublicKey,
+	tokenMint solana.PublicKey,
+	payer solana.PublicKey,
+	instructions *[]solana.Instruction,
+) (solana.PublicKey, error) {
+	tokenATA, _, err := solana.FindAssociatedTokenAddress(
+		owner,
+		tokenMint,
+	)
+
+	if err != nil {
+		return solana.PublicKey{}, err
+	}
+
+	ix := associatedtokenaccount.NewCreateInstruction(
+		payer, owner, tokenMint,
+	).Build()
+	*instructions = append(*instructions, ix)
+
+	return tokenATA, nil
+}
+
 var (
 	ataInstructionTypeID          = binary.NoTypeIDDefaultID
 	transferInstructionTypeID     = binary.TypeIDFromUint32(system.Instruction_Transfer, bin.LittleEndian)
