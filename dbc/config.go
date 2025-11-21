@@ -179,6 +179,46 @@ func GetConfig(
 	return cfg, nil
 }
 
+// GetConfigs Get all configs.
+//
+// Example:
+//
+// configs, _ := GetConfigs(
+//
+//	ctx,
+//	rpcClient,
+//
+// )
+func GetConfigs(
+	ctx context.Context,
+	rpcClient *rpc.Client,
+) ([]*dbc.PoolConfig, error) {
+	opt := solanago.GenProgramAccountFilter(dbc.AccountKeyPoolConfig, nil)
+
+	outs, err := rpcClient.GetProgramAccountsWithOpts(ctx, dbc.ProgramID, opt)
+	if err != nil {
+		if err == rpc.ErrNotFound {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	var list []*dbc.PoolConfig
+	for _, out := range outs {
+		obj, err := dbc.ParseAnyAccount(out.Account.Data.GetBinary())
+		if err != nil {
+			return nil, err
+		}
+		cfg, ok := obj.(*dbc.PoolConfig)
+		if !ok {
+			return nil, fmt.Errorf("obj.(*dbc.PoolConfig) fail")
+		}
+		list = append(list, cfg)
+	}
+
+	return list, nil
+}
+
 // InitConfig performs initialization check, creates config if it doesn't exist, skips if it exists.
 // The function is blocking, it will wait for on-chain confirmation before returning.
 //

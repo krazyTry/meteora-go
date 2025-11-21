@@ -723,3 +723,43 @@ func GetPoolByBaseMint(
 
 	return &Pool{pool, out.Pubkey}, nil
 }
+
+// GetPools Get all pools.
+//
+// Example:
+//
+// pool, _ := GetPools(
+//
+//	ctx,
+//	rpcClient,
+//
+// )
+func GetPools(
+	ctx context.Context,
+	rpcClient *rpc.Client,
+) ([]*dbc.VirtualPool, error) {
+	opt := solanago.GenProgramAccountFilter(dbc.AccountKeyVirtualPool, nil)
+
+	outs, err := rpcClient.GetProgramAccountsWithOpts(ctx, dbc.ProgramID, opt)
+	if err != nil {
+		if err == rpc.ErrNotFound {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	var list []*dbc.VirtualPool
+	for _, out := range outs {
+		obj, err := dbc.ParseAnyAccount(out.Account.Data.GetBinary())
+		if err != nil {
+			return nil, err
+		}
+		cfg, ok := obj.(*dbc.VirtualPool)
+		if !ok {
+			return nil, fmt.Errorf("obj.(*dbc.PoolConfig) fail")
+		}
+		list = append(list, cfg)
+	}
+
+	return list, nil
+}
