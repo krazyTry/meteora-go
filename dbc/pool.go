@@ -737,7 +737,7 @@ func GetPoolByBaseMint(
 func GetPools(
 	ctx context.Context,
 	rpcClient *rpc.Client,
-) ([]*dbc.VirtualPool, error) {
+) ([]*Pool, error) {
 	opt := solanago.GenProgramAccountFilter(dbc.AccountKeyVirtualPool, nil)
 
 	outs, err := rpcClient.GetProgramAccountsWithOpts(ctx, dbc.ProgramID, opt)
@@ -748,7 +748,7 @@ func GetPools(
 		return nil, err
 	}
 
-	var list []*dbc.VirtualPool
+	var list []*Pool
 	for _, out := range outs {
 		obj, err := dbc.ParseAnyAccount(out.Account.Data.GetBinary())
 		if err != nil {
@@ -758,7 +758,7 @@ func GetPools(
 		if !ok {
 			return nil, fmt.Errorf("obj.(*dbc.PoolConfig) fail")
 		}
-		list = append(list, cfg)
+		list = append(list, &Pool{cfg, out.Pubkey})
 	}
 
 	return list, nil

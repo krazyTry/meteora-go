@@ -11,3 +11,10 @@ type Pool struct {
 	// dbc pool address
 	Address solana.PublicKey
 }
+
+type Config struct {
+	// dbc config state
+	*dbc.PoolConfig
+	// dbc config address
+	Address solana.PublicKey
+}
