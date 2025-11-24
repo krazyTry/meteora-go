@@ -763,3 +763,29 @@ func GetPools(
 
 	return list, nil
 }
+
+func GetPoolByPoolAddress(
+	ctx context.Context,
+	rpcClient *rpc.Client,
+	poolAddress solana.PublicKey,
+) (*Pool, error) {
+	out, err := rpcClient.GetAccountInfo(ctx, poolAddress)
+	if err != nil {
+		if err == rpc.ErrNotFound {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	obj, err := dbc.ParseAnyAccount(out.Value.Data.GetBinary())
+	if err != nil {
+		return nil, err
+	}
+
+	pool, ok := obj.(*dbc.VirtualPool)
+	if !ok {
+		return nil, fmt.Errorf("obj.(*dbc.PoolConfig) fail")
+	}
+
+	return &Pool{pool, poolAddress}, nil
+}
