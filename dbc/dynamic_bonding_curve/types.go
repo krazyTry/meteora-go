@@ -13,12 +13,12 @@ import (
 )
 
 type BaseFeeConfig struct {
-	CliffFeeNumerator uint64      `json:"cliffFeeNumerator"` // Initial fee numerator value
-	SecondFactor      uint64      `json:"secondFactor"`      // Second configuration factor
-	ThirdFactor       uint64      `json:"thirdFactor"`       // Third configuration factor
-	FirstFactor       uint16      `json:"firstFactor"`       // First configuration factor
-	BaseFeeMode       BaseFeeMode `json:"baseFeeMode"`       // Fee calculation mode
-	Padding0          [5]uint8    `json:"padding0"`          // Padding for alignment
+	CliffFeeNumerator uint64      `json:"cliffFeeNumerator"`
+	SecondFactor      uint64      `json:"secondFactor"`
+	ThirdFactor       uint64      `json:"thirdFactor"`
+	FirstFactor       uint16      `json:"firstFactor"`
+	BaseFeeMode       BaseFeeMode `json:"baseFeeMode"`
+	Padding0          [5]uint8    `json:"padding0"`
 }
 
 func (obj BaseFeeConfig) MarshalWithEncoder(encoder *binary.Encoder) (err error) {
@@ -117,11 +117,11 @@ func UnmarshalBaseFeeConfig(buf []byte) (*BaseFeeConfig, error) {
 }
 
 type BaseFeeParameters struct {
-	CliffFeeNumerator uint64      `json:"cliffFeeNumerator"` // Initial fee numerator value
-	FirstFactor       uint16      `json:"firstFactor"`       // First configuration factor
-	SecondFactor      uint64      `json:"secondFactor"`      // Second configuration factor
-	ThirdFactor       uint64      `json:"thirdFactor"`       // Third configuration factor
-	BaseFeeMode       BaseFeeMode `json:"baseFeeMode"`       // Fee calculation mode
+	CliffFeeNumerator uint64      `json:"cliffFeeNumerator"`
+	FirstFactor       uint16      `json:"firstFactor"`
+	SecondFactor      uint64      `json:"secondFactor"`
+	ThirdFactor       uint64      `json:"thirdFactor"`
+	BaseFeeMode       BaseFeeMode `json:"baseFeeMode"`
 }
 
 func (obj BaseFeeParameters) MarshalWithEncoder(encoder *binary.Encoder) (err error) {
@@ -209,13 +209,13 @@ func UnmarshalBaseFeeParameters(buf []byte) (*BaseFeeParameters, error) {
 	return obj, nil
 }
 
-// Parameters that are set by the protocol
+// Parameter that set by the protocol
 type ClaimFeeOperator struct {
-	// Fee operator public key
+	// operator
 	Operator solanago.PublicKey `json:"operator"`
 
-	// Reserved space for future use
-	Padding0 [128]uint8 `json:"padding0"`
+	// Reserve
+	Padding [128]uint8 `json:"padding"`
 }
 
 func (obj ClaimFeeOperator) MarshalWithEncoder(encoder *binary.Encoder) (err error) {
@@ -224,10 +224,10 @@ func (obj ClaimFeeOperator) MarshalWithEncoder(encoder *binary.Encoder) (err err
 	if err != nil {
 		return errors.NewField("Operator", err)
 	}
-	// Serialize `Padding0`:
-	err = encoder.Encode(obj.Padding0)
+	// Serialize `Padding`:
+	err = encoder.Encode(obj.Padding)
 	if err != nil {
-		return errors.NewField("Padding0", err)
+		return errors.NewField("Padding", err)
 	}
 	return nil
 }
@@ -248,10 +248,10 @@ func (obj *ClaimFeeOperator) UnmarshalWithDecoder(decoder *binary.Decoder) (err 
 	if err != nil {
 		return errors.NewField("Operator", err)
 	}
-	// Deserialize `Padding0`:
-	err = decoder.Decode(&obj.Padding0)
+	// Deserialize `Padding`:
+	err = decoder.Decode(&obj.Padding)
 	if err != nil {
-		return errors.NewField("Padding0", err)
+		return errors.NewField("Padding", err)
 	}
 	return nil
 }
@@ -274,13 +274,13 @@ func UnmarshalClaimFeeOperator(buf []byte) (*ClaimFeeOperator, error) {
 }
 
 type Config struct {
-	PoolFees             PoolFees           `json:"poolFees"`             // Pool fee configuration
-	ActivationDuration   uint64             `json:"activationDuration"`   // Duration for pool activation
-	VaultConfigKey       solanago.PublicKey `json:"vaultConfigKey"`       // Vault configuration key
-	PoolCreatorAuthority solanago.PublicKey `json:"poolCreatorAuthority"` // Authority for pool creation
-	ActivationType       uint8              `json:"activationType"`       // Type of activation
-	PartnerFeeNumerator  uint64             `json:"partnerFeeNumerator"`  // Partner fee numerator
-	Padding              [219]uint8         `json:"padding"`              // Padding for alignment
+	PoolFees             PoolFees           `json:"poolFees"`
+	ActivationDuration   uint64             `json:"activationDuration"`
+	VaultConfigKey       solanago.PublicKey `json:"vaultConfigKey"`
+	PoolCreatorAuthority solanago.PublicKey `json:"poolCreatorAuthority"`
+	ActivationType       uint8              `json:"activationType"`
+	PartnerFeeNumerator  uint64             `json:"partnerFeeNumerator"`
+	Padding              [219]uint8         `json:"padding"`
 }
 
 func (obj Config) MarshalWithEncoder(encoder *binary.Encoder) (err error) {
@@ -404,7 +404,7 @@ type ConfigParameters struct {
 	LockedVesting               LockedVesting              `json:"lockedVesting"`
 	MigrationFeeOption          MigrationFeeOption         `json:"migrationFeeOption"`
 	TokenSupply                 *TokenSupplyParams         `bin:"optional" json:"tokenSupply,omitempty"`
-	CreatorTradingFeePercentage uint8                      `json:"creatorTradingFeePercentage"` // withdrawCreatorSurplus, withdrawPartnerSurplus
+	CreatorTradingFeePercentage uint8                      `json:"creatorTradingFeePercentage"`
 	TokenUpdateAuthority        TokenUpdateAuthorityOption `json:"tokenUpdateAuthority"`
 	MigrationFee                MigrationFee               `json:"migrationFee"`
 	MigratedPoolFee             MigratedPoolFee            `json:"migratedPoolFee"`
@@ -619,8 +619,8 @@ func (obj *ConfigParameters) UnmarshalWithDecoder(decoder *binary.Decoder) (err 
 	}
 	// Deserialize `TokenSupply` (optional):
 	{
-		var ok bool
-		if ok, err = decoder.ReadOption(); err != nil {
+		ok, err := decoder.ReadOption()
+		if err != nil {
 			return errors.NewOption("TokenSupply", fmt.Errorf("error while reading optionality: %w", err))
 		}
 		if ok {
@@ -995,8 +995,8 @@ func UnmarshalDynamicFeeConfig(buf []byte) (*DynamicFeeConfig, error) {
 type DynamicFeeParameters struct {
 	BinStep                  uint16         `json:"binStep"`
 	BinStepU128              binary.Uint128 `json:"binStepU128"`
-	DecayPeriod              uint16         `json:"decayPeriod"`
 	FilterPeriod             uint16         `json:"filterPeriod"`
+	DecayPeriod              uint16         `json:"decayPeriod"`
 	ReductionFactor          uint16         `json:"reductionFactor"`
 	MaxVolatilityAccumulator uint32         `json:"maxVolatilityAccumulator"`
 	VariableFeeControl       uint32         `json:"variableFeeControl"`
@@ -1171,6 +1171,77 @@ func (obj *EvtClaimCreatorTradingFee) Unmarshal(buf []byte) error {
 
 func UnmarshalEvtClaimCreatorTradingFee(buf []byte) (*EvtClaimCreatorTradingFee, error) {
 	obj := new(EvtClaimCreatorTradingFee)
+	err := obj.Unmarshal(buf)
+	if err != nil {
+		return nil, err
+	}
+	return obj, nil
+}
+
+type EvtClaimPoolCreationFee struct {
+	Pool        solanago.PublicKey `json:"pool"`
+	Treasury    solanago.PublicKey `json:"treasury"`
+	CreationFee uint64             `json:"creationFee"`
+}
+
+func (obj EvtClaimPoolCreationFee) MarshalWithEncoder(encoder *binary.Encoder) (err error) {
+	// Serialize `Pool`:
+	err = encoder.Encode(obj.Pool)
+	if err != nil {
+		return errors.NewField("Pool", err)
+	}
+	// Serialize `Treasury`:
+	err = encoder.Encode(obj.Treasury)
+	if err != nil {
+		return errors.NewField("Treasury", err)
+	}
+	// Serialize `CreationFee`:
+	err = encoder.Encode(obj.CreationFee)
+	if err != nil {
+		return errors.NewField("CreationFee", err)
+	}
+	return nil
+}
+
+func (obj EvtClaimPoolCreationFee) Marshal() ([]byte, error) {
+	buf := bytes.NewBuffer(nil)
+	encoder := binary.NewBorshEncoder(buf)
+	err := obj.MarshalWithEncoder(encoder)
+	if err != nil {
+		return nil, fmt.Errorf("error while encoding EvtClaimPoolCreationFee: %w", err)
+	}
+	return buf.Bytes(), nil
+}
+
+func (obj *EvtClaimPoolCreationFee) UnmarshalWithDecoder(decoder *binary.Decoder) (err error) {
+	// Deserialize `Pool`:
+	err = decoder.Decode(&obj.Pool)
+	if err != nil {
+		return errors.NewField("Pool", err)
+	}
+	// Deserialize `Treasury`:
+	err = decoder.Decode(&obj.Treasury)
+	if err != nil {
+		return errors.NewField("Treasury", err)
+	}
+	// Deserialize `CreationFee`:
+	err = decoder.Decode(&obj.CreationFee)
+	if err != nil {
+		return errors.NewField("CreationFee", err)
+	}
+	return nil
+}
+
+func (obj *EvtClaimPoolCreationFee) Unmarshal(buf []byte) error {
+	err := obj.UnmarshalWithDecoder(binary.NewBorshDecoder(buf))
+	if err != nil {
+		return fmt.Errorf("error while unmarshaling EvtClaimPoolCreationFee: %w", err)
+	}
+	return nil
+}
+
+func UnmarshalEvtClaimPoolCreationFee(buf []byte) (*EvtClaimPoolCreationFee, error) {
+	obj := new(EvtClaimPoolCreationFee)
 	err := obj.Unmarshal(buf)
 	if err != nil {
 		return nil, err
@@ -1827,55 +1898,6 @@ func UnmarshalEvtCreateConfigV2(buf []byte) (*EvtCreateConfigV2, error) {
 	return obj, nil
 }
 
-type EvtCreateDammV2MigrationMetadata struct {
-	VirtualPool solanago.PublicKey `json:"virtualPool"`
-}
-
-func (obj EvtCreateDammV2MigrationMetadata) MarshalWithEncoder(encoder *binary.Encoder) (err error) {
-	// Serialize `VirtualPool`:
-	err = encoder.Encode(obj.VirtualPool)
-	if err != nil {
-		return errors.NewField("VirtualPool", err)
-	}
-	return nil
-}
-
-func (obj EvtCreateDammV2MigrationMetadata) Marshal() ([]byte, error) {
-	buf := bytes.NewBuffer(nil)
-	encoder := binary.NewBorshEncoder(buf)
-	err := obj.MarshalWithEncoder(encoder)
-	if err != nil {
-		return nil, fmt.Errorf("error while encoding EvtCreateDammV2MigrationMetadata: %w", err)
-	}
-	return buf.Bytes(), nil
-}
-
-func (obj *EvtCreateDammV2MigrationMetadata) UnmarshalWithDecoder(decoder *binary.Decoder) (err error) {
-	// Deserialize `VirtualPool`:
-	err = decoder.Decode(&obj.VirtualPool)
-	if err != nil {
-		return errors.NewField("VirtualPool", err)
-	}
-	return nil
-}
-
-func (obj *EvtCreateDammV2MigrationMetadata) Unmarshal(buf []byte) error {
-	err := obj.UnmarshalWithDecoder(binary.NewBorshDecoder(buf))
-	if err != nil {
-		return fmt.Errorf("error while unmarshaling EvtCreateDammV2MigrationMetadata: %w", err)
-	}
-	return nil
-}
-
-func UnmarshalEvtCreateDammV2MigrationMetadata(buf []byte) (*EvtCreateDammV2MigrationMetadata, error) {
-	obj := new(EvtCreateDammV2MigrationMetadata)
-	err := obj.Unmarshal(buf)
-	if err != nil {
-		return nil, err
-	}
-	return obj, nil
-}
-
 type EvtCreateMeteoraMigrationMetadata struct {
 	VirtualPool solanago.PublicKey `json:"virtualPool"`
 }
@@ -2068,12 +2090,12 @@ func UnmarshalEvtCurveComplete(buf []byte) (*EvtCurveComplete, error) {
 }
 
 type EvtInitializePool struct {
-	Pool            solanago.PublicKey `json:"pool"`            // Pool address
-	Config          solanago.PublicKey `json:"config"`          // Configuration address
-	Creator         solanago.PublicKey `json:"creator"`         // Pool creator address
-	BaseMint        solanago.PublicKey `json:"baseMint"`        // Base token mint address
-	PoolType        uint8              `json:"poolType"`        // Type of the pool
-	ActivationPoint uint64             `json:"activationPoint"` // Pool activation point
+	Pool            solanago.PublicKey `json:"pool"`
+	Config          solanago.PublicKey `json:"config"`
+	Creator         solanago.PublicKey `json:"creator"`
+	BaseMint        solanago.PublicKey `json:"baseMint"`
+	PoolType        uint8              `json:"poolType"`
+	ActivationPoint uint64             `json:"activationPoint"`
 }
 
 func (obj EvtInitializePool) MarshalWithEncoder(encoder *binary.Encoder) (err error) {
@@ -2413,14 +2435,14 @@ func UnmarshalEvtProtocolWithdrawSurplus(buf []byte) (*EvtProtocolWithdrawSurplu
 }
 
 type EvtSwap struct {
-	Pool             solanago.PublicKey `json:"pool"`             // Pool address
-	Config           solanago.PublicKey `json:"config"`           // Configuration address
-	TradeDirection   uint8              `json:"tradeDirection"`   // Direction of the trade
-	HasReferral      bool               `json:"hasReferral"`      // Whether the swap has a referral
-	Params           SwapParameters     `json:"params"`           // Swap parameters
-	SwapResult       SwapResult         `json:"swapResult"`       // Result of the swap
-	AmountIn         uint64             `json:"amountIn"`         // Input amount for the swap
-	CurrentTimestamp uint64             `json:"currentTimestamp"` // Timestamp of the swap
+	Pool             solanago.PublicKey `json:"pool"`
+	Config           solanago.PublicKey `json:"config"`
+	TradeDirection   uint8              `json:"tradeDirection"`
+	HasReferral      bool               `json:"hasReferral"`
+	Params           SwapParameters     `json:"params"`
+	SwapResult       SwapResult         `json:"swapResult"`
+	AmountIn         uint64             `json:"amountIn"`
+	CurrentTimestamp uint64             `json:"currentTimestamp"`
 }
 
 func (obj EvtSwap) MarshalWithEncoder(encoder *binary.Encoder) (err error) {
@@ -2531,6 +2553,143 @@ func (obj *EvtSwap) Unmarshal(buf []byte) error {
 
 func UnmarshalEvtSwap(buf []byte) (*EvtSwap, error) {
 	obj := new(EvtSwap)
+	err := obj.Unmarshal(buf)
+	if err != nil {
+		return nil, err
+	}
+	return obj, nil
+}
+
+type EvtSwap2 struct {
+	Pool               solanago.PublicKey `json:"pool"`
+	Config             solanago.PublicKey `json:"config"`
+	TradeDirection     uint8              `json:"tradeDirection"`
+	HasReferral        bool               `json:"hasReferral"`
+	SwapParameters     SwapParameters2    `json:"swapParameters"`
+	SwapResult         SwapResult2        `json:"swapResult"`
+	QuoteReserveAmount uint64             `json:"quoteReserveAmount"`
+	MigrationThreshold uint64             `json:"migrationThreshold"`
+	CurrentTimestamp   uint64             `json:"currentTimestamp"`
+}
+
+func (obj EvtSwap2) MarshalWithEncoder(encoder *binary.Encoder) (err error) {
+	// Serialize `Pool`:
+	err = encoder.Encode(obj.Pool)
+	if err != nil {
+		return errors.NewField("Pool", err)
+	}
+	// Serialize `Config`:
+	err = encoder.Encode(obj.Config)
+	if err != nil {
+		return errors.NewField("Config", err)
+	}
+	// Serialize `TradeDirection`:
+	err = encoder.Encode(obj.TradeDirection)
+	if err != nil {
+		return errors.NewField("TradeDirection", err)
+	}
+	// Serialize `HasReferral`:
+	err = encoder.Encode(obj.HasReferral)
+	if err != nil {
+		return errors.NewField("HasReferral", err)
+	}
+	// Serialize `SwapParameters`:
+	err = encoder.Encode(obj.SwapParameters)
+	if err != nil {
+		return errors.NewField("SwapParameters", err)
+	}
+	// Serialize `SwapResult`:
+	err = encoder.Encode(obj.SwapResult)
+	if err != nil {
+		return errors.NewField("SwapResult", err)
+	}
+	// Serialize `QuoteReserveAmount`:
+	err = encoder.Encode(obj.QuoteReserveAmount)
+	if err != nil {
+		return errors.NewField("QuoteReserveAmount", err)
+	}
+	// Serialize `MigrationThreshold`:
+	err = encoder.Encode(obj.MigrationThreshold)
+	if err != nil {
+		return errors.NewField("MigrationThreshold", err)
+	}
+	// Serialize `CurrentTimestamp`:
+	err = encoder.Encode(obj.CurrentTimestamp)
+	if err != nil {
+		return errors.NewField("CurrentTimestamp", err)
+	}
+	return nil
+}
+
+func (obj EvtSwap2) Marshal() ([]byte, error) {
+	buf := bytes.NewBuffer(nil)
+	encoder := binary.NewBorshEncoder(buf)
+	err := obj.MarshalWithEncoder(encoder)
+	if err != nil {
+		return nil, fmt.Errorf("error while encoding EvtSwap2: %w", err)
+	}
+	return buf.Bytes(), nil
+}
+
+func (obj *EvtSwap2) UnmarshalWithDecoder(decoder *binary.Decoder) (err error) {
+	// Deserialize `Pool`:
+	err = decoder.Decode(&obj.Pool)
+	if err != nil {
+		return errors.NewField("Pool", err)
+	}
+	// Deserialize `Config`:
+	err = decoder.Decode(&obj.Config)
+	if err != nil {
+		return errors.NewField("Config", err)
+	}
+	// Deserialize `TradeDirection`:
+	err = decoder.Decode(&obj.TradeDirection)
+	if err != nil {
+		return errors.NewField("TradeDirection", err)
+	}
+	// Deserialize `HasReferral`:
+	err = decoder.Decode(&obj.HasReferral)
+	if err != nil {
+		return errors.NewField("HasReferral", err)
+	}
+	// Deserialize `SwapParameters`:
+	err = decoder.Decode(&obj.SwapParameters)
+	if err != nil {
+		return errors.NewField("SwapParameters", err)
+	}
+	// Deserialize `SwapResult`:
+	err = decoder.Decode(&obj.SwapResult)
+	if err != nil {
+		return errors.NewField("SwapResult", err)
+	}
+	// Deserialize `QuoteReserveAmount`:
+	err = decoder.Decode(&obj.QuoteReserveAmount)
+	if err != nil {
+		return errors.NewField("QuoteReserveAmount", err)
+	}
+	// Deserialize `MigrationThreshold`:
+	err = decoder.Decode(&obj.MigrationThreshold)
+	if err != nil {
+		return errors.NewField("MigrationThreshold", err)
+	}
+	// Deserialize `CurrentTimestamp`:
+	err = decoder.Decode(&obj.CurrentTimestamp)
+	if err != nil {
+		return errors.NewField("CurrentTimestamp", err)
+	}
+	return nil
+}
+
+func (obj *EvtSwap2) Unmarshal(buf []byte) error {
+	err := obj.UnmarshalWithDecoder(binary.NewBorshDecoder(buf))
+	if err != nil {
+		return fmt.Errorf("error while unmarshaling EvtSwap2: %w", err)
+	}
+	return nil
+}
+
+func UnmarshalEvtSwap2(buf []byte) (*EvtSwap2, error) {
+	obj := new(EvtSwap2)
 	err := obj.Unmarshal(buf)
 	if err != nil {
 		return nil, err
@@ -3147,7 +3306,7 @@ type LockedVestingConfig struct {
 	Frequency                      uint64 `json:"frequency"`
 	NumberOfPeriod                 uint64 `json:"numberOfPeriod"`
 	CliffUnlockAmount              uint64 `json:"cliffUnlockAmount"`
-	Padding0                       uint64 `json:"padding0"`
+	Padding                        uint64 `json:"padding"`
 }
 
 func (obj LockedVestingConfig) MarshalWithEncoder(encoder *binary.Encoder) (err error) {
@@ -3176,10 +3335,10 @@ func (obj LockedVestingConfig) MarshalWithEncoder(encoder *binary.Encoder) (err 
 	if err != nil {
 		return errors.NewField("CliffUnlockAmount", err)
 	}
-	// Serialize `Padding0`:
-	err = encoder.Encode(obj.Padding0)
+	// Serialize `Padding`:
+	err = encoder.Encode(obj.Padding)
 	if err != nil {
-		return errors.NewField("Padding0", err)
+		return errors.NewField("Padding", err)
 	}
 	return nil
 }
@@ -3220,10 +3379,10 @@ func (obj *LockedVestingConfig) UnmarshalWithDecoder(decoder *binary.Decoder) (e
 	if err != nil {
 		return errors.NewField("CliffUnlockAmount", err)
 	}
-	// Deserialize `Padding0`:
-	err = decoder.Decode(&obj.Padding0)
+	// Deserialize `Padding`:
+	err = decoder.Decode(&obj.Padding)
 	if err != nil {
-		return errors.NewField("Padding0", err)
+		return errors.NewField("Padding", err)
 	}
 	return nil
 }
@@ -3550,95 +3709,6 @@ func (obj *MeteoraDammMigrationMetadata) Unmarshal(buf []byte) error {
 
 func UnmarshalMeteoraDammMigrationMetadata(buf []byte) (*MeteoraDammMigrationMetadata, error) {
 	obj := new(MeteoraDammMigrationMetadata)
-	err := obj.Unmarshal(buf)
-	if err != nil {
-		return nil, err
-	}
-	return obj, nil
-}
-
-type MeteoraDammV2Metadata struct {
-	// pool
-	VirtualPool solanago.PublicKey `json:"virtualPool"`
-
-	// !!! BE CAREFUL to use tomestone field, previous is pool creator
-	Padding0 [32]uint8 `json:"padding0"`
-
-	// partner
-	Partner solanago.PublicKey `json:"partner"`
-
-	// Reserve
-	Padding1 [126]uint8 `json:"padding1"`
-}
-
-func (obj MeteoraDammV2Metadata) MarshalWithEncoder(encoder *binary.Encoder) (err error) {
-	// Serialize `VirtualPool`:
-	err = encoder.Encode(obj.VirtualPool)
-	if err != nil {
-		return errors.NewField("VirtualPool", err)
-	}
-	// Serialize `Padding0`:
-	err = encoder.Encode(obj.Padding0)
-	if err != nil {
-		return errors.NewField("Padding0", err)
-	}
-	// Serialize `Partner`:
-	err = encoder.Encode(obj.Partner)
-	if err != nil {
-		return errors.NewField("Partner", err)
-	}
-	// Serialize `Padding1`:
-	err = encoder.Encode(obj.Padding1)
-	if err != nil {
-		return errors.NewField("Padding1", err)
-	}
-	return nil
-}
-
-func (obj MeteoraDammV2Metadata) Marshal() ([]byte, error) {
-	buf := bytes.NewBuffer(nil)
-	encoder := binary.NewBorshEncoder(buf)
-	err := obj.MarshalWithEncoder(encoder)
-	if err != nil {
-		return nil, fmt.Errorf("error while encoding MeteoraDammV2Metadata: %w", err)
-	}
-	return buf.Bytes(), nil
-}
-
-func (obj *MeteoraDammV2Metadata) UnmarshalWithDecoder(decoder *binary.Decoder) (err error) {
-	// Deserialize `VirtualPool`:
-	err = decoder.Decode(&obj.VirtualPool)
-	if err != nil {
-		return errors.NewField("VirtualPool", err)
-	}
-	// Deserialize `Padding0`:
-	err = decoder.Decode(&obj.Padding0)
-	if err != nil {
-		return errors.NewField("Padding0", err)
-	}
-	// Deserialize `Partner`:
-	err = decoder.Decode(&obj.Partner)
-	if err != nil {
-		return errors.NewField("Partner", err)
-	}
-	// Deserialize `Padding1`:
-	err = decoder.Decode(&obj.Padding1)
-	if err != nil {
-		return errors.NewField("Padding1", err)
-	}
-	return nil
-}
-
-func (obj *MeteoraDammV2Metadata) Unmarshal(buf []byte) error {
-	err := obj.UnmarshalWithDecoder(binary.NewBorshDecoder(buf))
-	if err != nil {
-		return fmt.Errorf("error while unmarshaling MeteoraDammV2Metadata: %w", err)
-	}
-	return nil
-}
-
-func UnmarshalMeteoraDammV2Metadata(buf []byte) (*MeteoraDammV2Metadata, error) {
-	obj := new(MeteoraDammV2Metadata)
 	err := obj.Unmarshal(buf)
 	if err != nil {
 		return nil, err
@@ -4472,10 +4542,10 @@ func UnmarshalPoolFeeParameters(buf []byte) (*PoolFeeParameters, error) {
 
 // Information regarding fee charges
 type PoolFees struct {
-	TradeFeeNumerator           uint64 `json:"tradeFeeNumerator"`           // Trade fee numerator
-	TradeFeeDenominator         uint64 `json:"tradeFeeDenominator"`         // Trade fee denominator
-	ProtocolTradeFeeNumerator   uint64 `json:"protocolTradeFeeNumerator"`   // Protocol trade fee numerator
-	ProtocolTradeFeeDenominator uint64 `json:"protocolTradeFeeDenominator"` // Protocol trade fee denominator
+	TradeFeeNumerator           uint64 `json:"tradeFeeNumerator"`
+	TradeFeeDenominator         uint64 `json:"tradeFeeDenominator"`
+	ProtocolTradeFeeNumerator   uint64 `json:"protocolTradeFeeNumerator"`
+	ProtocolTradeFeeDenominator uint64 `json:"protocolTradeFeeDenominator"`
 }
 
 func (obj PoolFees) MarshalWithEncoder(encoder *binary.Encoder) (err error) {
@@ -4658,10 +4728,10 @@ func UnmarshalPoolFeesConfig(buf []byte) (*PoolFeesConfig, error) {
 }
 
 type PoolMetrics struct {
-	TotalProtocolBaseFee  uint64 `json:"totalProtocolBaseFee"`  // Total protocol base token fees collected
-	TotalProtocolQuoteFee uint64 `json:"totalProtocolQuoteFee"` // Total protocol quote token fees collected
-	TotalTradingBaseFee   uint64 `json:"totalTradingBaseFee"`   // Total trading base token fees collected
-	TotalTradingQuoteFee  uint64 `json:"totalTradingQuoteFee"`  // Total trading quote token fees collected
+	TotalProtocolBaseFee  uint64 `json:"totalProtocolBaseFee"`
+	TotalProtocolQuoteFee uint64 `json:"totalProtocolQuoteFee"`
+	TotalTradingBaseFee   uint64 `json:"totalTradingBaseFee"`
+	TotalTradingQuoteFee  uint64 `json:"totalTradingQuoteFee"`
 }
 
 func (obj PoolMetrics) MarshalWithEncoder(encoder *binary.Encoder) (err error) {
@@ -4740,8 +4810,8 @@ func UnmarshalPoolMetrics(buf []byte) (*PoolMetrics, error) {
 }
 
 type SwapParameters struct {
-	AmountIn         uint64 `json:"amountIn"`         // Input amount for the swap
-	MinimumAmountOut uint64 `json:"minimumAmountOut"` // Minimum output amount expected
+	AmountIn         uint64 `json:"amountIn"`
+	MinimumAmountOut uint64 `json:"minimumAmountOut"`
 }
 
 func (obj SwapParameters) MarshalWithEncoder(encoder *binary.Encoder) (err error) {
@@ -4799,14 +4869,90 @@ func UnmarshalSwapParameters(buf []byte) (*SwapParameters, error) {
 	return obj, nil
 }
 
+type SwapParameters2 struct {
+	// When it's exact in, partial fill, this will be amount_in. When it's exact out, this will be amount_out
+	Amount0 uint64 `json:"amount0"`
+
+	// When it's exact in, partial fill, this will be minimum_amount_out. When it's exact out, this will be maximum_amount_in
+	Amount1 uint64 `json:"amount1"`
+
+	// Swap mode, refer [SwapMode]
+	SwapMode uint8 `json:"swapMode"`
+}
+
+func (obj SwapParameters2) MarshalWithEncoder(encoder *binary.Encoder) (err error) {
+	// Serialize `Amount0`:
+	err = encoder.Encode(obj.Amount0)
+	if err != nil {
+		return errors.NewField("Amount0", err)
+	}
+	// Serialize `Amount1`:
+	err = encoder.Encode(obj.Amount1)
+	if err != nil {
+		return errors.NewField("Amount1", err)
+	}
+	// Serialize `SwapMode`:
+	err = encoder.Encode(obj.SwapMode)
+	if err != nil {
+		return errors.NewField("SwapMode", err)
+	}
+	return nil
+}
+
+func (obj SwapParameters2) Marshal() ([]byte, error) {
+	buf := bytes.NewBuffer(nil)
+	encoder := binary.NewBorshEncoder(buf)
+	err := obj.MarshalWithEncoder(encoder)
+	if err != nil {
+		return nil, fmt.Errorf("error while encoding SwapParameters2: %w", err)
+	}
+	return buf.Bytes(), nil
+}
+
+func (obj *SwapParameters2) UnmarshalWithDecoder(decoder *binary.Decoder) (err error) {
+	// Deserialize `Amount0`:
+	err = decoder.Decode(&obj.Amount0)
+	if err != nil {
+		return errors.NewField("Amount0", err)
+	}
+	// Deserialize `Amount1`:
+	err = decoder.Decode(&obj.Amount1)
+	if err != nil {
+		return errors.NewField("Amount1", err)
+	}
+	// Deserialize `SwapMode`:
+	err = decoder.Decode(&obj.SwapMode)
+	if err != nil {
+		return errors.NewField("SwapMode", err)
+	}
+	return nil
+}
+
+func (obj *SwapParameters2) Unmarshal(buf []byte) error {
+	err := obj.UnmarshalWithDecoder(binary.NewBorshDecoder(buf))
+	if err != nil {
+		return fmt.Errorf("error while unmarshaling SwapParameters2: %w", err)
+	}
+	return nil
+}
+
+func UnmarshalSwapParameters2(buf []byte) (*SwapParameters2, error) {
+	obj := new(SwapParameters2)
+	err := obj.Unmarshal(buf)
+	if err != nil {
+		return nil, err
+	}
+	return obj, nil
+}
+
 // Encodes all results of swapping
 type SwapResult struct {
-	ActualInputAmount uint64         `json:"actualInputAmount"` // Actual amount of input tokens used
-	OutputAmount      uint64         `json:"outputAmount"`      // Amount of output tokens received
-	NextSqrtPrice     binary.Uint128 `json:"nextSqrtPrice"`     // Next square root price after swap
-	TradingFee        uint64         `json:"tradingFee"`        // Trading fee charged
-	ProtocolFee       uint64         `json:"protocolFee"`       // Protocol fee charged
-	ReferralFee       uint64         `json:"referralFee"`       // Referral fee charged
+	ActualInputAmount uint64         `json:"actualInputAmount"`
+	OutputAmount      uint64         `json:"outputAmount"`
+	NextSqrtPrice     binary.Uint128 `json:"nextSqrtPrice"`
+	TradingFee        uint64         `json:"tradingFee"`
+	ProtocolFee       uint64         `json:"protocolFee"`
+	ReferralFee       uint64         `json:"referralFee"`
 }
 
 func (obj SwapResult) MarshalWithEncoder(encoder *binary.Encoder) (err error) {
@@ -4904,6 +5050,132 @@ func UnmarshalSwapResult(buf []byte) (*SwapResult, error) {
 	return obj, nil
 }
 
+type SwapResult2 struct {
+	IncludedFeeInputAmount uint64         `json:"includedFeeInputAmount"`
+	ExcludedFeeInputAmount uint64         `json:"excludedFeeInputAmount"`
+	AmountLeft             uint64         `json:"amountLeft"`
+	OutputAmount           uint64         `json:"outputAmount"`
+	NextSqrtPrice          binary.Uint128 `json:"nextSqrtPrice"`
+	TradingFee             uint64         `json:"tradingFee"`
+	ProtocolFee            uint64         `json:"protocolFee"`
+	ReferralFee            uint64         `json:"referralFee"`
+}
+
+func (obj SwapResult2) MarshalWithEncoder(encoder *binary.Encoder) (err error) {
+	// Serialize `IncludedFeeInputAmount`:
+	err = encoder.Encode(obj.IncludedFeeInputAmount)
+	if err != nil {
+		return errors.NewField("IncludedFeeInputAmount", err)
+	}
+	// Serialize `ExcludedFeeInputAmount`:
+	err = encoder.Encode(obj.ExcludedFeeInputAmount)
+	if err != nil {
+		return errors.NewField("ExcludedFeeInputAmount", err)
+	}
+	// Serialize `AmountLeft`:
+	err = encoder.Encode(obj.AmountLeft)
+	if err != nil {
+		return errors.NewField("AmountLeft", err)
+	}
+	// Serialize `OutputAmount`:
+	err = encoder.Encode(obj.OutputAmount)
+	if err != nil {
+		return errors.NewField("OutputAmount", err)
+	}
+	// Serialize `NextSqrtPrice`:
+	err = encoder.Encode(obj.NextSqrtPrice)
+	if err != nil {
+		return errors.NewField("NextSqrtPrice", err)
+	}
+	// Serialize `TradingFee`:
+	err = encoder.Encode(obj.TradingFee)
+	if err != nil {
+		return errors.NewField("TradingFee", err)
+	}
+	// Serialize `ProtocolFee`:
+	err = encoder.Encode(obj.ProtocolFee)
+	if err != nil {
+		return errors.NewField("ProtocolFee", err)
+	}
+	// Serialize `ReferralFee`:
+	err = encoder.Encode(obj.ReferralFee)
+	if err != nil {
+		return errors.NewField("ReferralFee", err)
+	}
+	return nil
+}
+
+func (obj SwapResult2) Marshal() ([]byte, error) {
+	buf := bytes.NewBuffer(nil)
+	encoder := binary.NewBorshEncoder(buf)
+	err := obj.MarshalWithEncoder(encoder)
+	if err != nil {
+		return nil, fmt.Errorf("error while encoding SwapResult2: %w", err)
+	}
+	return buf.Bytes(), nil
+}
+
+func (obj *SwapResult2) UnmarshalWithDecoder(decoder *binary.Decoder) (err error) {
+	// Deserialize `IncludedFeeInputAmount`:
+	err = decoder.Decode(&obj.IncludedFeeInputAmount)
+	if err != nil {
+		return errors.NewField("IncludedFeeInputAmount", err)
+	}
+	// Deserialize `ExcludedFeeInputAmount`:
+	err = decoder.Decode(&obj.ExcludedFeeInputAmount)
+	if err != nil {
+		return errors.NewField("ExcludedFeeInputAmount", err)
+	}
+	// Deserialize `AmountLeft`:
+	err = decoder.Decode(&obj.AmountLeft)
+	if err != nil {
+		return errors.NewField("AmountLeft", err)
+	}
+	// Deserialize `OutputAmount`:
+	err = decoder.Decode(&obj.OutputAmount)
+	if err != nil {
+		return errors.NewField("OutputAmount", err)
+	}
+	// Deserialize `NextSqrtPrice`:
+	err = decoder.Decode(&obj.NextSqrtPrice)
+	if err != nil {
+		return errors.NewField("NextSqrtPrice", err)
+	}
+	// Deserialize `TradingFee`:
+	err = decoder.Decode(&obj.TradingFee)
+	if err != nil {
+		return errors.NewField("TradingFee", err)
+	}
+	// Deserialize `ProtocolFee`:
+	err = decoder.Decode(&obj.ProtocolFee)
+	if err != nil {
+		return errors.NewField("ProtocolFee", err)
+	}
+	// Deserialize `ReferralFee`:
+	err = decoder.Decode(&obj.ReferralFee)
+	if err != nil {
+		return errors.NewField("ReferralFee", err)
+	}
+	return nil
+}
+
+func (obj *SwapResult2) Unmarshal(buf []byte) error {
+	err := obj.UnmarshalWithDecoder(binary.NewBorshDecoder(buf))
+	if err != nil {
+		return fmt.Errorf("error while unmarshaling SwapResult2: %w", err)
+	}
+	return nil
+}
+
+func UnmarshalSwapResult2(buf []byte) (*SwapResult2, error) {
+	obj := new(SwapResult2)
+	err := obj.Unmarshal(buf)
+	if err != nil {
+		return nil, err
+	}
+	return obj, nil
+}
+
 type TokenSupplyParams struct {
 	// pre migration token supply
 	PreMigrationTokenSupply uint64 `json:"preMigrationTokenSupply"`
@@ -4970,86 +5242,88 @@ func UnmarshalTokenSupplyParams(buf []byte) (*TokenSupplyParams, error) {
 }
 
 type VirtualPool struct {
-	// Volatility tracker for price movements
+	// volatility tracker
 	VolatilityTracker VolatilityTracker `json:"volatilityTracker"`
 
-	// Configuration key reference
+	// config key
 	Config solanago.PublicKey `json:"config"`
 
-	// Pool creator address
+	// creator
 	Creator solanago.PublicKey `json:"creator"`
 
-	// Base token mint address
+	// base mint
 	BaseMint solanago.PublicKey `json:"baseMint"`
 
-	// Base token vault address
+	// base vault
 	BaseVault solanago.PublicKey `json:"baseVault"`
 
-	// Quote token vault address
+	// quote vault
 	QuoteVault solanago.PublicKey `json:"quoteVault"`
 
-	// Base token reserve amount
+	// base reserve
 	BaseReserve uint64 `json:"baseReserve"`
 
-	// Quote token reserve amount
+	// quote reserve
 	QuoteReserve uint64 `json:"quoteReserve"`
 
-	// Protocol base token fee amount
+	// protocol base fee
 	ProtocolBaseFee uint64 `json:"protocolBaseFee"`
 
-	// Protocol quote token fee amount
+	// protocol quote fee
 	ProtocolQuoteFee uint64 `json:"protocolQuoteFee"`
 
-	// Partner base token fee amount
+	// partner base fee
 	PartnerBaseFee uint64 `json:"partnerBaseFee"`
 
-	// Partner quote token fee amount
+	// trading quote fee
 	PartnerQuoteFee uint64 `json:"partnerQuoteFee"`
 
-	// Current square root price
+	// current price
 	SqrtPrice binary.Uint128 `json:"sqrtPrice"`
 
-	// Pool activation point
+	// Activation point
 	ActivationPoint uint64 `json:"activationPoint"`
 
-	// Pool token type (SPL token or Token2022)
+	// pool type, spl token or token2022
 	PoolType TokenType `json:"poolType"`
 
-	// Migration status flag
+	// is migrated
 	IsMigrated IsMigrated `json:"isMigrated"`
 
-	// Partner surplus withdrawal status
+	// is partner withdraw surplus
 	IsPartnerWithdrawSurplus uint8 `json:"isPartnerWithdrawSurplus"`
 
-	// Protocol surplus withdrawal status
+	// is protocol withdraw surplus
 	IsProtocolWithdrawSurplus uint8 `json:"isProtocolWithdrawSurplus"`
 
-	// Current migration progress state
+	// migration progress
 	MigrationProgress MigrationProgress `json:"migrationProgress"`
 
-	// Leftover withdrawal status
+	// is withdraw leftover
 	IsWithdrawLeftover uint8 `json:"isWithdrawLeftover"`
 
-	// Creator surplus withdrawal status
+	// is creator withdraw surplus
 	IsCreatorWithdrawSurplus uint8 `json:"isCreatorWithdrawSurplus"`
 
-	// Migration fee withdrawal status (first bit for partner, second bit for creator)
+	// migration fee withdraw status, first bit is for partner, second bit is for creator
 	MigrationFeeWithdrawStatus MigrationFeeWithdrawStatus `json:"migrationFeeWithdrawStatus"`
 
-	// Pool performance metrics
+	// pool metrics
 	Metrics PoolMetrics `json:"metrics"`
 
-	// Timestamp when the curve is finished
+	// The time curve is finished
 	FinishCurveTimestamp uint64 `json:"finishCurveTimestamp"`
 
-	// Creator base token fee amount
+	// creator base fee
 	CreatorBaseFee uint64 `json:"creatorBaseFee"`
 
-	// Creator quote token fee amount
-	CreatorQuoteFee uint64 `json:"creatorQuoteFee"`
+	// creator quote fee
+	CreatorQuoteFee uint64   `json:"creatorQuoteFee"`
+	CreationFeeBits uint8    `json:"creationFeeBits"`
+	Padding0        [7]uint8 `json:"padding0"`
 
 	// Padding for further use
-	Padding1 [7]uint64 `json:"padding1"`
+	Padding1 [6]uint64 `json:"padding1"`
 }
 
 func (obj VirtualPool) MarshalWithEncoder(encoder *binary.Encoder) (err error) {
@@ -5182,6 +5456,16 @@ func (obj VirtualPool) MarshalWithEncoder(encoder *binary.Encoder) (err error) {
 	err = encoder.Encode(obj.CreatorQuoteFee)
 	if err != nil {
 		return errors.NewField("CreatorQuoteFee", err)
+	}
+	// Serialize `CreationFeeBits`:
+	err = encoder.Encode(obj.CreationFeeBits)
+	if err != nil {
+		return errors.NewField("CreationFeeBits", err)
+	}
+	// Serialize `Padding0`:
+	err = encoder.Encode(obj.Padding0)
+	if err != nil {
+		return errors.NewField("Padding0", err)
 	}
 	// Serialize `Padding1`:
 	err = encoder.Encode(obj.Padding1)
@@ -5331,6 +5615,16 @@ func (obj *VirtualPool) UnmarshalWithDecoder(decoder *binary.Decoder) (err error
 	err = decoder.Decode(&obj.CreatorQuoteFee)
 	if err != nil {
 		return errors.NewField("CreatorQuoteFee", err)
+	}
+	// Deserialize `CreationFeeBits`:
+	err = decoder.Decode(&obj.CreationFeeBits)
+	if err != nil {
+		return errors.NewField("CreationFeeBits", err)
+	}
+	// Deserialize `Padding0`:
+	err = decoder.Decode(&obj.Padding0)
+	if err != nil {
+		return errors.NewField("Padding0", err)
 	}
 	// Deserialize `Padding1`:
 	err = decoder.Decode(&obj.Padding1)

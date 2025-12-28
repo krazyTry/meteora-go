@@ -5,7 +5,6 @@ package dynamic_bonding_curve
 
 import (
 	"fmt"
-
 	binary "github.com/gagliardetto/binary"
 )
 
@@ -42,13 +41,6 @@ func ParseAnyAccount(accountData []byte) (any, error) {
 		err := value.UnmarshalWithDecoder(decoder)
 		if err != nil {
 			return nil, fmt.Errorf("failed to unmarshal account as MeteoraDammMigrationMetadata: %w", err)
-		}
-		return value, nil
-	case Account_MeteoraDammV2Metadata:
-		value := new(MeteoraDammV2Metadata)
-		err := value.UnmarshalWithDecoder(decoder)
-		if err != nil {
-			return nil, fmt.Errorf("failed to unmarshal account as MeteoraDammV2Metadata: %w", err)
 		}
 		return value, nil
 	case Account_PartnerMetadata:
@@ -148,23 +140,6 @@ func ParseAccount_MeteoraDammMigrationMetadata(accountData []byte) (*MeteoraDamm
 	err = acc.UnmarshalWithDecoder(decoder)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal account of type MeteoraDammMigrationMetadata: %w", err)
-	}
-	return acc, nil
-}
-
-func ParseAccount_MeteoraDammV2Metadata(accountData []byte) (*MeteoraDammV2Metadata, error) {
-	decoder := binary.NewBorshDecoder(accountData)
-	discriminator, err := decoder.ReadDiscriminator()
-	if err != nil {
-		return nil, fmt.Errorf("failed to peek discriminator: %w", err)
-	}
-	if discriminator != Account_MeteoraDammV2Metadata {
-		return nil, fmt.Errorf("expected discriminator %v, got %s", Account_MeteoraDammV2Metadata, binary.FormatDiscriminator(discriminator))
-	}
-	acc := new(MeteoraDammV2Metadata)
-	err = acc.UnmarshalWithDecoder(decoder)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal account of type MeteoraDammV2Metadata: %w", err)
 	}
 	return acc, nil
 }

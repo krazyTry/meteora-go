@@ -9,7 +9,6 @@ var (
 	Account_Config                       = [8]byte{155, 12, 170, 224, 30, 250, 204, 130}
 	Account_LockEscrow                   = [8]byte{190, 106, 121, 6, 200, 182, 21, 75}
 	Account_MeteoraDammMigrationMetadata = [8]byte{17, 155, 141, 215, 207, 4, 133, 156}
-	Account_MeteoraDammV2Metadata        = [8]byte{104, 221, 219, 203, 10, 142, 250, 163}
 	Account_PartnerMetadata              = [8]byte{68, 68, 130, 19, 16, 209, 98, 156}
 	Account_PoolConfig                   = [8]byte{26, 108, 14, 123, 116, 230, 129, 43}
 	Account_VirtualPool                  = [8]byte{213, 224, 5, 209, 98, 69, 119, 92}
@@ -19,13 +18,13 @@ var (
 // Event discriminators
 var (
 	Event_EvtClaimCreatorTradingFee         = [8]byte{154, 228, 215, 202, 133, 155, 214, 138}
+	Event_EvtClaimPoolCreationFee           = [8]byte{149, 111, 149, 44, 136, 64, 175, 62}
 	Event_EvtClaimProtocolFee               = [8]byte{186, 244, 75, 251, 188, 13, 25, 33}
 	Event_EvtClaimTradingFee                = [8]byte{26, 83, 117, 240, 92, 202, 112, 254}
 	Event_EvtCloseClaimFeeOperator          = [8]byte{111, 39, 37, 55, 110, 216, 194, 23}
 	Event_EvtCreateClaimFeeOperator         = [8]byte{21, 6, 153, 120, 68, 116, 28, 177}
 	Event_EvtCreateConfig                   = [8]byte{131, 207, 180, 174, 180, 73, 165, 54}
 	Event_EvtCreateConfigV2                 = [8]byte{163, 74, 66, 187, 119, 195, 26, 144}
-	Event_EvtCreateDammV2MigrationMetadata  = [8]byte{103, 111, 132, 168, 140, 253, 150, 114}
 	Event_EvtCreateMeteoraMigrationMetadata = [8]byte{99, 167, 133, 63, 214, 143, 175, 139}
 	Event_EvtCreatorWithdrawSurplus         = [8]byte{152, 73, 21, 15, 66, 87, 53, 157}
 	Event_EvtCurveComplete                  = [8]byte{229, 231, 86, 84, 156, 134, 75, 24}
@@ -35,6 +34,7 @@ var (
 	Event_EvtPartnerWithdrawSurplus         = [8]byte{195, 56, 152, 9, 232, 72, 35, 22}
 	Event_EvtProtocolWithdrawSurplus        = [8]byte{109, 111, 28, 221, 134, 195, 230, 203}
 	Event_EvtSwap                           = [8]byte{27, 60, 21, 213, 138, 170, 187, 147}
+	Event_EvtSwap2                          = [8]byte{189, 66, 51, 168, 38, 80, 117, 153}
 	Event_EvtUpdatePoolCreator              = [8]byte{107, 225, 165, 237, 91, 158, 213, 220}
 	Event_EvtVirtualPoolMetadata            = [8]byte{188, 18, 72, 76, 195, 91, 38, 74}
 	Event_EvtWithdrawLeftover               = [8]byte{191, 189, 104, 143, 111, 156, 94, 229}
@@ -44,6 +44,7 @@ var (
 // Instruction discriminators
 var (
 	Instruction_ClaimCreatorTradingFee             = [8]byte{82, 220, 250, 189, 3, 85, 107, 45}
+	Instruction_ClaimPoolCreationFee               = [8]byte{246, 51, 18, 222, 80, 42, 236, 205}
 	Instruction_ClaimProtocolFee                   = [8]byte{165, 228, 133, 48, 99, 249, 255, 33}
 	Instruction_ClaimTradingFee                    = [8]byte{8, 236, 89, 49, 152, 125, 177, 81}
 	Instruction_CloseClaimFeeOperator              = [8]byte{38, 134, 82, 216, 95, 124, 17, 99}
@@ -64,7 +65,9 @@ var (
 	Instruction_PartnerWithdrawSurplus             = [8]byte{168, 173, 72, 100, 201, 98, 38, 92}
 	Instruction_ProtocolWithdrawSurplus            = [8]byte{54, 136, 225, 138, 172, 182, 214, 167}
 	Instruction_Swap                               = [8]byte{248, 198, 158, 145, 225, 117, 135, 200}
+	Instruction_Swap2                              = [8]byte{65, 75, 63, 76, 235, 91, 91, 136}
 	Instruction_TransferPoolCreator                = [8]byte{20, 7, 169, 33, 58, 147, 166, 33}
+	Instruction_WithdrawLamportsFromPoolAuthority  = [8]byte{20, 185, 242, 240, 129, 24, 212, 194}
 	Instruction_WithdrawLeftover                   = [8]byte{20, 198, 202, 237, 235, 243, 183, 66}
 	Instruction_WithdrawMigrationFee               = [8]byte{237, 142, 45, 23, 129, 6, 222, 162}
 )

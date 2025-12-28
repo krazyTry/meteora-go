@@ -101,6 +101,55 @@ func NewClaimCreatorTradingFeeInstruction(
 	), nil
 }
 
+// Builds a "claim_pool_creation_fee" instruction.
+func NewClaimPoolCreationFeeInstruction(
+	poolAccount solanago.PublicKey,
+	claimFeeOperatorAccount solanago.PublicKey,
+	operatorAccount solanago.PublicKey,
+	treasuryAccount solanago.PublicKey,
+	systemProgramAccount solanago.PublicKey,
+	eventAuthorityAccount solanago.PublicKey,
+	programAccount solanago.PublicKey,
+) (solanago.Instruction, error) {
+	buf__ := new(bytes.Buffer)
+	enc__ := binary.NewBorshEncoder(buf__)
+
+	// Encode the instruction discriminator.
+	err := enc__.WriteBytes(Instruction_ClaimPoolCreationFee[:], false)
+	if err != nil {
+		return nil, fmt.Errorf("failed to write instruction discriminator: %w", err)
+	}
+
+	accounts__ := solanago.AccountMetaSlice{}
+
+	// Add the accounts to the instruction.
+	{
+		// Account 0 "pool": Writable, Non-signer, Required
+		accounts__.Append(solanago.NewAccountMeta(poolAccount, true, false))
+		// Account 1 "claim_fee_operator": Read-only, Non-signer, Required
+		// Claim fee operator
+		accounts__.Append(solanago.NewAccountMeta(claimFeeOperatorAccount, false, false))
+		// Account 2 "operator": Read-only, Signer, Required
+		// Operator
+		accounts__.Append(solanago.NewAccountMeta(operatorAccount, false, true))
+		// Account 3 "treasury": Writable, Non-signer, Required, Address: 4EWqcx3aNZmMetCnxwLYwyNjan6XLGp3Ca2W316vrSjv
+		accounts__.Append(solanago.NewAccountMeta(treasuryAccount, true, false))
+		// Account 4 "system_program": Read-only, Non-signer, Required
+		accounts__.Append(solanago.NewAccountMeta(systemProgramAccount, false, false))
+		// Account 5 "event_authority": Read-only, Non-signer, Required
+		accounts__.Append(solanago.NewAccountMeta(eventAuthorityAccount, false, false))
+		// Account 6 "program": Read-only, Non-signer, Required
+		accounts__.Append(solanago.NewAccountMeta(programAccount, false, false))
+	}
+
+	// Create the instruction.
+	return solanago.NewInstruction(
+		ProgramID,
+		accounts__,
+		buf__.Bytes(),
+	), nil
+}
+
 // Builds a "claim_protocol_fee" instruction.
 func NewClaimProtocolFeeInstruction(
 	poolAuthorityAccount solanago.PublicKey,
@@ -1153,7 +1202,6 @@ func NewMigrationDammV2Instruction(
 		// virtual pool
 		accounts__.Append(solanago.NewAccountMeta(virtualPoolAccount, true, false))
 		// Account 1 "migration_metadata": Read-only, Non-signer, Required
-		// migration metadata
 		accounts__.Append(solanago.NewAccountMeta(migrationMetadataAccount, false, false))
 		// Account 2 "config": Read-only, Non-signer, Required
 		// virtual pool config key
@@ -1163,13 +1211,13 @@ func NewMigrationDammV2Instruction(
 		// Account 4 "pool": Writable, Non-signer, Required
 		accounts__.Append(solanago.NewAccountMeta(poolAccount, true, false))
 		// Account 5 "first_position_nft_mint": Writable, Non-signer, Required
-		accounts__.Append(solanago.NewAccountMeta(firstPositionNftMintAccount, true, true))
+		accounts__.Append(solanago.NewAccountMeta(firstPositionNftMintAccount, true, false))
 		// Account 6 "first_position_nft_account": Writable, Non-signer, Required
 		accounts__.Append(solanago.NewAccountMeta(firstPositionNftAccountAccount, true, false))
 		// Account 7 "first_position": Writable, Non-signer, Required
 		accounts__.Append(solanago.NewAccountMeta(firstPositionAccount, true, false))
 		// Account 8 "second_position_nft_mint": Writable, Non-signer, Optional
-		accounts__.Append(solanago.NewAccountMeta(secondPositionNftMintAccount, true, true))
+		accounts__.Append(solanago.NewAccountMeta(secondPositionNftMintAccount, true, false))
 		// Account 9 "second_position_nft_account": Writable, Non-signer, Optional
 		accounts__.Append(solanago.NewAccountMeta(secondPositionNftAccountAccount, true, false))
 		// Account 10 "second_position": Writable, Non-signer, Optional
@@ -1244,10 +1292,10 @@ func NewMigrationDammV2CreateMetadataInstruction(
 		accounts__.Append(solanago.NewAccountMeta(virtualPoolAccount, false, false))
 		// Account 1 "config": Read-only, Non-signer, Required
 		accounts__.Append(solanago.NewAccountMeta(configAccount, false, false))
-		// Account 2 "migration_metadata": Writable, Non-signer, Required
-		accounts__.Append(solanago.NewAccountMeta(migrationMetadataAccount, true, false))
-		// Account 3 "payer": Writable, Signer, Required
-		accounts__.Append(solanago.NewAccountMeta(payerAccount, true, true))
+		// Account 2 "migration_metadata": Read-only, Non-signer, Required
+		accounts__.Append(solanago.NewAccountMeta(migrationMetadataAccount, false, false))
+		// Account 3 "payer": Read-only, Non-signer, Required
+		accounts__.Append(solanago.NewAccountMeta(payerAccount, false, false))
 		// Account 4 "system_program": Read-only, Non-signer, Required
 		accounts__.Append(solanago.NewAccountMeta(systemProgramAccount, false, false))
 		// Account 5 "event_authority": Read-only, Non-signer, Required
@@ -1532,6 +1580,103 @@ func NewSwapInstruction(
 	), nil
 }
 
+// Builds a "swap2" instruction.
+func NewSwap2Instruction(
+	// Params:
+	paramsParam SwapParameters2,
+
+	// Accounts:
+	poolAuthorityAccount solanago.PublicKey,
+	configAccount solanago.PublicKey,
+	poolAccount solanago.PublicKey,
+	inputTokenAccountAccount solanago.PublicKey,
+	outputTokenAccountAccount solanago.PublicKey,
+	baseVaultAccount solanago.PublicKey,
+	quoteVaultAccount solanago.PublicKey,
+	baseMintAccount solanago.PublicKey,
+	quoteMintAccount solanago.PublicKey,
+	payerAccount solanago.PublicKey,
+	tokenBaseProgramAccount solanago.PublicKey,
+	tokenQuoteProgramAccount solanago.PublicKey,
+	referralTokenAccountAccount solanago.PublicKey,
+	eventAuthorityAccount solanago.PublicKey,
+	programAccount solanago.PublicKey,
+) (solanago.Instruction, error) {
+	buf__ := new(bytes.Buffer)
+	enc__ := binary.NewBorshEncoder(buf__)
+
+	// Encode the instruction discriminator.
+	err := enc__.WriteBytes(Instruction_Swap2[:], false)
+	if err != nil {
+		return nil, fmt.Errorf("failed to write instruction discriminator: %w", err)
+	}
+	{
+		// Serialize `paramsParam`:
+		err = enc__.Encode(paramsParam)
+		if err != nil {
+			return nil, errors.NewField("paramsParam", err)
+		}
+	}
+	accounts__ := solanago.AccountMetaSlice{}
+
+	// Add the accounts to the instruction.
+	{
+		// Account 0 "pool_authority": Read-only, Non-signer, Required, Address: FhVo3mqL8PW5pH5U2CN4XE33DokiyZnUwuGpH2hmHLuM
+		accounts__.Append(solanago.NewAccountMeta(poolAuthorityAccount, false, false))
+		// Account 1 "config": Read-only, Non-signer, Required
+		// config key
+		accounts__.Append(solanago.NewAccountMeta(configAccount, false, false))
+		// Account 2 "pool": Writable, Non-signer, Required
+		// Pool account
+		accounts__.Append(solanago.NewAccountMeta(poolAccount, true, false))
+		// Account 3 "input_token_account": Writable, Non-signer, Required
+		// The user token account for input token
+		accounts__.Append(solanago.NewAccountMeta(inputTokenAccountAccount, true, false))
+		// Account 4 "output_token_account": Writable, Non-signer, Required
+		// The user token account for output token
+		accounts__.Append(solanago.NewAccountMeta(outputTokenAccountAccount, true, false))
+		// Account 5 "base_vault": Writable, Non-signer, Required
+		// The vault token account for base token
+		accounts__.Append(solanago.NewAccountMeta(baseVaultAccount, true, false))
+		// Account 6 "quote_vault": Writable, Non-signer, Required
+		// The vault token account for quote token
+		accounts__.Append(solanago.NewAccountMeta(quoteVaultAccount, true, false))
+		// Account 7 "base_mint": Read-only, Non-signer, Required
+		// The mint of base token
+		accounts__.Append(solanago.NewAccountMeta(baseMintAccount, false, false))
+		// Account 8 "quote_mint": Read-only, Non-signer, Required
+		// The mint of quote token
+		accounts__.Append(solanago.NewAccountMeta(quoteMintAccount, false, false))
+		// Account 9 "payer": Read-only, Signer, Required
+		// The user performing the swap
+		accounts__.Append(solanago.NewAccountMeta(payerAccount, false, true))
+		// Account 10 "token_base_program": Read-only, Non-signer, Required
+		// Token base program
+		accounts__.Append(solanago.NewAccountMeta(tokenBaseProgramAccount, false, false))
+		// Account 11 "token_quote_program": Read-only, Non-signer, Required
+		// Token quote program
+		accounts__.Append(solanago.NewAccountMeta(tokenQuoteProgramAccount, false, false))
+		// Account 12 "referral_token_account": Writable, Non-signer, Optional
+		// referral token account
+		if referralTokenAccountAccount.Equals(solanago.PublicKey{}) {
+			// https://github.com/solana-foundation/anchor/blob/master/ts/packages/anchor/src/program/accounts-resolver.ts#L196
+			referralTokenAccountAccount = programAccount
+		}
+		accounts__.Append(solanago.NewAccountMeta(referralTokenAccountAccount, true, false))
+		// Account 13 "event_authority": Read-only, Non-signer, Required
+		accounts__.Append(solanago.NewAccountMeta(eventAuthorityAccount, false, false))
+		// Account 14 "program": Read-only, Non-signer, Required
+		accounts__.Append(solanago.NewAccountMeta(programAccount, false, false))
+	}
+
+	// Create the instruction.
+	return solanago.NewInstruction(
+		ProgramID,
+		accounts__,
+		buf__.Bytes(),
+	), nil
+}
+
 // Builds a "transfer_pool_creator" instruction.
 func NewTransferPoolCreatorInstruction(
 	virtualPoolAccount solanago.PublicKey,
@@ -1566,6 +1711,41 @@ func NewTransferPoolCreatorInstruction(
 		accounts__.Append(solanago.NewAccountMeta(eventAuthorityAccount, false, false))
 		// Account 5 "program": Read-only, Non-signer, Required
 		accounts__.Append(solanago.NewAccountMeta(programAccount, false, false))
+	}
+
+	// Create the instruction.
+	return solanago.NewInstruction(
+		ProgramID,
+		accounts__,
+		buf__.Bytes(),
+	), nil
+}
+
+// Builds a "withdraw_lamports_from_pool_authority" instruction.
+func NewWithdrawLamportsFromPoolAuthorityInstruction(
+	poolAuthorityAccount solanago.PublicKey,
+	receiverAccount solanago.PublicKey,
+	systemProgramAccount solanago.PublicKey,
+) (solanago.Instruction, error) {
+	buf__ := new(bytes.Buffer)
+	enc__ := binary.NewBorshEncoder(buf__)
+
+	// Encode the instruction discriminator.
+	err := enc__.WriteBytes(Instruction_WithdrawLamportsFromPoolAuthority[:], false)
+	if err != nil {
+		return nil, fmt.Errorf("failed to write instruction discriminator: %w", err)
+	}
+
+	accounts__ := solanago.AccountMetaSlice{}
+
+	// Add the accounts to the instruction.
+	{
+		// Account 0 "pool_authority": Writable, Non-signer, Required, Address: FhVo3mqL8PW5pH5U2CN4XE33DokiyZnUwuGpH2hmHLuM
+		accounts__.Append(solanago.NewAccountMeta(poolAuthorityAccount, true, false))
+		// Account 1 "receiver": Writable, Non-signer, Required, Address: 4EWqcx3aNZmMetCnxwLYwyNjan6XLGp3Ca2W316vrSjv
+		accounts__.Append(solanago.NewAccountMeta(receiverAccount, true, false))
+		// Account 2 "system_program": Read-only, Non-signer, Required
+		accounts__.Append(solanago.NewAccountMeta(systemProgramAccount, false, false))
 	}
 
 	// Create the instruction.

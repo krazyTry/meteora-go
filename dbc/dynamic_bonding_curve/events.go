@@ -22,6 +22,13 @@ func ParseAnyEvent(eventData []byte) (any, error) {
 			return nil, fmt.Errorf("failed to unmarshal event as EvtClaimCreatorTradingFee: %w", err)
 		}
 		return value, nil
+	case Event_EvtClaimPoolCreationFee:
+		value := new(EvtClaimPoolCreationFee)
+		err := value.UnmarshalWithDecoder(decoder)
+		if err != nil {
+			return nil, fmt.Errorf("failed to unmarshal event as EvtClaimPoolCreationFee: %w", err)
+		}
+		return value, nil
 	case Event_EvtClaimProtocolFee:
 		value := new(EvtClaimProtocolFee)
 		err := value.UnmarshalWithDecoder(decoder)
@@ -62,13 +69,6 @@ func ParseAnyEvent(eventData []byte) (any, error) {
 		err := value.UnmarshalWithDecoder(decoder)
 		if err != nil {
 			return nil, fmt.Errorf("failed to unmarshal event as EvtCreateConfigV2: %w", err)
-		}
-		return value, nil
-	case Event_EvtCreateDammV2MigrationMetadata:
-		value := new(EvtCreateDammV2MigrationMetadata)
-		err := value.UnmarshalWithDecoder(decoder)
-		if err != nil {
-			return nil, fmt.Errorf("failed to unmarshal event as EvtCreateDammV2MigrationMetadata: %w", err)
 		}
 		return value, nil
 	case Event_EvtCreateMeteoraMigrationMetadata:
@@ -134,6 +134,13 @@ func ParseAnyEvent(eventData []byte) (any, error) {
 			return nil, fmt.Errorf("failed to unmarshal event as EvtSwap: %w", err)
 		}
 		return value, nil
+	case Event_EvtSwap2:
+		value := new(EvtSwap2)
+		err := value.UnmarshalWithDecoder(decoder)
+		if err != nil {
+			return nil, fmt.Errorf("failed to unmarshal event as EvtSwap2: %w", err)
+		}
+		return value, nil
 	case Event_EvtUpdatePoolCreator:
 		value := new(EvtUpdatePoolCreator)
 		err := value.UnmarshalWithDecoder(decoder)
@@ -180,6 +187,23 @@ func ParseEvent_EvtClaimCreatorTradingFee(eventData []byte) (*EvtClaimCreatorTra
 	err = event.UnmarshalWithDecoder(decoder)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal event of type EvtClaimCreatorTradingFee: %w", err)
+	}
+	return event, nil
+}
+
+func ParseEvent_EvtClaimPoolCreationFee(eventData []byte) (*EvtClaimPoolCreationFee, error) {
+	decoder := binary.NewBorshDecoder(eventData)
+	discriminator, err := decoder.ReadDiscriminator()
+	if err != nil {
+		return nil, fmt.Errorf("failed to peek discriminator: %w", err)
+	}
+	if discriminator != Event_EvtClaimPoolCreationFee {
+		return nil, fmt.Errorf("expected discriminator %v, got %s", Event_EvtClaimPoolCreationFee, binary.FormatDiscriminator(discriminator))
+	}
+	event := new(EvtClaimPoolCreationFee)
+	err = event.UnmarshalWithDecoder(decoder)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal event of type EvtClaimPoolCreationFee: %w", err)
 	}
 	return event, nil
 }
@@ -282,23 +306,6 @@ func ParseEvent_EvtCreateConfigV2(eventData []byte) (*EvtCreateConfigV2, error) 
 	err = event.UnmarshalWithDecoder(decoder)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal event of type EvtCreateConfigV2: %w", err)
-	}
-	return event, nil
-}
-
-func ParseEvent_EvtCreateDammV2MigrationMetadata(eventData []byte) (*EvtCreateDammV2MigrationMetadata, error) {
-	decoder := binary.NewBorshDecoder(eventData)
-	discriminator, err := decoder.ReadDiscriminator()
-	if err != nil {
-		return nil, fmt.Errorf("failed to peek discriminator: %w", err)
-	}
-	if discriminator != Event_EvtCreateDammV2MigrationMetadata {
-		return nil, fmt.Errorf("expected discriminator %v, got %s", Event_EvtCreateDammV2MigrationMetadata, binary.FormatDiscriminator(discriminator))
-	}
-	event := new(EvtCreateDammV2MigrationMetadata)
-	err = event.UnmarshalWithDecoder(decoder)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal event of type EvtCreateDammV2MigrationMetadata: %w", err)
 	}
 	return event, nil
 }
@@ -452,6 +459,23 @@ func ParseEvent_EvtSwap(eventData []byte) (*EvtSwap, error) {
 	err = event.UnmarshalWithDecoder(decoder)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal event of type EvtSwap: %w", err)
+	}
+	return event, nil
+}
+
+func ParseEvent_EvtSwap2(eventData []byte) (*EvtSwap2, error) {
+	decoder := binary.NewBorshDecoder(eventData)
+	discriminator, err := decoder.ReadDiscriminator()
+	if err != nil {
+		return nil, fmt.Errorf("failed to peek discriminator: %w", err)
+	}
+	if discriminator != Event_EvtSwap2 {
+		return nil, fmt.Errorf("expected discriminator %v, got %s", Event_EvtSwap2, binary.FormatDiscriminator(discriminator))
+	}
+	event := new(EvtSwap2)
+	err = event.UnmarshalWithDecoder(decoder)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal event of type EvtSwap2: %w", err)
 	}
 	return event, nil
 }
