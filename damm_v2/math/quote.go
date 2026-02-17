@@ -374,7 +374,6 @@ func SwapQuoteExactInput(pool *dammv2gen.Pool, currentPoint, amountIn *big.Int, 
 		actualAmountOut = CalculateTransferFeeExcludedAmount(swapResult.OutputAmount, outputTokenInfo).Amount
 	}
 	minimumAmountOut := getAmountWithSlippage(actualAmountOut, slippage, shared.SwapModeExactIn)
-
 	priceImpact, _ := getPriceImpact(actualAmountIn, actualAmountOut, pool.SqrtPrice.BigInt(), aToB, tokenADecimal, tokenBDecimal)
 	return shared.Quote2Result{SwapResult2: swapResult, MinimumAmountOut: minimumAmountOut, PriceImpact: priceImpact}, nil
 }
@@ -464,11 +463,25 @@ func getPriceImpact(amountIn, amountOut, currentSqrtPrice *big.Int, aToB bool, t
 	if amountOut.Sign() == 0 {
 		return decimal.Zero, errors.New("amount out must be greater than 0")
 	}
-	spotPrice := helpers.GetPriceFromSqrtPrice(currentSqrtPrice, tokenADecimal, tokenBDecimal)
+	spotPrice := getPriceFromSqrtPrice(currentSqrtPrice, tokenADecimal, tokenBDecimal)
 	executionPrice := decimal.NewFromBigInt(amountIn, 0).Div(decimal.NewFromBigInt(amountOut, 0))
 	if aToB {
 		executionPrice = decimal.NewFromInt(1).Div(executionPrice)
 	}
 	priceImpact := executionPrice.Sub(spotPrice).Abs().Div(spotPrice).Mul(decimal.NewFromInt(100))
 	return priceImpact, nil
+}
+
+func getPriceFromSqrtPrice(sqrtPrice *big.Int, tokenADecimal, tokenBDecimal uint8) decimal.Decimal {
+	decSqrt := decimal.NewFromBigInt(sqrtPrice, 0)
+	price := decSqrt.Mul(decSqrt).
+		Mul(decimal.New(1, int32(tokenADecimal-tokenBDecimal))).
+		Div(decimal.NewFromBigInt(
+			new(big.Int).Lsh(
+				decimal.NewFromInt(1).BigInt(),
+				128,
+			),
+			0,
+		))
+	return price
 }

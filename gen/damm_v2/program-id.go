@@ -1,4 +1,4 @@
-package dammv2
+package damm_v2
 
 import solanago "github.com/gagliardetto/solana-go"
 

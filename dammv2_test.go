@@ -247,8 +247,8 @@ func TestClaimDAMMv2(t *testing.T) {
 			CurrentPoint:    currentPoint,
 			InputTokenInfo:  inputTokenInfo,
 			OutputTokenInfo: outputTokenInfo,
-			TokenADecimal:   dammv2.TokenDecimalNine,
-			TokenBDecimal:   dammv2.TokenDecimalNine,
+			TokenADecimal:   9,
+			TokenBDecimal:   9,
 			// HasReferral     bool
 		})
 		if err != nil {
@@ -295,8 +295,8 @@ func TestClaimDAMMv2(t *testing.T) {
 			CurrentPoint:    currentPoint,
 			InputTokenInfo:  inputTokenInfo,
 			OutputTokenInfo: outputTokenInfo,
-			TokenADecimal:   dammv2.TokenDecimalNine,
-			TokenBDecimal:   dammv2.TokenDecimalNine,
+			TokenADecimal:   9,
+			TokenBDecimal:   9,
 			// HasReferral     bool
 			SwapMode: dammv2.SwapModeExactIn,
 			AmountIn: new(big.Int).SetUint64(balance - balance/3),

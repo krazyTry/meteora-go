@@ -6,7 +6,6 @@ import (
 	"math/big"
 
 	solanago "github.com/gagliardetto/solana-go"
-	"github.com/gagliardetto/solana-go/programs/system"
 
 	"github.com/krazyTry/meteora-go/damm_v2/helpers"
 	"github.com/krazyTry/meteora-go/damm_v2/math"
@@ -215,7 +214,7 @@ func (c *CpAmm) CreatePool(ctx context.Context, params CreatePoolParams) (TxBuil
 		params.TokenAProgram,
 		params.TokenBProgram,
 		solanago.Token2022ProgramID,
-		system.ProgramID,
+		solanago.SystemProgramID,
 		c.EventAuthority,
 		dammv2gen.ProgramID,
 	)
@@ -307,7 +306,7 @@ func (c *CpAmm) CreateCustomPool(ctx context.Context, params InitializeCustomize
 		params.TokenAProgram,
 		params.TokenBProgram,
 		solanago.Token2022ProgramID,
-		system.ProgramID,
+		solanago.SystemProgramID,
 		c.EventAuthority,
 		dammv2gen.ProgramID,
 	)
@@ -393,7 +392,7 @@ func (c *CpAmm) CreateCustomPoolWithDynamicConfig(ctx context.Context, params In
 		params.TokenAProgram,
 		params.TokenBProgram,
 		solanago.Token2022ProgramID,
-		system.ProgramID,
+		solanago.SystemProgramID,
 		c.EventAuthority,
 		dammv2gen.ProgramID,
 	)
@@ -439,9 +438,8 @@ func (c *CpAmm) CreatePosition(ctx context.Context, params CreatePositionParams)
 
 // AddLiquidity builds a transaction to add liquidity.
 func (c *CpAmm) AddLiquidity(ctx context.Context, params AddLiquidityParams) (TxBuilder, error) {
-
-	tokenAProgram := helpers.GetTokenProgram(helpers.TokenType(params.PoolState.TokenAFlag))
-	tokenBProgram := helpers.GetTokenProgram(helpers.TokenType(params.PoolState.TokenBFlag))
+	tokenAProgram := helpers.GetTokenProgram(params.PoolState.TokenAFlag)
+	tokenBProgram := helpers.GetTokenProgram(params.PoolState.TokenBFlag)
 
 	tokenAAccount, tokenBAccount, preIxs, err := c.prepareTokenAccounts(ctx, PrepareTokenAccountParams{
 		Payer:         params.Owner,
@@ -575,8 +573,8 @@ func (c *CpAmm) CreatePositionAndAddLiquidity(ctx context.Context, params Create
 
 // RemoveLiquidity builds a transaction to remove liquidity.
 func (c *CpAmm) RemoveLiquidity(ctx context.Context, params RemoveLiquidityParams) (TxBuilder, error) {
-	tokenAProgram := helpers.GetTokenProgram(helpers.TokenType(params.PoolState.TokenAFlag))
-	tokenBProgram := helpers.GetTokenProgram(helpers.TokenType(params.PoolState.TokenBFlag))
+	tokenAProgram := helpers.GetTokenProgram(params.PoolState.TokenAFlag)
+	tokenBProgram := helpers.GetTokenProgram(params.PoolState.TokenBFlag)
 	tokenAAccount, tokenBAccount, preIxs, err := c.prepareTokenAccounts(ctx, PrepareTokenAccountParams{
 		Payer:         params.Owner,
 		TokenAOwner:   params.Owner,
@@ -652,8 +650,9 @@ func (c *CpAmm) RemoveLiquidity(ctx context.Context, params RemoveLiquidityParam
 
 // RemoveAllLiquidity builds a transaction to remove all liquidity.
 func (c *CpAmm) RemoveAllLiquidity(ctx context.Context, params RemoveAllLiquidityParams) (TxBuilder, error) {
-	tokenAProgram := helpers.GetTokenProgram(helpers.TokenType(params.PoolState.TokenAFlag))
-	tokenBProgram := helpers.GetTokenProgram(helpers.TokenType(params.PoolState.TokenBFlag))
+	tokenAProgram := helpers.GetTokenProgram(params.PoolState.TokenAFlag)
+	tokenBProgram := helpers.GetTokenProgram(params.PoolState.TokenBFlag)
+
 	tokenAAccount, tokenBAccount, preIxs, err := c.prepareTokenAccounts(ctx, PrepareTokenAccountParams{
 		Payer:         params.Owner,
 		TokenAOwner:   params.Owner,
@@ -723,8 +722,8 @@ func (c *CpAmm) RemoveAllLiquidity(ctx context.Context, params RemoveAllLiquidit
 
 // Swap builds a swap transaction (exact in).
 func (c *CpAmm) Swap(ctx context.Context, params SwapParams) (TxBuilder, error) {
-	tokenAProgram := helpers.GetTokenProgram(helpers.TokenType(params.PoolState.TokenAFlag))
-	tokenBProgram := helpers.GetTokenProgram(helpers.TokenType(params.PoolState.TokenBFlag))
+	tokenAProgram := helpers.GetTokenProgram(params.PoolState.TokenAFlag)
+	tokenBProgram := helpers.GetTokenProgram(params.PoolState.TokenBFlag)
 
 	inputTokenProgram := tokenAProgram
 	outputTokenProgram := tokenBProgram
@@ -833,11 +832,12 @@ func (c *CpAmm) Swap(ctx context.Context, params SwapParams) (TxBuilder, error) 
 
 // Swap2 builds a swap transaction with swap modes.
 func (c *CpAmm) Swap2(ctx context.Context, params Swap2Params) (TxBuilder, error) {
-	tokenAProgram := helpers.GetTokenProgram(helpers.TokenType(params.PoolState.TokenAFlag))
-	tokenBProgram := helpers.GetTokenProgram(helpers.TokenType(params.PoolState.TokenBFlag))
+	tokenAProgram := helpers.GetTokenProgram(params.PoolState.TokenAFlag)
+	tokenBProgram := helpers.GetTokenProgram(params.PoolState.TokenBFlag)
 
 	inputTokenProgram := tokenAProgram
 	outputTokenProgram := tokenBProgram
+
 	if !params.InputTokenMint.Equals(params.PoolState.TokenAMint) {
 		inputTokenProgram, outputTokenProgram = tokenBProgram, tokenAProgram
 	}
@@ -996,11 +996,11 @@ func (c *CpAmm) LockPosition(ctx context.Context, params LockPositionParams) (Tx
 		vestingParams,
 		params.Pool,
 		params.Position,
-		*params.VestingAccount,
+		optionalPubkey(params.VestingAccount),
 		params.PositionNftAccount,
 		params.Owner,
 		params.Payer,
-		system.ProgramID,
+		solanago.SystemProgramID,
 		c.EventAuthority,
 		dammv2gen.ProgramID,
 	)
@@ -1069,8 +1069,8 @@ func (c *CpAmm) RemoveAllLiquidityAndClosePosition(ctx context.Context, params R
 	pool := params.PositionState.Pool
 	tokenAMint := params.PoolState.TokenAMint
 	tokenBMint := params.PoolState.TokenBMint
-	tokenAProgram := helpers.GetTokenProgram(helpers.TokenType(params.PoolState.TokenAFlag))
-	tokenBProgram := helpers.GetTokenProgram(helpers.TokenType(params.PoolState.TokenBFlag))
+	tokenAProgram := helpers.GetTokenProgram(params.PoolState.TokenAFlag)
+	tokenBProgram := helpers.GetTokenProgram(params.PoolState.TokenBFlag)
 	tokenAAccount, tokenBAccount, preIxs, err := c.prepareTokenAccounts(ctx, PrepareTokenAccountParams{
 		Payer:         params.Owner,
 		TokenAOwner:   params.Owner,
@@ -1141,8 +1141,8 @@ func (c *CpAmm) MergePosition(ctx context.Context, params MergePositionParams) (
 	tokenBMint := params.PoolState.TokenBMint
 	tokenAVault := params.PoolState.TokenAVault
 	tokenBVault := params.PoolState.TokenBVault
-	tokenAProgram := helpers.GetTokenProgram(helpers.TokenType(params.PoolState.TokenAFlag))
-	tokenBProgram := helpers.GetTokenProgram(helpers.TokenType(params.PoolState.TokenBFlag))
+	tokenAProgram := helpers.GetTokenProgram(params.PoolState.TokenAFlag)
+	tokenBProgram := helpers.GetTokenProgram(params.PoolState.TokenBFlag)
 	tokenAAccount, tokenBAccount, preIxs, err := c.prepareTokenAccounts(ctx, PrepareTokenAccountParams{
 		Payer:         params.Owner,
 		TokenAOwner:   params.Owner,
@@ -1301,7 +1301,6 @@ func (c *CpAmm) InitializeAndFundReward(ctx context.Context, params InitializeAn
 	if operatorInfo != nil && operatorInfo.Value != nil {
 		remaining = append(remaining, solanago.NewAccountMeta(operator, false, false))
 	}
-
 	initIx, err := dammv2gen.NewInitializeRewardInstruction(
 		params.RewardIndex,
 		toU64(params.RewardDuration),
@@ -1442,7 +1441,7 @@ func (c *CpAmm) WithdrawIneligibleReward(ctx context.Context, params WithdrawIne
 		return nil, err
 	}
 	rewardInfo := poolState.RewardInfos[int(params.RewardIndex)]
-	tokenProgram := helpers.GetTokenProgram(helpers.TokenType(rewardInfo.RewardTokenFlag))
+	tokenProgram := helpers.GetTokenProgram(rewardInfo.RewardTokenFlag)
 	preIxs := []solanago.Instruction{}
 	postIxs := []solanago.Instruction{}
 	funderTokenAccount, createIx, err := helpers.GetOrCreateATAInstruction(ctx, c.Client, rewardInfo.Mint, params.Funder, params.Funder, tokenProgram)
@@ -1490,8 +1489,8 @@ func (c *CpAmm) ClaimPartnerFee(ctx context.Context, params ClaimPartnerFeeParam
 	if err != nil {
 		return nil, err
 	}
-	tokenAProgram := helpers.GetTokenProgram(helpers.TokenType(poolState.TokenAFlag))
-	tokenBProgram := helpers.GetTokenProgram(helpers.TokenType(poolState.TokenBFlag))
+	tokenAProgram := helpers.GetTokenProgram(poolState.TokenAFlag)
+	tokenBProgram := helpers.GetTokenProgram(poolState.TokenBFlag)
 	payer := params.Partner
 	if params.FeePayer != nil {
 		payer = *params.FeePayer
@@ -1550,8 +1549,8 @@ func (c *CpAmm) ClaimPositionFee(ctx context.Context, params ClaimPositionFeePar
 	if params.FeePayer != nil {
 		payer = *params.FeePayer
 	}
-	tokenAProgram := helpers.GetTokenProgram(helpers.TokenType(params.PoolState.TokenAFlag))
-	tokenBProgram := helpers.GetTokenProgram(helpers.TokenType(params.PoolState.TokenBFlag))
+	tokenAProgram := helpers.GetTokenProgram(params.PoolState.TokenAFlag)
+	tokenBProgram := helpers.GetTokenProgram(params.PoolState.TokenBFlag)
 	tokenAAccount, tokenBAccount, preIxs, postIxs, err := c.setupFeeClaimAccounts(ctx, SetupFeeClaimAccountsParams{
 		Payer:           payer,
 		Owner:           params.Owner,
@@ -1603,8 +1602,8 @@ func (c *CpAmm) ClaimPositionFee2(ctx context.Context, params ClaimPositionFeePa
 	if params.PoolState.TokenBMint.Equals(helpers.NativeMint) {
 		tokenBOwner = params.Owner
 	}
-	tokenAProgram := helpers.GetTokenProgram(helpers.TokenType(params.PoolState.TokenAFlag))
-	tokenBProgram := helpers.GetTokenProgram(helpers.TokenType(params.PoolState.TokenBFlag))
+	tokenAProgram := helpers.GetTokenProgram(params.PoolState.TokenAFlag)
+	tokenBProgram := helpers.GetTokenProgram(params.PoolState.TokenBFlag)
 	tokenAAccount, tokenBAccount, preIxs, err := c.prepareTokenAccounts(ctx, PrepareTokenAccountParams{
 		Payer:         payer,
 		TokenAOwner:   tokenAOwner,
@@ -1651,7 +1650,7 @@ func (c *CpAmm) ClaimPositionFee2(ctx context.Context, params ClaimPositionFeePa
 // ClaimReward builds a transaction to claim reward.
 func (c *CpAmm) ClaimReward(ctx context.Context, params ClaimRewardParams) (TxBuilder, error) {
 	rewardInfo := params.PoolState.RewardInfos[int(params.RewardIndex)]
-	tokenProgram := helpers.GetTokenProgram(helpers.TokenType(rewardInfo.RewardTokenFlag))
+	tokenProgram := helpers.GetTokenProgram(rewardInfo.RewardTokenFlag)
 	preIxs := []solanago.Instruction{}
 	postIxs := []solanago.Instruction{}
 	payer := params.User

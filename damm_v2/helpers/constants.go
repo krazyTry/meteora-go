@@ -1,11 +1,8 @@
 package helpers
 
-import (
-	"math/big"
-)
+import "math/big"
 
 const (
-
 	// AccountKeyClaimFeeOperator is the account key for claim fee operator accounts
 	AccountKeyClaimFeeOperator = "ClaimFeeOperator"
 	// AccountKeyConfig is the account key for configuration accounts
@@ -39,6 +36,9 @@ const (
 	DynamicFeeReductionFactorDefault = 5000
 	BinStepBpsDefault                = 1
 	MaxPriceChangeBpsDefault         = 1500
+
+	MinCuBuffer = 50_000
+	MaxCuBuffer = 200_000
 
 	PoolStatusEnable        = 0
 	ActivationTypeSlot      = 0

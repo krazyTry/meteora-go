@@ -15,8 +15,8 @@ import (
 // NativeMint is the wrapped SOL mint.
 var NativeMint = solanago.WrappedSol
 
-func GetTokenProgram(tokenType TokenType) solanago.PublicKey {
-	if tokenType == TokenTypeSPL {
+func GetTokenProgram(flag uint8) solanago.PublicKey {
+	if flag == 0 {
 		return token.ProgramID
 	}
 	return solanago.Token2022ProgramID

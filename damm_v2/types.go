@@ -22,15 +22,6 @@ const (
 	RoundingDown = shared.RoundingDown
 )
 
-type TokenDecimal = helpers.TokenDecimal
-
-const (
-	TokenDecimalSix   = helpers.TokenDecimalSix
-	TokenDecimalSeven = helpers.TokenDecimalSeven
-	TokenDecimalEight = helpers.TokenDecimalEight
-	TokenDecimalNine  = helpers.TokenDecimalNine
-)
-
 type ActivationPoint uint8
 
 const (
@@ -600,7 +591,7 @@ type ClaimRewardParams struct {
 	User               solanago.PublicKey
 	Position           solanago.PublicKey
 	Pool               solanago.PublicKey
-	PoolState          PoolState
+	PoolState          *PoolState
 	PositionNftAccount solanago.PublicKey
 	RewardIndex        uint8
 	IsSkipReward       bool
@@ -617,7 +608,7 @@ type RefreshVestingParams struct {
 
 type VestingWithAccount struct {
 	Account      solanago.PublicKey
-	VestingState VestingState
+	VestingState *VestingState
 }
 
 type PermanentLockParams struct {

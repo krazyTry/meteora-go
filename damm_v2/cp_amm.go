@@ -110,8 +110,8 @@ func (c *CpAmm) buildRemoveAllLiquidityInstruction(params BuildRemoveAllLiquidit
 
 // buildClaimPositionFeeInstruction builds claim position fee instruction.
 func (c *CpAmm) buildClaimPositionFeeInstruction(params ClaimPositionFeeInstructionParams) (solanago.Instruction, error) {
-	tokenAProgram := helpers.GetTokenProgram(helpers.TokenType(params.PoolState.TokenAFlag))
-	tokenBProgram := helpers.GetTokenProgram(helpers.TokenType(params.PoolState.TokenBFlag))
+	tokenAProgram := helpers.GetTokenProgram(params.PoolState.TokenAFlag)
+	tokenBProgram := helpers.GetTokenProgram(params.PoolState.TokenBFlag)
 	return dammv2gen.NewClaimPositionFeeInstruction(
 		params.PoolAuthority,
 		params.Pool,
@@ -177,8 +177,8 @@ func (c *CpAmm) buildLiquidatePositionInstruction(params BuildLiquidatePositionI
 	tokenAVault := poolState.TokenAVault
 	tokenBVault := poolState.TokenBVault
 
-	tokenAProgram := helpers.GetTokenProgram(helpers.TokenType(poolState.TokenAFlag))
-	tokenBProgram := helpers.GetTokenProgram(helpers.TokenType(poolState.TokenBFlag))
+	tokenAProgram := helpers.GetTokenProgram(poolState.TokenAFlag)
+	tokenBProgram := helpers.GetTokenProgram(poolState.TokenBFlag)
 
 	var instructions []solanago.Instruction
 
@@ -392,7 +392,6 @@ func (c *CpAmm) FetchPoolState(ctx context.Context, pool solanago.PublicKey) (*P
 }
 
 func (c *CpAmm) FetchPoolStatesByTokenAMint(ctx context.Context, tokenAMint solanago.PublicKey) ([]AccountWithPool, error) {
-	// filters := helpers.OffsetBasedFilter(tokenAMint, 168)
 	filters := helpers.CreateProgramAccountFilter(helpers.AccountKeyPool, &helpers.Filter{
 		Owner:  tokenAMint,
 		Offset: helpers.ComputeStructOffset(new(dammv2gen.Pool), "TokenAMint"),
@@ -436,28 +435,28 @@ func (c *CpAmm) FetchPoolFees(ctx context.Context, pool solanago.PublicKey) (Dec
 	}
 }
 
-func (c *CpAmm) FetchPositionState(ctx context.Context, position solanago.PublicKey) (PositionState, error) {
+func (c *CpAmm) FetchPositionState(ctx context.Context, position solanago.PublicKey) (*PositionState, error) {
 	acc, err := c.Client.GetAccountInfoWithOpts(ctx, position, &rpc.GetAccountInfoOpts{Commitment: c.Commitment})
 	if err != nil || acc == nil || acc.Value == nil {
-		return PositionState{}, fmt.Errorf("position account %s not found", position.String())
+		return nil, fmt.Errorf("position account %s not found", position.String())
 	}
 	parsed, err := dammv2gen.ParseAnyAccount(acc.Value.Data.GetBinary())
 	if err != nil {
-		return PositionState{}, err
+		return nil, err
 	}
 	pos, ok := parsed.(*dammv2gen.Position)
 	if !ok {
-		return PositionState{}, errors.New("invalid position account")
+		return nil, errors.New("invalid position account")
 	}
-	return *pos, nil
+	return pos, nil
 }
 
-func (c *CpAmm) GetMultipleConfigs(ctx context.Context, configs []solanago.PublicKey) ([]ConfigState, error) {
+func (c *CpAmm) GetMultipleConfigs(ctx context.Context, configs []solanago.PublicKey) ([]*ConfigState, error) {
 	accs, err := c.Client.GetMultipleAccountsWithOpts(ctx, configs, &rpc.GetMultipleAccountsOpts{Commitment: c.Commitment})
 	if err != nil {
 		return nil, err
 	}
-	out := make([]ConfigState, 0, len(configs))
+	out := make([]*ConfigState, 0, len(configs))
 	for i, acc := range accs.Value {
 		if acc == nil {
 			return nil, fmt.Errorf("config account %s not found", configs[i].String())
@@ -470,7 +469,7 @@ func (c *CpAmm) GetMultipleConfigs(ctx context.Context, configs []solanago.Publi
 		if !ok {
 			return nil, errors.New("invalid config account")
 		}
-		out = append(out, *cfg)
+		out = append(out, cfg)
 	}
 	return out, nil
 }
@@ -534,7 +533,7 @@ func (c *CpAmm) GetAllConfigs(ctx context.Context) ([]AccountWithConfig, error) 
 			continue
 		}
 		if cfg, ok := parsed.(*dammv2gen.Config); ok {
-			out = append(out, AccountWithConfig{PublicKey: acc.Pubkey, Account: *cfg})
+			out = append(out, AccountWithConfig{PublicKey: acc.Pubkey, Account: cfg})
 		}
 	}
 	return out, nil
@@ -572,7 +571,7 @@ func (c *CpAmm) GetAllPositions(ctx context.Context) ([]AccountWithPosition, err
 			continue
 		}
 		if pos, ok := parsed.(*dammv2gen.Position); ok {
-			out = append(out, AccountWithPosition{PublicKey: acc.Pubkey, Account: *pos})
+			out = append(out, AccountWithPosition{PublicKey: acc.Pubkey, Account: pos})
 		}
 	}
 	return out, nil
@@ -583,7 +582,7 @@ func (c *CpAmm) GetAllPositionsByPool(ctx context.Context, pool solanago.PublicK
 		Owner:  pool,
 		Offset: helpers.ComputeStructOffset(new(dammv2gen.Position), "Pool"),
 	})
-	accs, err := c.Client.GetProgramAccountsWithOpts(ctx, dammv2gen.ProgramID, &rpc.GetProgramAccountsOpts{Commitment: c.Commitment, Filters: filters})
+	accs, err := c.Client.GetProgramAccountsWithOpts(ctx, dammv2gen.ProgramID, &rpc.GetProgramAccountsOpts{Filters: filters, Commitment: c.Commitment})
 	if err != nil {
 		return nil, err
 	}
@@ -594,7 +593,7 @@ func (c *CpAmm) GetAllPositionsByPool(ctx context.Context, pool solanago.PublicK
 			continue
 		}
 		if pos, ok := parsed.(*dammv2gen.Position); ok {
-			out = append(out, AccountWithPosition{PublicKey: acc.Pubkey, Account: *pos})
+			out = append(out, AccountWithPosition{PublicKey: acc.Pubkey, Account: pos})
 		}
 	}
 	return out, nil
@@ -659,24 +658,24 @@ func (c *CpAmm) GetAllVestingsByPosition(ctx context.Context, position solanago.
 			continue
 		}
 		if v, ok := parsed.(*dammv2gen.Vesting); ok {
-			out = append(out, VestingWithAccount{Account: acc.Pubkey, VestingState: *v})
+			out = append(out, VestingWithAccount{Account: acc.Pubkey, VestingState: v})
 		}
 	}
 	return out, nil
 }
 
-func (c *CpAmm) IsLockedPosition(position PositionState) bool {
+func (c *CpAmm) isLockedPosition(position *PositionState) bool {
 	totalLocked := new(big.Int).Add(position.VestedLiquidity.BigInt(), position.PermanentLockedLiquidity.BigInt())
 	return totalLocked.Sign() > 0
 }
 
-func (c *CpAmm) IsPermanentLockedPosition(position *PositionState) bool {
+func (c *CpAmm) isPermanentLockedPosition(position *PositionState) bool {
 	return position.PermanentLockedLiquidity.BigInt().Sign() > 0
 }
 
 func (c *CpAmm) canUnlockPosition(position *PositionState, vestings []VestingWithAccount, currentPoint *big.Int) (bool, string) {
 	if len(vestings) > 0 {
-		if c.IsPermanentLockedPosition(position) {
+		if c.isPermanentLockedPosition(position) {
 			return false, "Position is permanently locked"
 		}
 		for _, v := range vestings {
@@ -715,7 +714,7 @@ type PreparedCreatePoolInternal struct {
 
 type AccountWithConfig struct {
 	PublicKey solanago.PublicKey
-	Account   dammv2gen.Config
+	Account   *dammv2gen.Config
 }
 
 type AccountWithPool struct {
@@ -725,7 +724,7 @@ type AccountWithPool struct {
 
 type AccountWithPosition struct {
 	PublicKey solanago.PublicKey
-	Account   dammv2gen.Position
+	Account   *dammv2gen.Position
 }
 
 type UserPosition struct {

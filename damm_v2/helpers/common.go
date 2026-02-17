@@ -230,21 +230,15 @@ func GetAmountWithSlippage(amount *big.Int, slippageBps uint16, swapMode uint8) 
 
 func GetPriceFromSqrtPrice(sqrtPrice *big.Int, tokenADecimal, tokenBDecimal uint8) decimal.Decimal {
 	decSqrt := decimal.NewFromBigInt(sqrtPrice, 0)
-
-	price := decSqrt.Mul(decSqrt)
-	expDiff := int32(tokenADecimal - tokenBDecimal)
-	if expDiff != 0 {
-		power := decimal.New(1, int32(expDiff)) // 10^expDiff
-		price = price.Mul(power)
-	}
-
-	price = price.Div(decimal.NewFromBigInt(
-		new(big.Int).Lsh(
-			decimal.NewFromInt(1).BigInt(),
-			128,
-		),
-		0,
-	))
+	price := decSqrt.Mul(decSqrt).
+		Mul(decimal.New(1, int32(tokenADecimal-tokenBDecimal))).
+		Div(decimal.NewFromBigInt(
+			new(big.Int).Lsh(
+				decimal.NewFromInt(1).BigInt(),
+				128,
+			),
+			0,
+		))
 	return price
 }
 

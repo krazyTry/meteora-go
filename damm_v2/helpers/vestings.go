@@ -6,7 +6,7 @@ import (
 	dammv2gen "github.com/krazyTry/meteora-go/gen/damm_v2"
 )
 
-func IsVestingComplete(vestingData dammv2gen.Vesting, currentPoint *big.Int) bool {
+func IsVestingComplete(vestingData *dammv2gen.Vesting, currentPoint *big.Int) bool {
 	cliffPoint := big.NewInt(int64(vestingData.InnerVesting.CliffPoint))
 	periodFrequency := big.NewInt(int64(vestingData.InnerVesting.PeriodFrequency))
 	numberOfPeriods := vestingData.InnerVesting.NumberOfPeriod
@@ -16,13 +16,13 @@ func IsVestingComplete(vestingData dammv2gen.Vesting, currentPoint *big.Int) boo
 	return currentPoint.Cmp(endPoint) >= 0
 }
 
-func GetTotalLockedLiquidity(vestingData dammv2gen.Vesting) *big.Int {
+func GetTotalLockedLiquidity(vestingData *dammv2gen.Vesting) *big.Int {
 	cliffUnlockLiquidity := vestingData.InnerVesting.CliffUnlockLiquidity.BigInt()
 	liquidityPerPeriod := vestingData.InnerVesting.LiquidityPerPeriod.BigInt()
 	return new(big.Int).Add(cliffUnlockLiquidity, new(big.Int).Mul(liquidityPerPeriod, big.NewInt(int64(vestingData.InnerVesting.NumberOfPeriod))))
 }
 
-func GetAvailableVestingLiquidity(vestingData dammv2gen.Vesting, currentPoint *big.Int) *big.Int {
+func GetAvailableVestingLiquidity(vestingData *dammv2gen.Vesting, currentPoint *big.Int) *big.Int {
 	cliffPoint := big.NewInt(int64(vestingData.InnerVesting.CliffPoint))
 	periodFrequency := big.NewInt(int64(vestingData.InnerVesting.PeriodFrequency))
 	cliffUnlockLiquidity := vestingData.InnerVesting.CliffUnlockLiquidity.BigInt()
