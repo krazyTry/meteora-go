@@ -10,7 +10,6 @@ import (
 type TokenInfo struct {
 	Owner           solanago.PublicKey
 	Mint            solanago.PublicKey
-	CurrentEpoch    uint64
 	Decimals        uint8
 	BasisPoints     uint16
 	MaximumFee      *big.Int

@@ -8,6 +8,7 @@ import (
 	solanago "github.com/gagliardetto/solana-go"
 	computebudget "github.com/gagliardetto/solana-go/programs/compute-budget"
 	"github.com/gagliardetto/solana-go/rpc"
+	"github.com/krazyTry/meteora-go/damm_v2/shared"
 )
 
 const defaultSimulationUnits uint32 = 1_400_000
@@ -95,10 +96,10 @@ func GetEstimatedComputeUnitUsageWithBuffer(
 	}
 
 	extra := float64(*estimated) * buf
-	if extra > float64(MaxCuBuffer) {
-		extra = float64(MaxCuBuffer)
-	} else if extra < float64(MinCuBuffer) {
-		extra = float64(MinCuBuffer)
+	if extra > float64(shared.MaxCuBuffer) {
+		extra = float64(shared.MaxCuBuffer)
+	} else if extra < float64(shared.MinCuBuffer) {
+		extra = float64(shared.MinCuBuffer)
 	}
 
 	return uint64(float64(*estimated) + extra), nil

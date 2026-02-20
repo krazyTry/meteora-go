@@ -3,6 +3,7 @@ package shared
 import (
 	"math/big"
 
+	"github.com/gagliardetto/solana-go"
 	dbcidl "github.com/krazyTry/meteora-go/gen/dynamic_bonding_curve"
 )
 
@@ -53,6 +54,58 @@ const (
 	MaxMigratedPoolFeeBps = 1000
 )
 
+var (
+	OneQ64 = new(big.Int).Lsh(big.NewInt(1), Resolution)
+
+	U64Max  = new(big.Int).SetUint64(^uint64(0))
+	U128Max = bigIntFromString("340282366920938463463374607431768211455")
+
+	MinSqrtPrice = bigIntFromString("4295048016")
+	MaxSqrtPrice = bigIntFromString("79226673521066979257578248091")
+
+	DynamicFeeScalingFactor  = bigIntFromString("100000000000")
+	DynamicFeeRoundingOffset = bigIntFromString("99999999999")
+
+	BinStepBpsU128Default = bigIntFromString("1844674407370955")
+)
+
+func bigIntFromString(v string) *big.Int {
+	out, ok := new(big.Int).SetString(v, 10)
+	if !ok {
+		panic("invalid big integer literal")
+	}
+	return out
+}
+
+// IDL type aliases.
+type ConfigParameters = dbcidl.ConfigParameters
+type LockedVestingParameters = dbcidl.LockedVestingParams
+type InitializePoolParameters = dbcidl.InitializePoolParameters
+type PoolFeeParameters = dbcidl.PoolFeeParameters
+type DynamicFeeParameters = dbcidl.DynamicFeeParameters
+type LiquidityDistributionParameters = dbcidl.LiquidityDistributionParameters
+type MigratedPoolMarketCapFeeSchedulerParameters = dbcidl.MigratedPoolMarketCapFeeSchedulerParams
+type LiquidityVestingInfoParameters = dbcidl.LiquidityVestingInfoParams
+type CreatePartnerMetadataParameters = dbcidl.CreatePartnerMetadataParameters
+type CreateVirtualPoolMetadataParameters = dbcidl.CreateVirtualPoolMetadataParameters
+type PoolFeesConfig = dbcidl.PoolFeesConfig
+type BaseFeeConfig = dbcidl.BaseFeeConfig
+type BaseFeeParameters = dbcidl.BaseFeeParameters
+type DynamicFeeConfig = dbcidl.DynamicFeeConfig
+type MigratedPoolFee = dbcidl.MigratedPoolFee
+type MigrationFee = dbcidl.MigrationFee
+type TokenSupplyParams = dbcidl.TokenSupplyParams
+type VolatilityTracker = dbcidl.VolatilityTracker
+
+// IDL accounts.
+type PoolConfig = dbcidl.PoolConfig
+type VirtualPool = dbcidl.VirtualPool
+type MeteoraDammMigrationMetadata = dbcidl.MeteoraDammMigrationMetadata
+type LockEscrow = dbcidl.LockEscrow
+type PartnerMetadata = dbcidl.PartnerMetadata
+type VirtualPoolMetadata = dbcidl.VirtualPoolMetadata
+
+// Enums.
 type ActivationType uint8
 
 const (
@@ -159,27 +212,166 @@ const (
 	SwapModeExactOut    SwapMode = 2
 )
 
-var (
-	OneQ64 = new(big.Int).Lsh(big.NewInt(1), Resolution)
+// MigrationProgress defines the migration progress states
+type MigrationProgress uint8
 
-	U64Max  = new(big.Int).SetUint64(^uint64(0))
-	U128Max = bigIntFromString("340282366920938463463374607431768211455")
-
-	MinSqrtPrice = bigIntFromString("4295048016")
-	MaxSqrtPrice = bigIntFromString("79226673521066979257578248091")
-
-	DynamicFeeScalingFactor  = bigIntFromString("100000000000")
-	DynamicFeeRoundingOffset = bigIntFromString("99999999999")
-
-	BinStepBpsU128Default = bigIntFromString("1844674407370955")
+const (
+	MigrationProgressPreBondingCurve MigrationProgress = iota
+	MigrationProgressPostBondingCurve
+	MigrationProgressLockedVesting
+	MigrationProgressCreatedPool
 )
 
-func bigIntFromString(v string) *big.Int {
-	out, ok := new(big.Int).SetString(v, 10)
-	if !ok {
-		panic("invalid big integer literal")
+// IsMigrated defines the migration status
+type IsMigrated uint8
+
+const (
+	IsMigratedProcess IsMigrated = iota
+	IsMigratedCompleted
+)
+
+// WithdrawMigrationFeeFlag defines the migration fee withdrawal flags
+type WithdrawMigrationFeeFlag uint8
+
+const (
+	PartnerWithdrawMigrationFeeFlag WithdrawMigrationFeeFlag = iota
+	CreatorWithdrawMigrationFeeFlag
+)
+
+type MigrationFeeWithdrawStatus uint8
+
+func (m MigrationFeeWithdrawStatus) IsPartnerWithdraw() uint8 {
+	partnerMask := uint8(1) << 0 // 0x01
+	return uint8(m) & partnerMask
+}
+
+func (m MigrationFeeWithdrawStatus) IsCreatorWithdraw() uint8 {
+	creatorMask := uint8(1) << 1 // 0x01
+	return uint8(m) & creatorMask
+}
+
+// Param/DTO structs mirroring TS types.
+type CreateConfigParams struct {
+	ConfigParameters
+	Config           solana.PublicKey
+	FeeClaimer       solana.PublicKey
+	LeftoverReceiver solana.PublicKey
+	QuoteMint        solana.PublicKey
+	Payer            solana.PublicKey
+}
+
+type FeeSchedulerParams struct {
+	StartingFeeBps uint16
+	EndingFeeBps   uint16
+	NumberOfPeriod uint64
+	TotalDuration  uint64
+}
+
+type RateLimiterParams struct {
+	BaseFeeBps         uint16
+	FeeIncrementBps    uint16
+	ReferenceAmount    uint64
+	MaxLimiterDuration uint64
+}
+
+type BaseFeeParams struct {
+	BaseFeeMode       BaseFeeMode
+	FeeSchedulerParam *FeeSchedulerParams
+	RateLimiterParam  *RateLimiterParams
+}
+
+type LockedVestingParams struct {
+	TotalLockedVestingAmount       uint64
+	NumberOfVestingPeriod          uint64
+	CliffUnlockAmount              uint64
+	TotalVestingDuration           uint64
+	CliffDurationFromMigrationTime uint64
+}
+
+type BuildCurveBaseParams struct {
+	TotalTokenSupply            uint64
+	TokenType                   TokenType
+	TokenBaseDecimal            TokenDecimal
+	TokenQuoteDecimal           TokenDecimal
+	TokenUpdateAuthority        uint8
+	LockedVestingParams         LockedVestingParams
+	Leftover                    uint64
+	BaseFeeParams               BaseFeeParams
+	DynamicFeeEnabled           bool
+	ActivationType              ActivationType
+	CollectFeeMode              CollectFeeMode
+	CreatorTradingFeePercentage uint8
+	PoolCreationFee             uint64
+	MigrationOption             MigrationOption
+	MigrationFeeOption          MigrationFeeOption
+	MigrationFee                struct {
+		FeePercentage        uint8
+		CreatorFeePercentage uint8
 	}
-	return out
+	PartnerPermanentLockedLiquidityPercentage uint8
+	PartnerLiquidityPercentage                uint8
+	CreatorPermanentLockedLiquidityPercentage uint8
+	CreatorLiquidityPercentage                uint8
+	EnableFirstSwapWithMinFee                 bool
+	PartnerLiquidityVestingInfoParams         *LiquidityVestingInfoParams
+	CreatorLiquidityVestingInfoParams         *LiquidityVestingInfoParams
+	MigratedPoolFee                           *struct {
+		CollectFeeMode CollectFeeMode
+		DynamicFee     DammV2DynamicFeeMode
+		PoolFeeBps     uint16
+	}
+	MigratedPoolBaseFeeMode                 *DammV2BaseFeeMode
+	MigratedPoolMarketCapFeeSchedulerParams *MigratedPoolMarketCapFeeSchedulerParams
+}
+
+type BuildCurveParams struct {
+	BuildCurveBaseParams
+	PercentageSupplyOnMigration float64
+	MigrationQuoteThreshold     float64
+}
+
+type BuildCurveWithMarketCapParams struct {
+	BuildCurveBaseParams
+	InitialMarketCap   float64
+	MigrationMarketCap float64
+}
+
+type BuildCurveWithTwoSegmentsParams struct {
+	BuildCurveBaseParams
+	InitialMarketCap            float64
+	MigrationMarketCap          float64
+	PercentageSupplyOnMigration float64
+}
+
+type BuildCurveWithMidPriceParams struct {
+	BuildCurveBaseParams
+	InitialMarketCap            float64
+	MigrationMarketCap          float64
+	MidPrice                    uint64
+	PercentageSupplyOnMigration uint64
+}
+
+type BuildCurveWithLiquidityWeightsParams struct {
+	BuildCurveBaseParams
+	InitialMarketCap   float64
+	MigrationMarketCap float64
+	LiquidityWeights   []float64
+}
+
+type BuildCurveWithCustomSqrtPricesParams struct {
+	BuildCurveBaseParams
+	SqrtPrices       []*big.Int
+	LiquidityWeights []uint64
+}
+
+type LiquidityVestingInfoParams struct {
+	LiquidityVestingInfoParameters
+	TotalDuration uint64
+}
+
+type MigratedPoolMarketCapFeeSchedulerParams struct {
+	MigratedPoolMarketCapFeeSchedulerParameters
+	EndingBaseFeeBps uint16
 }
 
 type SwapResult struct {
@@ -238,30 +430,3 @@ type BaseFeeHandler interface {
 	GetBaseFeeNumeratorFromIncludedFeeAmount(currentPoint, activationPoint *big.Int, tradeDirection TradeDirection, includedFeeAmount *big.Int) *big.Int
 	GetBaseFeeNumeratorFromExcludedFeeAmount(currentPoint, activationPoint *big.Int, tradeDirection TradeDirection, excludedFeeAmount *big.Int) *big.Int
 }
-
-type ConfigParameters = dbcidl.ConfigParameters
-type LockedVestingParameters = dbcidl.LockedVestingParams
-type InitializePoolParameters = dbcidl.InitializePoolParameters
-type PoolFeeParameters = dbcidl.PoolFeeParameters
-type DynamicFeeParameters = dbcidl.DynamicFeeParameters
-type LiquidityDistributionParameters = dbcidl.LiquidityDistributionParameters
-type MigratedPoolMarketCapFeeSchedulerParameters = dbcidl.MigratedPoolMarketCapFeeSchedulerParams
-type LiquidityVestingInfoParameters = dbcidl.LiquidityVestingInfoParams
-type CreatePartnerMetadataParameters = dbcidl.CreatePartnerMetadataParameters
-type CreateVirtualPoolMetadataParameters = dbcidl.CreateVirtualPoolMetadataParameters
-type PoolFeesConfig = dbcidl.PoolFeesConfig
-type BaseFeeConfig = dbcidl.BaseFeeConfig
-type BaseFeeParameters = dbcidl.BaseFeeParameters
-type DynamicFeeConfig = dbcidl.DynamicFeeConfig
-type MigratedPoolFee = dbcidl.MigratedPoolFee
-type MigrationFee = dbcidl.MigrationFee
-type TokenSupplyParams = dbcidl.TokenSupplyParams
-type VolatilityTracker = dbcidl.VolatilityTracker
-
-// IDL accounts.
-type PoolConfig = dbcidl.PoolConfig
-type VirtualPool = dbcidl.VirtualPool
-type MeteoraDammMigrationMetadata = dbcidl.MeteoraDammMigrationMetadata
-type LockEscrow = dbcidl.LockEscrow
-type PartnerMetadata = dbcidl.PartnerMetadata
-type VirtualPoolMetadata = dbcidl.VirtualPoolMetadata

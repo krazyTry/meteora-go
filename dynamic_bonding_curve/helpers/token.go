@@ -10,6 +10,7 @@ import (
 	"github.com/gagliardetto/solana-go/programs/system"
 	"github.com/gagliardetto/solana-go/programs/token"
 	"github.com/gagliardetto/solana-go/rpc"
+	"github.com/krazyTry/meteora-go/dynamic_bonding_curve/shared"
 )
 
 // NativeMint is the wrapped SOL mint.
@@ -91,24 +92,24 @@ func GetTokenDecimals(ctx context.Context, client *rpc.Client, mint solanago.Pub
 	return mintAcc.Decimals, nil
 }
 
-func GetTokenProgram(tokenType TokenType) solanago.PublicKey {
-	if tokenType == TokenTypeSPL {
+func GetTokenProgram(tokenType shared.TokenType) solanago.PublicKey {
+	if tokenType == shared.TokenTypeSPL {
 		return token.ProgramID
 	}
 	return solanago.Token2022ProgramID
 }
 
-func GetTokenType(ctx context.Context, client *rpc.Client, tokenMint solanago.PublicKey) (TokenType, error) {
+func GetTokenType(ctx context.Context, client *rpc.Client, tokenMint solanago.PublicKey) (shared.TokenType, error) {
 	acc, err := client.GetAccountInfo(ctx, tokenMint)
 	if err != nil {
-		return TokenTypeSPL, err
+		return shared.TokenTypeSPL, err
 	}
 	if acc == nil || acc.Value == nil {
-		return TokenTypeSPL, fmt.Errorf("mint not found")
+		return shared.TokenTypeSPL, fmt.Errorf("mint not found")
 	}
 	owner := acc.Value.Owner
 	if owner.Equals(token.ProgramID) {
-		return TokenTypeSPL, nil
+		return shared.TokenTypeSPL, nil
 	}
-	return TokenTypeToken2022, nil
+	return shared.TokenTypeToken2022, nil
 }

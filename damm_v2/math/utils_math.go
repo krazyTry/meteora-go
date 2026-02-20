@@ -79,7 +79,7 @@ func Pow(base, exp *big.Int) *big.Int {
 	squaredBase := new(big.Int).Set(base)
 	result := new(big.Int).Set(shared.OneQ64)
 	if squaredBase.Cmp(result) >= 0 {
-		squaredBase = new(big.Int).Div(shared.MaxU128, squaredBase)
+		squaredBase = new(big.Int).Div(shared.U128Max, squaredBase)
 		invert = !invert
 	}
 
@@ -100,7 +100,7 @@ func Pow(base, exp *big.Int) *big.Int {
 		return big.NewInt(0)
 	}
 	if invert {
-		result = new(big.Int).Div(shared.MaxU128, result)
+		result = new(big.Int).Div(shared.U128Max, result)
 	}
 	return result
 }

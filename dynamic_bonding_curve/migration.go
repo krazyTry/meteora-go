@@ -64,7 +64,7 @@ func (s *MigrationService) CreateLocker(ctx context.Context, params CreateLocker
 		escrowToken,
 		params.Payer,
 		tokenProgram,
-		LockerProgramID,
+		helpers.LockerProgramID,
 		lockerEventAuthority,
 		system.ProgramID,
 	)
@@ -106,7 +106,7 @@ func (s *MigrationService) WithdrawLeftover(ctx context.Context, params Withdraw
 		poolConfigState.LeftoverReceiver,
 		tokenBaseProgram,
 		helpers.DeriveDbcEventAuthority(),
-		DynamicBondingCurveProgramID,
+		helpers.DynamicBondingCurveProgramID,
 	)
 	if err != nil {
 		return nil, nil, nil, err
@@ -124,7 +124,7 @@ func (s *MigrationService) CreateDammV1MigrationMetadata(ctx context.Context, pa
 		params.Payer,
 		system.ProgramID,
 		helpers.DeriveDbcEventAuthority(),
-		DynamicBondingCurveProgramID,
+		helpers.DynamicBondingCurveProgramID,
 	)
 }
 
@@ -149,10 +149,10 @@ func (s *MigrationService) MigrateToDammV1(ctx context.Context, params MigrateTo
 
 	pre = []solanago.Instruction{}
 
-	aVault := helpers.DeriveVaultAddress(poolState.BaseMint, BaseAddress)
+	aVault := helpers.DeriveVaultAddress(poolState.BaseMint, helpers.BaseAddress)
 	aTokenVault := helpers.DeriveTokenVaultKey(aVault)
 	aLpMintPda := helpers.DeriveVaultLpMintAddress(aVault)
-	bVault := helpers.DeriveVaultAddress(poolConfigState.QuoteMint, BaseAddress)
+	bVault := helpers.DeriveVaultAddress(poolConfigState.QuoteMint, helpers.BaseAddress)
 	bTokenVault := helpers.DeriveTokenVaultKey(bVault)
 	bLpMintPda := helpers.DeriveVaultLpMintAddress(bVault)
 
@@ -225,9 +225,9 @@ func (s *MigrationService) MigrateToDammV1(ctx context.Context, params MigrateTo
 		params.Payer,
 		solanago.SysVarRentPubkey,
 		mintMetadata,
-		MetaplexProgramID,
-		DammV1ProgramID,
-		VaultProgramID,
+		helpers.MetaplexProgramID,
+		helpers.DammV1ProgramID,
+		helpers.VaultProgramID,
 		token.ProgramID,
 		solanago.SPLAssociatedTokenAccountProgramID,
 		system.ProgramID,
@@ -258,9 +258,9 @@ func (s *MigrationService) LockDammV1LpToken(ctx context.Context, params DammLpT
 	dammPool := helpers.DeriveDammV1PoolAddress(params.DammConfig, poolState.BaseMint, poolConfigState.QuoteMint)
 	migrationMetadata := helpers.DeriveDammV1MigrationMetadataAddress(params.VirtualPool)
 
-	aVault := helpers.DeriveVaultAddress(poolState.BaseMint, BaseAddress)
+	aVault := helpers.DeriveVaultAddress(poolState.BaseMint, helpers.BaseAddress)
 	aLpMintPda := helpers.DeriveVaultLpMintAddress(aVault)
-	bVault := helpers.DeriveVaultAddress(poolConfigState.QuoteMint, BaseAddress)
+	bVault := helpers.DeriveVaultAddress(poolConfigState.QuoteMint, helpers.BaseAddress)
 	bLpMintPda := helpers.DeriveVaultLpMintAddress(bVault)
 
 	aVaultLpMint := aLpMintPda
@@ -353,7 +353,7 @@ func (s *MigrationService) LockDammV1LpToken(ctx context.Context, params DammLpT
 		owner,
 		sourceTokens,
 		escrowVault,
-		DammV1ProgramID,
+		helpers.DammV1ProgramID,
 		aVault,
 		bVault,
 		aVaultLp,
@@ -429,7 +429,7 @@ func (s *MigrationService) CreateDammV2MigrationMetadata(ctx context.Context, pa
 		params.Payer,
 		system.ProgramID,
 		helpers.DeriveDbcEventAuthority(),
-		DynamicBondingCurveProgramID,
+		helpers.DynamicBondingCurveProgramID,
 	)
 }
 
@@ -486,7 +486,7 @@ func (s *MigrationService) MigrateToDammV2(ctx context.Context, params MigrateTo
 		secondPositionNftAccount,
 		secondPosition,
 		dammPoolAuthority,
-		DammV2ProgramID,
+		helpers.DammV2ProgramID,
 		virtualPoolState.BaseMint,
 		poolConfigState.QuoteMint,
 		tokenAVault,

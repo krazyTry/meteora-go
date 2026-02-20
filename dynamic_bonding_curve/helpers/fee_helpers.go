@@ -3,30 +3,32 @@ package helpers
 import (
 	"errors"
 	"math/big"
+
+	"github.com/krazyTry/meteora-go/dynamic_bonding_curve/shared"
 )
 
 func GetFeeSchedulerMaxBaseFeeNumerator(cliffFeeNumerator *big.Int) *big.Int {
 	return new(big.Int).Set(cliffFeeNumerator)
 }
 
-func GetFeeSchedulerMinBaseFeeNumerator(cliffFeeNumerator *big.Int, numberOfPeriod uint16, reductionFactor *big.Int, feeSchedulerMode BaseFeeMode) (*big.Int, error) {
+func GetFeeSchedulerMinBaseFeeNumerator(cliffFeeNumerator *big.Int, numberOfPeriod uint16, reductionFactor *big.Int, feeSchedulerMode shared.BaseFeeMode) (*big.Int, error) {
 	return GetBaseFeeNumeratorByPeriod(cliffFeeNumerator, numberOfPeriod, big.NewInt(int64(numberOfPeriod)), reductionFactor, feeSchedulerMode)
 }
 
-func GetBaseFeeNumeratorByPeriod(cliffFeeNumerator *big.Int, numberOfPeriod uint16, period *big.Int, reductionFactor *big.Int, feeSchedulerMode BaseFeeMode) (*big.Int, error) {
+func GetBaseFeeNumeratorByPeriod(cliffFeeNumerator *big.Int, numberOfPeriod uint16, period *big.Int, reductionFactor *big.Int, feeSchedulerMode shared.BaseFeeMode) (*big.Int, error) {
 	periodValue := new(big.Int).Set(period)
 	if periodValue.Cmp(big.NewInt(int64(numberOfPeriod))) > 0 {
 		periodValue = big.NewInt(int64(numberOfPeriod))
 	}
-	if periodValue.Cmp(big.NewInt(int64(U16Max))) > 0 {
+	if periodValue.Cmp(big.NewInt(int64(shared.U16Max))) > 0 {
 		return nil, errors.New("Math overflow")
 	}
 	periodNumber := int(periodValue.Uint64())
 
 	switch feeSchedulerMode {
-	case BaseFeeModeFeeSchedulerLinear:
+	case shared.BaseFeeModeFeeSchedulerLinear:
 		return GetFeeNumeratorOnLinearFeeScheduler(cliffFeeNumerator, reductionFactor, periodNumber)
-	case BaseFeeModeFeeSchedulerExponential:
+	case shared.BaseFeeModeFeeSchedulerExponential:
 		return GetFeeNumeratorOnExponentialFeeScheduler(cliffFeeNumerator, reductionFactor, periodNumber)
 	default:
 		return nil, errors.New("Invalid fee scheduler mode")
@@ -42,7 +44,7 @@ func GetFeeNumeratorOnExponentialFeeScheduler(cliffFeeNumerator, reductionFactor
 	if period == 0 {
 		return new(big.Int).Set(cliffFeeNumerator), nil
 	}
-	basisPointMax := big.NewInt(MaxBasisPoint)
+	basisPointMax := big.NewInt(shared.MaxBasisPoint)
 	oneQ64 := new(big.Int).Lsh(big.NewInt(1), 64)
 	bps := new(big.Int).Lsh(reductionFactor, 64)
 	bps = bps.Div(bps, basisPointMax)
@@ -70,7 +72,7 @@ func GetFeeNumeratorFromIncludedAmount(cliffFeeNumerator, referenceAmount, feeIn
 	if err != nil {
 		return nil, err
 	}
-	i, err := ToNumerator(feeIncrementBps, big.NewInt(FeeDenominator))
+	i, err := ToNumerator(feeIncrementBps, big.NewInt(shared.FeeDenominator))
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +91,7 @@ func GetFeeNumeratorFromIncludedAmount(cliffFeeNumerator, referenceAmount, feeIn
 	} else {
 		numerator1 := new(big.Int).Add(c, new(big.Int).Mul(c, maxIndex))
 		numerator1.Add(numerator1, new(big.Int).Div(new(big.Int).Mul(i, new(big.Int).Mul(maxIndex, new(big.Int).Add(maxIndex, one))), two))
-		numerator2 := big.NewInt(MaxFeeNumerator)
+		numerator2 := big.NewInt(shared.MaxFeeNumerator)
 		firstFee := new(big.Int).Mul(x0, numerator1)
 		d := new(big.Int).Sub(a, maxIndex)
 		leftAmount := new(big.Int).Add(new(big.Int).Mul(d, x0), b)
@@ -97,11 +99,11 @@ func GetFeeNumeratorFromIncludedAmount(cliffFeeNumerator, referenceAmount, feeIn
 		tradingFeeNumerator = new(big.Int).Add(firstFee, secondFee)
 	}
 
-	denominator := big.NewInt(FeeDenominator)
+	denominator := big.NewInt(shared.FeeDenominator)
 	tradingFee := new(big.Int).Add(tradingFeeNumerator, new(big.Int).Sub(denominator, one))
 	tradingFee = tradingFee.Div(tradingFee, denominator)
 
-	feeNumerator, err := MulDiv(tradingFee, big.NewInt(FeeDenominator), includedFeeAmount, RoundingUp)
+	feeNumerator, err := MulDiv(tradingFee, big.NewInt(shared.FeeDenominator), includedFeeAmount, shared.RoundingUp)
 	if err != nil {
 		return nil, err
 	}
@@ -109,11 +111,11 @@ func GetFeeNumeratorFromIncludedAmount(cliffFeeNumerator, referenceAmount, feeIn
 }
 
 func GetMaxIndex(cliffFeeNumerator, feeIncrementBps *big.Int) (*big.Int, error) {
-	if cliffFeeNumerator.Cmp(big.NewInt(MaxFeeNumerator)) > 0 {
+	if cliffFeeNumerator.Cmp(big.NewInt(shared.MaxFeeNumerator)) > 0 {
 		return nil, errors.New("Cliff fee numerator exceeds maximum fee numerator")
 	}
-	deltaNumerator := new(big.Int).Sub(big.NewInt(MaxFeeNumerator), cliffFeeNumerator)
-	feeIncrementNumerator, err := ToNumerator(feeIncrementBps, big.NewInt(FeeDenominator))
+	deltaNumerator := new(big.Int).Sub(big.NewInt(shared.MaxFeeNumerator), cliffFeeNumerator)
+	feeIncrementNumerator, err := ToNumerator(feeIncrementBps, big.NewInt(shared.FeeDenominator))
 	if err != nil {
 		return nil, err
 	}
@@ -124,12 +126,12 @@ func GetMaxIndex(cliffFeeNumerator, feeIncrementBps *big.Int) (*big.Int, error) 
 }
 
 func ToNumerator(bps *big.Int, feeDenominator *big.Int) (*big.Int, error) {
-	return MulDiv(bps, feeDenominator, big.NewInt(MaxBasisPoint), RoundingDown)
+	return MulDiv(bps, feeDenominator, big.NewInt(shared.MaxBasisPoint), shared.RoundingDown)
 }
 
 // pow computes base^exponent with Q64 scaling when scaling=true.
 func pow(base, exponent *big.Int, scaling bool) (*big.Int, error) {
-	one := new(big.Int).Lsh(big.NewInt(1), Resolution)
+	one := new(big.Int).Lsh(big.NewInt(1), shared.Resolution)
 
 	if exponent.Sign() == 0 {
 		return new(big.Int).Set(one), nil
@@ -154,7 +156,7 @@ func pow(base, exponent *big.Int, scaling bool) (*big.Int, error) {
 	for exponentU64 > 0 {
 		if exponentU64&1 == 1 {
 			if scaling {
-				res, err := MulDiv(result, currentBase, one, RoundingDown)
+				res, err := MulDiv(result, currentBase, one, shared.RoundingDown)
 				if err != nil {
 					return nil, err
 				}
@@ -166,7 +168,7 @@ func pow(base, exponent *big.Int, scaling bool) (*big.Int, error) {
 		exponentU64 >>= 1
 		if exponentU64 > 0 {
 			if scaling {
-				res, err := MulDiv(currentBase, currentBase, one, RoundingDown)
+				res, err := MulDiv(currentBase, currentBase, one, shared.RoundingDown)
 				if err != nil {
 					return nil, err
 				}

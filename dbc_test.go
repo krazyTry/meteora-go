@@ -11,6 +11,7 @@ import (
 	jsoniter "github.com/json-iterator/go"
 	"github.com/krazyTry/meteora-go/dynamic_bonding_curve"
 	"github.com/krazyTry/meteora-go/dynamic_bonding_curve/helpers"
+	"github.com/krazyTry/meteora-go/dynamic_bonding_curve/shared"
 	"github.com/shopspring/decimal"
 )
 
@@ -340,7 +341,7 @@ func TestDBC(t *testing.T) {
 			resp, err := migrationService.MigrateToDammV2(ctx1, dynamic_bonding_curve.MigrateToDammV2Params{
 				VirtualPool: poolState.Pubkey,
 				Payer:       ownerWallet.PublicKey(),
-				DammConfig:  dynamic_bonding_curve.GetDammV2Config(dynamic_bonding_curve.MigrationFeeOption(configState.MigrationFeeOption)),
+				DammConfig:  helpers.GetDammV2Config(dynamic_bonding_curve.MigrationFeeOption(configState.MigrationFeeOption)),
 			})
 			if err != nil {
 				t.Fatal("MigrateToDammV2() fail", err)
@@ -442,23 +443,23 @@ func TestDBC(t *testing.T) {
 
 func TestBuildCurve(t *testing.T) {
 	return
-	migratedPoolBaseFeeMode := helpers.DammV2BaseFeeModeFeeTimeSchedulerLinear
+	migratedPoolBaseFeeMode := shared.DammV2BaseFeeModeFeeTimeSchedulerLinear
 
-	buildCurveBaseParams := helpers.BuildCurveBaseParams{
+	buildCurveBaseParams := shared.BuildCurveBaseParams{
 		TotalTokenSupply:  1000000000,
-		MigrationOption:   helpers.MigrationOptionMetDammV2,
-		TokenBaseDecimal:  helpers.TokenDecimalSix,
-		TokenQuoteDecimal: helpers.TokenDecimalNine,
-		LockedVestingParams: helpers.LockedVestingParams{
+		MigrationOption:   shared.MigrationOptionMetDammV2,
+		TokenBaseDecimal:  shared.TokenDecimalSix,
+		TokenQuoteDecimal: shared.TokenDecimalNine,
+		LockedVestingParams: shared.LockedVestingParams{
 			TotalLockedVestingAmount:       0,
 			NumberOfVestingPeriod:          0,
 			CliffUnlockAmount:              0,
 			TotalVestingDuration:           0,
 			CliffDurationFromMigrationTime: 0,
 		},
-		BaseFeeParams: helpers.BaseFeeParams{
-			BaseFeeMode: helpers.BaseFeeModeFeeSchedulerLinear,
-			FeeSchedulerParam: &helpers.FeeSchedulerParams{
+		BaseFeeParams: shared.BaseFeeParams{
+			BaseFeeMode: shared.BaseFeeModeFeeSchedulerLinear,
+			FeeSchedulerParam: &shared.FeeSchedulerParams{
 				StartingFeeBps: 100,
 				EndingFeeBps:   100,
 				NumberOfPeriod: 0,
@@ -466,10 +467,10 @@ func TestBuildCurve(t *testing.T) {
 			},
 		},
 		DynamicFeeEnabled:                         true,
-		ActivationType:                            helpers.ActivationTypeSlot,
-		CollectFeeMode:                            helpers.CollectFeeModeQuoteToken,
-		MigrationFeeOption:                        helpers.MigrationFeeOptionFixedBps100,
-		TokenType:                                 helpers.TokenTypeSPL,
+		ActivationType:                            shared.ActivationTypeSlot,
+		CollectFeeMode:                            shared.CollectFeeModeQuoteToken,
+		MigrationFeeOption:                        shared.MigrationFeeOptionFixedBps100,
+		TokenType:                                 shared.TokenTypeSPL,
 		PartnerLiquidityPercentage:                0,
 		CreatorLiquidityPercentage:                0,
 		PartnerPermanentLockedLiquidityPercentage: 100,
@@ -488,7 +489,7 @@ func TestBuildCurve(t *testing.T) {
 		MigratedPoolBaseFeeMode:   &migratedPoolBaseFeeMode,
 		EnableFirstSwapWithMinFee: false,
 	}
-	params := helpers.BuildCurveParams{
+	params := shared.BuildCurveParams{
 		BuildCurveBaseParams:        buildCurveBaseParams,
 		PercentageSupplyOnMigration: 2.983257229832572,
 		MigrationQuoteThreshold:     95.07640791476408,
@@ -503,23 +504,23 @@ func TestBuildCurve(t *testing.T) {
 
 func TestBuildCurveWithCustomSqrtPrices(t *testing.T) {
 	return
-	migratedPoolBaseFeeMode := helpers.DammV2BaseFeeModeFeeTimeSchedulerLinear
+	migratedPoolBaseFeeMode := shared.DammV2BaseFeeModeFeeTimeSchedulerLinear
 
-	buildCurveBaseParams := helpers.BuildCurveBaseParams{
+	buildCurveBaseParams := shared.BuildCurveBaseParams{
 		TotalTokenSupply:  1000000000,
-		MigrationOption:   helpers.MigrationOptionMetDammV2,
-		TokenBaseDecimal:  helpers.TokenDecimalSix,
-		TokenQuoteDecimal: helpers.TokenDecimalNine,
-		LockedVestingParams: helpers.LockedVestingParams{
+		MigrationOption:   shared.MigrationOptionMetDammV2,
+		TokenBaseDecimal:  shared.TokenDecimalSix,
+		TokenQuoteDecimal: shared.TokenDecimalNine,
+		LockedVestingParams: shared.LockedVestingParams{
 			TotalLockedVestingAmount:       0,
 			NumberOfVestingPeriod:          0,
 			CliffUnlockAmount:              0,
 			TotalVestingDuration:           0,
 			CliffDurationFromMigrationTime: 0,
 		},
-		BaseFeeParams: helpers.BaseFeeParams{
-			BaseFeeMode: helpers.BaseFeeModeFeeSchedulerLinear,
-			FeeSchedulerParam: &helpers.FeeSchedulerParams{
+		BaseFeeParams: shared.BaseFeeParams{
+			BaseFeeMode: shared.BaseFeeModeFeeSchedulerLinear,
+			FeeSchedulerParam: &shared.FeeSchedulerParams{
 				StartingFeeBps: 100,
 				EndingFeeBps:   100,
 				NumberOfPeriod: 0,
@@ -527,10 +528,10 @@ func TestBuildCurveWithCustomSqrtPrices(t *testing.T) {
 			},
 		},
 		DynamicFeeEnabled:                         true,
-		ActivationType:                            helpers.ActivationTypeSlot,
-		CollectFeeMode:                            helpers.CollectFeeModeQuoteToken,
-		MigrationFeeOption:                        helpers.MigrationFeeOptionFixedBps100,
-		TokenType:                                 helpers.TokenTypeSPL,
+		ActivationType:                            shared.ActivationTypeSlot,
+		CollectFeeMode:                            shared.CollectFeeModeQuoteToken,
+		MigrationFeeOption:                        shared.MigrationFeeOptionFixedBps100,
+		TokenType:                                 shared.TokenTypeSPL,
 		PartnerLiquidityPercentage:                0,
 		CreatorLiquidityPercentage:                0,
 		PartnerPermanentLockedLiquidityPercentage: 100,
@@ -555,13 +556,11 @@ func TestBuildCurveWithCustomSqrtPrices(t *testing.T) {
 
 	sqrtPrices, _ := helpers.CreateSqrtPrices(
 		prices,
-		helpers.TokenDecimalNine,
-		helpers.TokenDecimalNine,
+		shared.TokenDecimalNine,
+		shared.TokenDecimalNine,
 	)
 
-	fmt.Println(sqrtPrices)
-
-	params := helpers.BuildCurveWithCustomSqrtPricesParams{
+	params := shared.BuildCurveWithCustomSqrtPricesParams{
 		BuildCurveBaseParams: buildCurveBaseParams,
 		SqrtPrices:           sqrtPrices,
 	}
@@ -575,23 +574,23 @@ func TestBuildCurveWithCustomSqrtPrices(t *testing.T) {
 
 func TestBuildCurveWithLiquidityWeights(t *testing.T) {
 	return
-	migratedPoolBaseFeeMode := helpers.DammV2BaseFeeModeFeeTimeSchedulerLinear
+	migratedPoolBaseFeeMode := shared.DammV2BaseFeeModeFeeTimeSchedulerLinear
 
-	buildCurveBaseParams := helpers.BuildCurveBaseParams{
+	buildCurveBaseParams := shared.BuildCurveBaseParams{
 		TotalTokenSupply:  1000000000,
-		MigrationOption:   helpers.MigrationOptionMetDammV2,
-		TokenBaseDecimal:  helpers.TokenDecimalSix,
-		TokenQuoteDecimal: helpers.TokenDecimalNine,
-		LockedVestingParams: helpers.LockedVestingParams{
+		MigrationOption:   shared.MigrationOptionMetDammV2,
+		TokenBaseDecimal:  shared.TokenDecimalSix,
+		TokenQuoteDecimal: shared.TokenDecimalNine,
+		LockedVestingParams: shared.LockedVestingParams{
 			TotalLockedVestingAmount:       0,
 			NumberOfVestingPeriod:          0,
 			CliffUnlockAmount:              0,
 			TotalVestingDuration:           0,
 			CliffDurationFromMigrationTime: 0,
 		},
-		BaseFeeParams: helpers.BaseFeeParams{
-			BaseFeeMode: helpers.BaseFeeModeFeeSchedulerLinear,
-			FeeSchedulerParam: &helpers.FeeSchedulerParams{
+		BaseFeeParams: shared.BaseFeeParams{
+			BaseFeeMode: shared.BaseFeeModeFeeSchedulerLinear,
+			FeeSchedulerParam: &shared.FeeSchedulerParams{
 				StartingFeeBps: 100,
 				EndingFeeBps:   100,
 				NumberOfPeriod: 0,
@@ -599,10 +598,10 @@ func TestBuildCurveWithLiquidityWeights(t *testing.T) {
 			},
 		},
 		DynamicFeeEnabled:                         true,
-		ActivationType:                            helpers.ActivationTypeSlot,
-		CollectFeeMode:                            helpers.CollectFeeModeQuoteToken,
-		MigrationFeeOption:                        helpers.MigrationFeeOptionFixedBps100,
-		TokenType:                                 helpers.TokenTypeSPL,
+		ActivationType:                            shared.ActivationTypeSlot,
+		CollectFeeMode:                            shared.CollectFeeModeQuoteToken,
+		MigrationFeeOption:                        shared.MigrationFeeOptionFixedBps100,
+		TokenType:                                 shared.TokenTypeSPL,
 		PartnerLiquidityPercentage:                0,
 		CreatorLiquidityPercentage:                0,
 		PartnerPermanentLockedLiquidityPercentage: 100,
@@ -628,9 +627,7 @@ func TestBuildCurveWithLiquidityWeights(t *testing.T) {
 		liquidityWeights[i] = decimal.NewFromFloat(1.2).Pow(decimal.NewFromInt(int64(i))).InexactFloat64()
 	}
 
-	fmt.Println(liquidityWeights)
-
-	params := helpers.BuildCurveWithLiquidityWeightsParams{
+	params := shared.BuildCurveWithLiquidityWeightsParams{
 		BuildCurveBaseParams: buildCurveBaseParams,
 		InitialMarketCap:     30,
 		MigrationMarketCap:   300,
@@ -646,23 +643,23 @@ func TestBuildCurveWithLiquidityWeights(t *testing.T) {
 
 func TestBuildCurveWithMarketCap(t *testing.T) {
 	return
-	migratedPoolBaseFeeMode := helpers.DammV2BaseFeeModeFeeTimeSchedulerLinear
+	migratedPoolBaseFeeMode := shared.DammV2BaseFeeModeFeeTimeSchedulerLinear
 
-	buildCurveBaseParams := helpers.BuildCurveBaseParams{
+	buildCurveBaseParams := shared.BuildCurveBaseParams{
 		TotalTokenSupply:  1000000000,
-		MigrationOption:   helpers.MigrationOptionMetDammV2,
-		TokenBaseDecimal:  helpers.TokenDecimalSix,
-		TokenQuoteDecimal: helpers.TokenDecimalNine,
-		LockedVestingParams: helpers.LockedVestingParams{
+		MigrationOption:   shared.MigrationOptionMetDammV2,
+		TokenBaseDecimal:  shared.TokenDecimalSix,
+		TokenQuoteDecimal: shared.TokenDecimalNine,
+		LockedVestingParams: shared.LockedVestingParams{
 			TotalLockedVestingAmount:       0,
 			NumberOfVestingPeriod:          0,
 			CliffUnlockAmount:              0,
 			TotalVestingDuration:           0,
 			CliffDurationFromMigrationTime: 0,
 		},
-		BaseFeeParams: helpers.BaseFeeParams{
-			BaseFeeMode: helpers.BaseFeeModeFeeSchedulerLinear,
-			FeeSchedulerParam: &helpers.FeeSchedulerParams{
+		BaseFeeParams: shared.BaseFeeParams{
+			BaseFeeMode: shared.BaseFeeModeFeeSchedulerLinear,
+			FeeSchedulerParam: &shared.FeeSchedulerParams{
 				StartingFeeBps: 100,
 				EndingFeeBps:   100,
 				NumberOfPeriod: 0,
@@ -670,10 +667,10 @@ func TestBuildCurveWithMarketCap(t *testing.T) {
 			},
 		},
 		DynamicFeeEnabled:                         true,
-		ActivationType:                            helpers.ActivationTypeSlot,
-		CollectFeeMode:                            helpers.CollectFeeModeQuoteToken,
-		MigrationFeeOption:                        helpers.MigrationFeeOptionFixedBps100,
-		TokenType:                                 helpers.TokenTypeSPL,
+		ActivationType:                            shared.ActivationTypeSlot,
+		CollectFeeMode:                            shared.CollectFeeModeQuoteToken,
+		MigrationFeeOption:                        shared.MigrationFeeOptionFixedBps100,
+		TokenType:                                 shared.TokenTypeSPL,
 		PartnerLiquidityPercentage:                0,
 		CreatorLiquidityPercentage:                0,
 		PartnerPermanentLockedLiquidityPercentage: 100,
@@ -693,7 +690,7 @@ func TestBuildCurveWithMarketCap(t *testing.T) {
 		EnableFirstSwapWithMinFee: false,
 	}
 
-	params := helpers.BuildCurveWithMarketCapParams{
+	params := shared.BuildCurveWithMarketCapParams{
 		BuildCurveBaseParams: buildCurveBaseParams,
 		InitialMarketCap:     23.5,
 		MigrationMarketCap:   405.882352941,
@@ -708,23 +705,23 @@ func TestBuildCurveWithMarketCap(t *testing.T) {
 
 func TestBuildCurveWithTwoSegments(t *testing.T) {
 	return
-	migratedPoolBaseFeeMode := helpers.DammV2BaseFeeModeFeeTimeSchedulerLinear
+	migratedPoolBaseFeeMode := shared.DammV2BaseFeeModeFeeTimeSchedulerLinear
 
-	buildCurveBaseParams := helpers.BuildCurveBaseParams{
+	buildCurveBaseParams := shared.BuildCurveBaseParams{
 		TotalTokenSupply:  1000000000,
-		MigrationOption:   helpers.MigrationOptionMetDammV2,
-		TokenBaseDecimal:  helpers.TokenDecimalSix,
-		TokenQuoteDecimal: helpers.TokenDecimalNine,
-		LockedVestingParams: helpers.LockedVestingParams{
+		MigrationOption:   shared.MigrationOptionMetDammV2,
+		TokenBaseDecimal:  shared.TokenDecimalSix,
+		TokenQuoteDecimal: shared.TokenDecimalNine,
+		LockedVestingParams: shared.LockedVestingParams{
 			TotalLockedVestingAmount:       0,
 			NumberOfVestingPeriod:          0,
 			CliffUnlockAmount:              0,
 			TotalVestingDuration:           0,
 			CliffDurationFromMigrationTime: 0,
 		},
-		BaseFeeParams: helpers.BaseFeeParams{
-			BaseFeeMode: helpers.BaseFeeModeFeeSchedulerLinear,
-			FeeSchedulerParam: &helpers.FeeSchedulerParams{
+		BaseFeeParams: shared.BaseFeeParams{
+			BaseFeeMode: shared.BaseFeeModeFeeSchedulerLinear,
+			FeeSchedulerParam: &shared.FeeSchedulerParams{
 				StartingFeeBps: 100,
 				EndingFeeBps:   100,
 				NumberOfPeriod: 0,
@@ -732,10 +729,10 @@ func TestBuildCurveWithTwoSegments(t *testing.T) {
 			},
 		},
 		DynamicFeeEnabled:                         true,
-		ActivationType:                            helpers.ActivationTypeSlot,
-		CollectFeeMode:                            helpers.CollectFeeModeQuoteToken,
-		MigrationFeeOption:                        helpers.MigrationFeeOptionFixedBps100,
-		TokenType:                                 helpers.TokenTypeSPL,
+		ActivationType:                            shared.ActivationTypeSlot,
+		CollectFeeMode:                            shared.CollectFeeModeQuoteToken,
+		MigrationFeeOption:                        shared.MigrationFeeOptionFixedBps100,
+		TokenType:                                 shared.TokenTypeSPL,
 		PartnerLiquidityPercentage:                0,
 		CreatorLiquidityPercentage:                0,
 		PartnerPermanentLockedLiquidityPercentage: 100,
@@ -755,7 +752,7 @@ func TestBuildCurveWithTwoSegments(t *testing.T) {
 		EnableFirstSwapWithMinFee: false,
 	}
 
-	params := helpers.BuildCurveWithTwoSegmentsParams{
+	params := shared.BuildCurveWithTwoSegmentsParams{
 		BuildCurveBaseParams:        buildCurveBaseParams,
 		InitialMarketCap:            20000,
 		MigrationMarketCap:          1000000,

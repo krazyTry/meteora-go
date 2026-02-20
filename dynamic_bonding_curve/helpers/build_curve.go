@@ -7,16 +7,17 @@ import (
 	"strconv"
 
 	mathutil "github.com/krazyTry/meteora-go/dynamic_bonding_curve/math"
+	"github.com/krazyTry/meteora-go/dynamic_bonding_curve/shared"
 	"github.com/shopspring/decimal"
 )
 
-func BuildCurve(params BuildCurveParams) (ConfigParameters, error) {
+func BuildCurve(params shared.BuildCurveParams) (shared.ConfigParameters, error) {
 	percentage := decimalFromFloat(params.PercentageSupplyOnMigration)
 	migrationQuoteThreshold := decimalFromFloat(params.MigrationQuoteThreshold)
 	return buildCurveInternal(params.BuildCurveBaseParams, percentage, migrationQuoteThreshold)
 }
 
-func BuildCurveWithMarketCap(params BuildCurveWithMarketCapParams) (ConfigParameters, error) {
+func BuildCurveWithMarketCap(params shared.BuildCurveWithMarketCapParams) (shared.ConfigParameters, error) {
 	lockedVesting, err := GetLockedVestingParams(
 		params.LockedVestingParams.TotalLockedVestingAmount,
 		params.LockedVestingParams.NumberOfVestingPeriod,
@@ -26,17 +27,17 @@ func BuildCurveWithMarketCap(params BuildCurveWithMarketCapParams) (ConfigParame
 		params.TokenBaseDecimal,
 	)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	totalLeftover, err := lamportsFromUint64(params.Leftover, params.TokenBaseDecimal)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	totalSupply, err := lamportsFromUint64(params.TotalTokenSupply, params.TokenBaseDecimal)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	initialMarketCap := decimalFromFloat(params.InitialMarketCap)
@@ -53,7 +54,7 @@ func BuildCurveWithMarketCap(params BuildCurveWithMarketCapParams) (ConfigParame
 			totalSupply,
 		)
 		if err != nil {
-			return ConfigParameters{}, err
+			return shared.ConfigParameters{}, err
 		}
 	} else {
 		percentageSupplyOnMigration, err = GetPercentageSupplyOnMigration(
@@ -64,7 +65,7 @@ func BuildCurveWithMarketCap(params BuildCurveWithMarketCapParams) (ConfigParame
 			totalSupply,
 		)
 		if err != nil {
-			return ConfigParameters{}, err
+			return shared.ConfigParameters{}, err
 		}
 	}
 
@@ -84,10 +85,10 @@ func BuildCurveWithMarketCap(params BuildCurveWithMarketCapParams) (ConfigParame
 	)
 }
 
-func BuildCurveWithTwoSegments(params BuildCurveWithTwoSegmentsParams) (ConfigParameters, error) {
+func BuildCurveWithTwoSegments(params shared.BuildCurveWithTwoSegmentsParams) (shared.ConfigParameters, error) {
 	baseFee, err := GetBaseFeeParams(params.BaseFeeParams, params.TokenQuoteDecimal, params.ActivationType)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	lockedVesting, err := GetLockedVestingParams(
@@ -99,7 +100,7 @@ func BuildCurveWithTwoSegments(params BuildCurveWithTwoSegmentsParams) (ConfigPa
 		params.TokenBaseDecimal,
 	)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	partnerVestingParams := params.PartnerLiquidityVestingInfoParams
@@ -114,7 +115,7 @@ func BuildCurveWithTwoSegments(params BuildCurveWithTwoSegmentsParams) (ConfigPa
 		partnerVestingParams.TotalDuration,
 	)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	creatorVestingParams := params.CreatorLiquidityVestingInfoParams
@@ -129,12 +130,12 @@ func BuildCurveWithTwoSegments(params BuildCurveWithTwoSegmentsParams) (ConfigPa
 		creatorVestingParams.TotalDuration,
 	)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
-	poolCreationFeeInLamports, err := lamportsU64FromUint64(params.PoolCreationFee, TokenDecimalNine)
+	poolCreationFeeInLamports, err := lamportsU64FromUint64(params.PoolCreationFee, shared.TokenDecimalNine)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	migratedPoolFeeParams := GetMigratedPoolFeeParams(
@@ -150,7 +151,7 @@ func BuildCurveWithTwoSegments(params BuildCurveWithTwoSegmentsParams) (ConfigPa
 
 	totalSupply, err := lamportsFromUint64(params.TotalTokenSupply, params.TokenBaseDecimal)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	migrationQuoteAmount := GetMigrationQuoteAmount(
@@ -166,11 +167,11 @@ func BuildCurveWithTwoSegments(params BuildCurveWithTwoSegmentsParams) (ConfigPa
 
 	migrationQuoteThresholdInLamport, err := lamportsFromDecimal(migrationQuoteThreshold, params.TokenQuoteDecimal)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 	migrationQuoteAmountInLamport, err := lamportsFromDecimal(migrationQuoteAmount, params.TokenQuoteDecimal)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	migrateSqrtPrice, err := GetSqrtPriceFromPrice(
@@ -179,18 +180,18 @@ func BuildCurveWithTwoSegments(params BuildCurveWithTwoSegmentsParams) (ConfigPa
 		int(params.TokenQuoteDecimal),
 	)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	migrationBaseAmount, err := GetMigrationBaseToken(migrationQuoteAmountInLamport, migrateSqrtPrice, params.MigrationOption)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	totalVestingAmount := GetTotalVestingAmount(lockedVesting)
 	totalLeftover, err := lamportsFromUint64(params.Leftover, params.TokenBaseDecimal)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	swapAmount := new(big.Int).Sub(totalSupply, migrationBaseAmount)
@@ -204,12 +205,12 @@ func BuildCurveWithTwoSegments(params BuildCurveWithTwoSegmentsParams) (ConfigPa
 		params.TokenQuoteDecimal,
 	)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	midSqrtPrice1, err := sqrtBigIntDecimalMul(migrateSqrtPrice, initialSqrtPrice)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	midSqrtPrice2, err := fourthRootBigIntDecimalMul(
@@ -217,7 +218,7 @@ func BuildCurveWithTwoSegments(params BuildCurveWithTwoSegmentsParams) (ConfigPa
 		powBigIntDecimal(migrateSqrtPrice, 3),
 	)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	midSqrtPrice3, err := fourthRootBigIntDecimalMul(
@@ -225,16 +226,16 @@ func BuildCurveWithTwoSegments(params BuildCurveWithTwoSegmentsParams) (ConfigPa
 		decimal.NewFromBigInt(migrateSqrtPrice, 0),
 	)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	midPrices := []*big.Int{midSqrtPrice3, midSqrtPrice2, midSqrtPrice1}
 	var sqrtStartPrice *big.Int
-	var curve []LiquidityDistributionParameters
+	var curve []shared.LiquidityDistributionParameters
 	for _, mid := range midPrices {
 		result, err := GetTwoCurve(migrateSqrtPrice, mid, initialSqrtPrice, swapAmount, migrationQuoteThresholdInLamport)
 		if err != nil {
-			return ConfigParameters{}, err
+			return shared.ConfigParameters{}, err
 		}
 		if result.IsOk {
 			curve = result.Curve
@@ -243,7 +244,7 @@ func BuildCurveWithTwoSegments(params BuildCurveWithTwoSegmentsParams) (ConfigPa
 		}
 	}
 	if sqrtStartPrice == nil {
-		return ConfigParameters{}, errors.New("failed to derive valid two-segment curve")
+		return shared.ConfigParameters{}, errors.New("failed to derive valid two-segment curve")
 	}
 
 	totalDynamicSupply, err := GetTotalSupplyFromCurve(
@@ -256,23 +257,23 @@ func BuildCurveWithTwoSegments(params BuildCurveWithTwoSegmentsParams) (ConfigPa
 		params.MigrationFee.FeePercentage,
 	)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	if totalDynamicSupply.Cmp(totalSupply) > 0 {
 		leftOverDelta := new(big.Int).Sub(totalDynamicSupply, totalSupply)
 		if leftOverDelta.Cmp(totalLeftover) >= 0 {
-			return ConfigParameters{}, errors.New("leftOverDelta must be less than totalLeftover")
+			return shared.ConfigParameters{}, errors.New("leftOverDelta must be less than totalLeftover")
 		}
 	}
 
 	migrationQuoteThresholdU64, err := BigIntToU64(migrationQuoteThresholdInLamport)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 	totalSupplyU64, err := BigIntToU64(totalSupply)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	marketCapFeeScheduler, err := buildMigratedPoolMarketCapFeeSchedulerParams(
@@ -281,11 +282,11 @@ func BuildCurveWithTwoSegments(params BuildCurveWithTwoSegmentsParams) (ConfigPa
 		params.MigratedPoolBaseFeeMode,
 	)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
-	cfg := ConfigParameters{
-		PoolFees: PoolFeeParameters{
+	cfg := shared.ConfigParameters{
+		PoolFees: shared.PoolFeeParameters{
 			BaseFee: baseFee,
 		},
 		ActivationType:             uint8(params.ActivationType),
@@ -301,7 +302,7 @@ func BuildCurveWithTwoSegments(params BuildCurveWithTwoSegmentsParams) (ConfigPa
 		SqrtStartPrice:     BigToU128(sqrtStartPrice),
 		LockedVesting:      lockedVesting,
 		MigrationFeeOption: uint8(params.MigrationFeeOption),
-		TokenSupply: &TokenSupplyParams{
+		TokenSupply: &shared.TokenSupplyParams{
 			PreMigrationTokenSupply:  totalSupplyU64,
 			PostMigrationTokenSupply: totalSupplyU64,
 		},
@@ -312,13 +313,13 @@ func BuildCurveWithTwoSegments(params BuildCurveWithTwoSegmentsParams) (ConfigPa
 		CreatorLiquidityVestingInfo: creatorLiquidityVestingInfo,
 		MigratedPoolBaseFeeMode: uint8(derefDammV2BaseFeeMode(
 			params.MigratedPoolBaseFeeMode,
-			DammV2BaseFeeModeFeeTimeSchedulerLinear,
+			shared.DammV2BaseFeeModeFeeTimeSchedulerLinear,
 		)),
 		MigratedPoolMarketCapFeeSchedulerParams: marketCapFeeScheduler,
 		EnableFirstSwapWithMinFee:               params.EnableFirstSwapWithMinFee,
 		Curve:                                   curve,
 		TokenUpdateAuthority:                    params.TokenUpdateAuthority,
-		MigrationFee: MigrationFee{
+		MigrationFee: shared.MigrationFee{
 			FeePercentage:        params.MigrationFee.FeePercentage,
 			CreatorFeePercentage: params.MigrationFee.CreatorFeePercentage,
 		},
@@ -326,9 +327,9 @@ func BuildCurveWithTwoSegments(params BuildCurveWithTwoSegmentsParams) (ConfigPa
 
 	if params.DynamicFeeEnabled {
 		dynamicFeeBps := baseFeeBpsForDynamicFee(params.BaseFeeParams)
-		dynamicFee, err := GetDynamicFeeParams(dynamicFeeBps, uint16(MaxPriceChangePercentageDefault))
+		dynamicFee, err := GetDynamicFeeParams(dynamicFeeBps, uint16(shared.MaxPriceChangePercentageDefault))
 		if err != nil {
-			return ConfigParameters{}, err
+			return shared.ConfigParameters{}, err
 		}
 		cfg.PoolFees.DynamicFee = dynamicFee
 	}
@@ -336,10 +337,10 @@ func BuildCurveWithTwoSegments(params BuildCurveWithTwoSegmentsParams) (ConfigPa
 	return cfg, nil
 }
 
-func BuildCurveWithMidPrice(params BuildCurveWithMidPriceParams) (ConfigParameters, error) {
+func BuildCurveWithMidPrice(params shared.BuildCurveWithMidPriceParams) (shared.ConfigParameters, error) {
 	baseFee, err := GetBaseFeeParams(params.BaseFeeParams, params.TokenQuoteDecimal, params.ActivationType)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	lockedVesting, err := GetLockedVestingParams(
@@ -351,7 +352,7 @@ func BuildCurveWithMidPrice(params BuildCurveWithMidPriceParams) (ConfigParamete
 		params.TokenBaseDecimal,
 	)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	partnerVestingParams := params.PartnerLiquidityVestingInfoParams
@@ -366,7 +367,7 @@ func BuildCurveWithMidPrice(params BuildCurveWithMidPriceParams) (ConfigParamete
 		partnerVestingParams.TotalDuration,
 	)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	creatorVestingParams := params.CreatorLiquidityVestingInfoParams
@@ -381,12 +382,12 @@ func BuildCurveWithMidPrice(params BuildCurveWithMidPriceParams) (ConfigParamete
 		creatorVestingParams.TotalDuration,
 	)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
-	poolCreationFeeInLamports, err := lamportsU64FromUint64(params.PoolCreationFee, TokenDecimalNine)
+	poolCreationFeeInLamports, err := lamportsU64FromUint64(params.PoolCreationFee, shared.TokenDecimalNine)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	migratedPoolFeeParams := GetMigratedPoolFeeParams(
@@ -402,7 +403,7 @@ func BuildCurveWithMidPrice(params BuildCurveWithMidPriceParams) (ConfigParamete
 
 	totalSupply, err := lamportsFromUint64(params.TotalTokenSupply, params.TokenBaseDecimal)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	migrationQuoteAmount := GetMigrationQuoteAmount(
@@ -418,11 +419,11 @@ func BuildCurveWithMidPrice(params BuildCurveWithMidPriceParams) (ConfigParamete
 
 	migrationQuoteThresholdInLamport, err := lamportsFromDecimal(migrationQuoteThreshold, params.TokenQuoteDecimal)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 	migrationQuoteAmountInLamport, err := lamportsFromDecimal(migrationQuoteAmount, params.TokenQuoteDecimal)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	migrateSqrtPrice, err := GetSqrtPriceFromPrice(
@@ -431,18 +432,18 @@ func BuildCurveWithMidPrice(params BuildCurveWithMidPriceParams) (ConfigParamete
 		int(params.TokenQuoteDecimal),
 	)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	migrationBaseAmount, err := GetMigrationBaseToken(migrationQuoteAmountInLamport, migrateSqrtPrice, params.MigrationOption)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	totalVestingAmount := GetTotalVestingAmount(lockedVesting)
 	totalLeftover, err := lamportsFromUint64(params.Leftover, params.TokenBaseDecimal)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	swapAmount := new(big.Int).Sub(totalSupply, migrationBaseAmount)
@@ -456,7 +457,7 @@ func BuildCurveWithMidPrice(params BuildCurveWithMidPriceParams) (ConfigParamete
 		params.TokenQuoteDecimal,
 	)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	midSqrtPrice, err := GetSqrtPriceFromPrice(
@@ -465,15 +466,15 @@ func BuildCurveWithMidPrice(params BuildCurveWithMidPriceParams) (ConfigParamete
 		int(params.TokenQuoteDecimal),
 	)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	result, err := GetTwoCurve(migrateSqrtPrice, midSqrtPrice, initialSqrtPrice, swapAmount, migrationQuoteThresholdInLamport)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 	if !result.IsOk {
-		return ConfigParameters{}, errors.New("failed to derive mid-price curve")
+		return shared.ConfigParameters{}, errors.New("failed to derive mid-price curve")
 	}
 
 	totalDynamicSupply, err := GetTotalSupplyFromCurve(
@@ -486,23 +487,23 @@ func BuildCurveWithMidPrice(params BuildCurveWithMidPriceParams) (ConfigParamete
 		params.MigrationFee.FeePercentage,
 	)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	if totalDynamicSupply.Cmp(totalSupply) > 0 {
 		leftOverDelta := new(big.Int).Sub(totalDynamicSupply, totalSupply)
 		if leftOverDelta.Cmp(totalLeftover) >= 0 {
-			return ConfigParameters{}, errors.New("leftOverDelta must be less than totalLeftover")
+			return shared.ConfigParameters{}, errors.New("leftOverDelta must be less than totalLeftover")
 		}
 	}
 
 	migrationQuoteThresholdU64, err := BigIntToU64(migrationQuoteThresholdInLamport)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 	totalSupplyU64, err := BigIntToU64(totalSupply)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	marketCapFeeScheduler, err := buildMigratedPoolMarketCapFeeSchedulerParams(
@@ -511,11 +512,11 @@ func BuildCurveWithMidPrice(params BuildCurveWithMidPriceParams) (ConfigParamete
 		params.MigratedPoolBaseFeeMode,
 	)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
-	cfg := ConfigParameters{
-		PoolFees: PoolFeeParameters{
+	cfg := shared.ConfigParameters{
+		PoolFees: shared.PoolFeeParameters{
 			BaseFee: baseFee,
 		},
 		ActivationType:             uint8(params.ActivationType),
@@ -531,7 +532,7 @@ func BuildCurveWithMidPrice(params BuildCurveWithMidPriceParams) (ConfigParamete
 		SqrtStartPrice:     BigToU128(result.SqrtStartPrice),
 		LockedVesting:      lockedVesting,
 		MigrationFeeOption: uint8(params.MigrationFeeOption),
-		TokenSupply: &TokenSupplyParams{
+		TokenSupply: &shared.TokenSupplyParams{
 			PreMigrationTokenSupply:  totalSupplyU64,
 			PostMigrationTokenSupply: totalSupplyU64,
 		},
@@ -542,13 +543,13 @@ func BuildCurveWithMidPrice(params BuildCurveWithMidPriceParams) (ConfigParamete
 		CreatorLiquidityVestingInfo: creatorLiquidityVestingInfo,
 		MigratedPoolBaseFeeMode: uint8(derefDammV2BaseFeeMode(
 			params.MigratedPoolBaseFeeMode,
-			DammV2BaseFeeModeFeeTimeSchedulerLinear,
+			shared.DammV2BaseFeeModeFeeTimeSchedulerLinear,
 		)),
 		MigratedPoolMarketCapFeeSchedulerParams: marketCapFeeScheduler,
 		EnableFirstSwapWithMinFee:               params.EnableFirstSwapWithMinFee,
 		Curve:                                   result.Curve,
 		TokenUpdateAuthority:                    params.TokenUpdateAuthority,
-		MigrationFee: MigrationFee{
+		MigrationFee: shared.MigrationFee{
 			FeePercentage:        params.MigrationFee.FeePercentage,
 			CreatorFeePercentage: params.MigrationFee.CreatorFeePercentage,
 		},
@@ -556,9 +557,9 @@ func BuildCurveWithMidPrice(params BuildCurveWithMidPriceParams) (ConfigParamete
 
 	if params.DynamicFeeEnabled {
 		dynamicFeeBps := baseFeeBpsForDynamicFee(params.BaseFeeParams)
-		dynamicFee, err := GetDynamicFeeParams(dynamicFeeBps, uint16(MaxPriceChangePercentageDefault))
+		dynamicFee, err := GetDynamicFeeParams(dynamicFeeBps, uint16(shared.MaxPriceChangePercentageDefault))
 		if err != nil {
-			return ConfigParameters{}, err
+			return shared.ConfigParameters{}, err
 		}
 		cfg.PoolFees.DynamicFee = dynamicFee
 	}
@@ -566,10 +567,10 @@ func BuildCurveWithMidPrice(params BuildCurveWithMidPriceParams) (ConfigParamete
 	return cfg, nil
 }
 
-func BuildCurveWithLiquidityWeights(params BuildCurveWithLiquidityWeightsParams) (ConfigParameters, error) {
+func BuildCurveWithLiquidityWeights(params shared.BuildCurveWithLiquidityWeightsParams) (shared.ConfigParameters, error) {
 	baseFee, err := GetBaseFeeParams(params.BaseFeeParams, params.TokenQuoteDecimal, params.ActivationType)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	lockedVesting, err := GetLockedVestingParams(
@@ -581,7 +582,7 @@ func BuildCurveWithLiquidityWeights(params BuildCurveWithLiquidityWeightsParams)
 		params.TokenBaseDecimal,
 	)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	partnerVestingParams := params.PartnerLiquidityVestingInfoParams
@@ -596,7 +597,7 @@ func BuildCurveWithLiquidityWeights(params BuildCurveWithLiquidityWeightsParams)
 		partnerVestingParams.TotalDuration,
 	)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	creatorVestingParams := params.CreatorLiquidityVestingInfoParams
@@ -611,12 +612,12 @@ func BuildCurveWithLiquidityWeights(params BuildCurveWithLiquidityWeightsParams)
 		creatorVestingParams.TotalDuration,
 	)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
-	poolCreationFeeInLamports, err := lamportsU64FromUint64(params.PoolCreationFee, TokenDecimalNine)
+	poolCreationFeeInLamports, err := lamportsU64FromUint64(params.PoolCreationFee, shared.TokenDecimalNine)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	migratedPoolFeeParams := GetMigratedPoolFeeParams(
@@ -632,7 +633,7 @@ func BuildCurveWithLiquidityWeights(params BuildCurveWithLiquidityWeightsParams)
 		params.TokenQuoteDecimal,
 	)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 	pMax, err := GetSqrtPriceFromMarketCap(
 		params.MigrationMarketCap,
@@ -641,13 +642,13 @@ func BuildCurveWithLiquidityWeights(params BuildCurveWithLiquidityWeightsParams)
 		params.TokenQuoteDecimal,
 	)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	priceRatio := decimal.NewFromBigInt(pMax, 0).Div(decimal.NewFromBigInt(pMin, 0))
 	qDecimal, err := decimalRootPow2(priceRatio, 4)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	sqrtPrices := make([]*big.Int, 0, 17)
@@ -660,11 +661,11 @@ func BuildCurveWithLiquidityWeights(params BuildCurveWithLiquidityWeightsParams)
 
 	totalSupply, err := lamportsFromUint64(params.TotalTokenSupply, params.TokenBaseDecimal)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 	totalLeftover, err := lamportsFromUint64(params.Leftover, params.TokenBaseDecimal)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 	totalVestingAmount := GetTotalVestingAmount(lockedVesting)
 	totalSwapAndMigrationAmount := new(big.Int).Sub(totalSupply, totalVestingAmount)
@@ -677,7 +678,7 @@ func BuildCurveWithLiquidityWeights(params BuildCurveWithLiquidityWeightsParams)
 		Div(decimal.NewFromInt(100))
 
 	if len(params.LiquidityWeights) != 16 {
-		return ConfigParameters{}, errors.New("liquidityWeights length must be 16")
+		return shared.ConfigParameters{}, errors.New("liquidityWeights length must be 16")
 	}
 
 	for i := 1; i < 17; i++ {
@@ -693,13 +694,13 @@ func BuildCurveWithLiquidityWeights(params BuildCurveWithLiquidityWeightsParams)
 	}
 
 	if sumFactor.IsZero() {
-		return ConfigParameters{}, errors.New("sumFactor must be greater than zero")
+		return shared.ConfigParameters{}, errors.New("sumFactor must be greater than zero")
 	}
 
 	l1 := decimal.NewFromBigInt(totalSwapAndMigrationAmount, 0).Div(sumFactor)
 	l1 = l1.Round(int32(36 - len(l1.Coefficient().String())))
 
-	curve := make([]LiquidityDistributionParameters, 0, 16)
+	curve := make([]shared.LiquidityDistributionParameters, 0, 16)
 	for i := 0; i < 16; i++ {
 		k := decimalFromFloat(params.LiquidityWeights[i])
 		liquidity := FromDecimalToBig(l1.Mul(k))
@@ -709,7 +710,7 @@ func BuildCurveWithLiquidityWeights(params BuildCurveWithLiquidityWeightsParams)
 			sqrtPrice = sqrtPrices[i+1]
 		}
 		// sqrtPrice := sqrtPrices[i+1]
-		curve = append(curve, LiquidityDistributionParameters{
+		curve = append(curve, shared.LiquidityDistributionParameters{
 			SqrtPrice: BigToU128(sqrtPrice),
 			Liquidity: BigToU128(liquidity),
 		})
@@ -717,11 +718,11 @@ func BuildCurveWithLiquidityWeights(params BuildCurveWithLiquidityWeightsParams)
 
 	swapBaseAmount, err := GetBaseTokenForSwap(pMin, pMax, curve)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 	swapBaseAmountBuffer, err := GetSwapAmountWithBuffer(swapBaseAmount, pMin, curve)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 	migrationAmount := new(big.Int).Sub(totalSwapAndMigrationAmount, swapBaseAmountBuffer)
 
@@ -745,23 +746,23 @@ func BuildCurveWithLiquidityWeights(params BuildCurveWithLiquidityWeightsParams)
 		params.MigrationFee.FeePercentage,
 	)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	if totalDynamicSupply.Cmp(totalSupply) > 0 {
 		leftOverDelta := new(big.Int).Sub(totalDynamicSupply, totalSupply)
 		if leftOverDelta.Cmp(totalLeftover) >= 0 {
-			return ConfigParameters{}, errors.New("leftOverDelta must be less than totalLeftover")
+			return shared.ConfigParameters{}, errors.New("leftOverDelta must be less than totalLeftover")
 		}
 	}
 
 	migrationQuoteThresholdU64, err := BigIntToU64(migrationQuoteThresholdInLamport)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 	totalSupplyU64, err := BigIntToU64(totalSupply)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	marketCapFeeScheduler, err := buildMigratedPoolMarketCapFeeSchedulerParams(
@@ -770,11 +771,11 @@ func BuildCurveWithLiquidityWeights(params BuildCurveWithLiquidityWeightsParams)
 		params.MigratedPoolBaseFeeMode,
 	)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
-	cfg := ConfigParameters{
-		PoolFees: PoolFeeParameters{
+	cfg := shared.ConfigParameters{
+		PoolFees: shared.PoolFeeParameters{
 			BaseFee: baseFee,
 		},
 		ActivationType:             uint8(params.ActivationType),
@@ -790,7 +791,7 @@ func BuildCurveWithLiquidityWeights(params BuildCurveWithLiquidityWeightsParams)
 		SqrtStartPrice:     BigToU128(pMin),
 		LockedVesting:      lockedVesting,
 		MigrationFeeOption: uint8(params.MigrationFeeOption),
-		TokenSupply: &TokenSupplyParams{
+		TokenSupply: &shared.TokenSupplyParams{
 			PreMigrationTokenSupply:  totalSupplyU64,
 			PostMigrationTokenSupply: totalSupplyU64,
 		},
@@ -801,12 +802,12 @@ func BuildCurveWithLiquidityWeights(params BuildCurveWithLiquidityWeightsParams)
 		CreatorLiquidityVestingInfo: creatorLiquidityVestingInfo,
 		MigratedPoolBaseFeeMode: uint8(derefDammV2BaseFeeMode(
 			params.MigratedPoolBaseFeeMode,
-			DammV2BaseFeeModeFeeTimeSchedulerLinear,
+			shared.DammV2BaseFeeModeFeeTimeSchedulerLinear,
 		)),
 		MigratedPoolMarketCapFeeSchedulerParams: marketCapFeeScheduler,
 		EnableFirstSwapWithMinFee:               params.EnableFirstSwapWithMinFee,
 		Curve:                                   curve,
-		MigrationFee: MigrationFee{
+		MigrationFee: shared.MigrationFee{
 			FeePercentage:        params.MigrationFee.FeePercentage,
 			CreatorFeePercentage: params.MigrationFee.CreatorFeePercentage,
 		},
@@ -815,9 +816,9 @@ func BuildCurveWithLiquidityWeights(params BuildCurveWithLiquidityWeightsParams)
 
 	if params.DynamicFeeEnabled {
 		dynamicFeeBps := baseFeeBpsForDynamicFee(params.BaseFeeParams)
-		dynamicFee, err := GetDynamicFeeParams(dynamicFeeBps, uint16(MaxPriceChangePercentageDefault))
+		dynamicFee, err := GetDynamicFeeParams(dynamicFeeBps, uint16(shared.MaxPriceChangePercentageDefault))
 		if err != nil {
-			return ConfigParameters{}, err
+			return shared.ConfigParameters{}, err
 		}
 		cfg.PoolFees.DynamicFee = dynamicFee
 	}
@@ -825,9 +826,9 @@ func BuildCurveWithLiquidityWeights(params BuildCurveWithLiquidityWeightsParams)
 	return cfg, nil
 }
 
-func BuildCurveWithCustomSqrtPrices(params BuildCurveWithCustomSqrtPricesParams) (ConfigParameters, error) {
+func BuildCurveWithCustomSqrtPrices(params shared.BuildCurveWithCustomSqrtPricesParams) (shared.ConfigParameters, error) {
 	if len(params.SqrtPrices) < 2 {
-		return ConfigParameters{}, errors.New("sqrtPrices array must have at least 2 elements")
+		return shared.ConfigParameters{}, errors.New("sqrtPrices array must have at least 2 elements")
 	}
 
 	// sqrtPrices := make([]*big.Int, len(params.SqrtPrices))
@@ -835,7 +836,7 @@ func BuildCurveWithCustomSqrtPrices(params BuildCurveWithCustomSqrtPricesParams)
 	for i := range sqrtPrices {
 		// sqrtPrices[i] = params.SqrtPrices[i]
 		if i > 0 && sqrtPrices[i].Cmp(sqrtPrices[i-1]) <= 0 {
-			return ConfigParameters{}, errors.New("sqrtPrices must be in ascending order")
+			return shared.ConfigParameters{}, errors.New("sqrtPrices must be in ascending order")
 		}
 	}
 
@@ -847,12 +848,12 @@ func BuildCurveWithCustomSqrtPrices(params BuildCurveWithCustomSqrtPricesParams)
 			liquidityWeights[i] = 1
 		}
 	} else if len(liquidityWeights) != len(sqrtPrices)-1 {
-		return ConfigParameters{}, errors.New("liquidityWeights length must equal sqrtPrices.length - 1")
+		return shared.ConfigParameters{}, errors.New("liquidityWeights length must equal sqrtPrices.length - 1")
 	}
 
 	baseFee, err := GetBaseFeeParams(params.BaseFeeParams, params.TokenQuoteDecimal, params.ActivationType)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	lockedVesting, err := GetLockedVestingParams(
@@ -864,7 +865,7 @@ func BuildCurveWithCustomSqrtPrices(params BuildCurveWithCustomSqrtPricesParams)
 		params.TokenBaseDecimal,
 	)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	partnerVestingParams := params.PartnerLiquidityVestingInfoParams
@@ -879,7 +880,7 @@ func BuildCurveWithCustomSqrtPrices(params BuildCurveWithCustomSqrtPricesParams)
 		partnerVestingParams.TotalDuration,
 	)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	creatorVestingParams := params.CreatorLiquidityVestingInfoParams
@@ -894,12 +895,12 @@ func BuildCurveWithCustomSqrtPrices(params BuildCurveWithCustomSqrtPricesParams)
 		creatorVestingParams.TotalDuration,
 	)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
-	poolCreationFeeInLamports, err := lamportsU64FromUint64(params.PoolCreationFee, TokenDecimalNine)
+	poolCreationFeeInLamports, err := lamportsU64FromUint64(params.PoolCreationFee, shared.TokenDecimalNine)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	migratedPoolFeeParams := GetMigratedPoolFeeParams(
@@ -913,11 +914,11 @@ func BuildCurveWithCustomSqrtPrices(params BuildCurveWithCustomSqrtPricesParams)
 
 	totalSupply, err := lamportsFromUint64(params.TotalTokenSupply, params.TokenBaseDecimal)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 	totalLeftover, err := lamportsFromUint64(params.Leftover, params.TokenBaseDecimal)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 	totalVestingAmount := GetTotalVestingAmount(lockedVesting)
 	totalSwapAndMigrationAmount := new(big.Int).Sub(totalSupply, totalVestingAmount)
@@ -945,18 +946,18 @@ func BuildCurveWithCustomSqrtPrices(params BuildCurveWithCustomSqrtPricesParams)
 	}
 
 	if sumFactor.IsZero() {
-		return ConfigParameters{}, errors.New("sumFactor must be greater than zero")
+		return shared.ConfigParameters{}, errors.New("sumFactor must be greater than zero")
 	}
 
 	l1 := decimal.NewFromBigInt(totalSwapAndMigrationAmount, 0).Div(sumFactor)
 	l1 = l1.Round(int32(36 - len(l1.Coefficient().String())))
 
-	curve := make([]LiquidityDistributionParameters, 0, numSegments)
+	curve := make([]shared.LiquidityDistributionParameters, 0, numSegments)
 	for i := 0; i < numSegments; i++ {
 		k := decimalFromUint64(liquidityWeights[i])
 		liquidity := FromDecimalToBig(l1.Mul(k))
 		sqrtPrice := sqrtPrices[i+1]
-		curve = append(curve, LiquidityDistributionParameters{
+		curve = append(curve, shared.LiquidityDistributionParameters{
 			SqrtPrice: BigToU128(sqrtPrice),
 			Liquidity: BigToU128(liquidity),
 		})
@@ -964,11 +965,11 @@ func BuildCurveWithCustomSqrtPrices(params BuildCurveWithCustomSqrtPricesParams)
 
 	swapBaseAmount, err := GetBaseTokenForSwap(pMin, pMax, curve)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 	swapBaseAmountBuffer, err := GetSwapAmountWithBuffer(swapBaseAmount, pMin, curve)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 	migrationAmount := new(big.Int).Sub(totalSwapAndMigrationAmount, swapBaseAmountBuffer)
 
@@ -992,23 +993,23 @@ func BuildCurveWithCustomSqrtPrices(params BuildCurveWithCustomSqrtPricesParams)
 		params.MigrationFee.FeePercentage,
 	)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	if totalDynamicSupply.Cmp(totalSupply) > 0 {
 		leftOverDelta := new(big.Int).Sub(totalDynamicSupply, totalSupply)
 		if leftOverDelta.Cmp(totalLeftover) >= 0 {
-			return ConfigParameters{}, errors.New("leftOverDelta must be less than totalLeftover")
+			return shared.ConfigParameters{}, errors.New("leftOverDelta must be less than totalLeftover")
 		}
 	}
 
 	migrationQuoteThresholdU64, err := BigIntToU64(migrationQuoteThresholdInLamport)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 	totalSupplyU64, err := BigIntToU64(totalSupply)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	marketCapFeeScheduler, err := buildMigratedPoolMarketCapFeeSchedulerParams(
@@ -1017,11 +1018,11 @@ func BuildCurveWithCustomSqrtPrices(params BuildCurveWithCustomSqrtPricesParams)
 		params.MigratedPoolBaseFeeMode,
 	)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
-	cfg := ConfigParameters{
-		PoolFees: PoolFeeParameters{
+	cfg := shared.ConfigParameters{
+		PoolFees: shared.PoolFeeParameters{
 			BaseFee: baseFee,
 		},
 		ActivationType:             uint8(params.ActivationType),
@@ -1037,7 +1038,7 @@ func BuildCurveWithCustomSqrtPrices(params BuildCurveWithCustomSqrtPricesParams)
 		SqrtStartPrice:     BigToU128(pMin),
 		LockedVesting:      lockedVesting,
 		MigrationFeeOption: uint8(params.MigrationFeeOption),
-		TokenSupply: &TokenSupplyParams{
+		TokenSupply: &shared.TokenSupplyParams{
 			PreMigrationTokenSupply:  totalSupplyU64,
 			PostMigrationTokenSupply: totalSupplyU64,
 		},
@@ -1048,12 +1049,12 @@ func BuildCurveWithCustomSqrtPrices(params BuildCurveWithCustomSqrtPricesParams)
 		CreatorLiquidityVestingInfo: creatorLiquidityVestingInfo,
 		MigratedPoolBaseFeeMode: uint8(derefDammV2BaseFeeMode(
 			params.MigratedPoolBaseFeeMode,
-			DammV2BaseFeeModeFeeTimeSchedulerLinear,
+			shared.DammV2BaseFeeModeFeeTimeSchedulerLinear,
 		)),
 		MigratedPoolMarketCapFeeSchedulerParams: marketCapFeeScheduler,
 		EnableFirstSwapWithMinFee:               params.EnableFirstSwapWithMinFee,
 		Curve:                                   curve,
-		MigrationFee: MigrationFee{
+		MigrationFee: shared.MigrationFee{
 			FeePercentage:        params.MigrationFee.FeePercentage,
 			CreatorFeePercentage: params.MigrationFee.CreatorFeePercentage,
 		},
@@ -1062,9 +1063,9 @@ func BuildCurveWithCustomSqrtPrices(params BuildCurveWithCustomSqrtPricesParams)
 
 	if params.DynamicFeeEnabled {
 		dynamicFeeBps := baseFeeBpsForDynamicFee(params.BaseFeeParams)
-		dynamicFee, err := GetDynamicFeeParams(dynamicFeeBps, uint16(MaxPriceChangePercentageDefault))
+		dynamicFee, err := GetDynamicFeeParams(dynamicFeeBps, uint16(shared.MaxPriceChangePercentageDefault))
 		if err != nil {
-			return ConfigParameters{}, err
+			return shared.ConfigParameters{}, err
 		}
 		cfg.PoolFees.DynamicFee = dynamicFee
 	}
@@ -1075,7 +1076,7 @@ func BuildCurveWithCustomSqrtPrices(params BuildCurveWithCustomSqrtPricesParams)
 type twoCurveResult struct {
 	IsOk           bool
 	SqrtStartPrice *big.Int
-	Curve          []LiquidityDistributionParameters
+	Curve          []shared.LiquidityDistributionParameters
 }
 
 func GetTwoCurve(migrationSqrtPrice, midSqrtPrice, initialSqrtPrice, swapAmount, migrationQuoteThreshold *big.Int) (twoCurveResult, error) {
@@ -1106,7 +1107,7 @@ func GetTwoCurve(migrationSqrtPrice, midSqrtPrice, initialSqrtPrice, swapAmount,
 		return twoCurveResult{IsOk: false}, nil
 	}
 
-	curve := []LiquidityDistributionParameters{
+	curve := []shared.LiquidityDistributionParameters{
 		{
 			SqrtPrice: BigToU128(midSqrtPrice),
 			Liquidity: BigToU128(FromDecimalToBig(l0)),
@@ -1124,7 +1125,7 @@ func GetTwoCurve(migrationSqrtPrice, midSqrtPrice, initialSqrtPrice, swapAmount,
 	}, nil
 }
 
-func GetFirstCurve(migrationSqrtPrice, migrationBaseAmount, swapAmount, migrationQuoteThreshold *big.Int, migrationFeePercent uint8) (*big.Int, []LiquidityDistributionParameters, error) {
+func GetFirstCurve(migrationSqrtPrice, migrationBaseAmount, swapAmount, migrationQuoteThreshold *big.Int, migrationFeePercent uint8) (*big.Int, []shared.LiquidityDistributionParameters, error) {
 	migrationSqrtPriceDecimal := decimal.NewFromBigInt(migrationSqrtPrice, 0)
 	migrationBaseAmountDecimal := decimal.NewFromBigInt(migrationBaseAmount, 0)
 	swapAmountDecimal := decimal.NewFromBigInt(swapAmount, 0)
@@ -1147,7 +1148,7 @@ func GetFirstCurve(migrationSqrtPrice, migrationBaseAmount, swapAmount, migratio
 		return nil, nil, err
 	}
 
-	curve := []LiquidityDistributionParameters{
+	curve := []shared.LiquidityDistributionParameters{
 		{
 			SqrtPrice: BigToU128(migrationSqrtPrice),
 			Liquidity: BigToU128(liquidity),
@@ -1159,9 +1160,9 @@ func GetFirstCurve(migrationSqrtPrice, migrationBaseAmount, swapAmount, migratio
 func GetTotalSupplyFromCurve(
 	migrationQuoteThreshold *big.Int,
 	sqrtStartPrice *big.Int,
-	curve []LiquidityDistributionParameters,
-	lockedVesting LockedVestingParameters,
-	migrationOption MigrationOption,
+	curve []shared.LiquidityDistributionParameters,
+	lockedVesting shared.LockedVestingParameters,
+	migrationOption shared.MigrationOption,
 	leftover *big.Int,
 	migrationFeePercent uint8,
 ) (*big.Int, error) {
@@ -1210,11 +1211,11 @@ func GetSqrtPriceFromPrice(price string, tokenADecimal, tokenBDecimal int) (*big
 	if err != nil {
 		return nil, err
 	}
-	sqrtValueQ64 := sqrtValue.Mul(decimal.NewFromBigInt(OneQ64, 0))
+	sqrtValueQ64 := sqrtValue.Mul(decimal.NewFromBigInt(shared.OneQ64, 0))
 	return FromDecimalToBig(sqrtValueQ64), nil
 }
 
-func GetSqrtPriceFromMarketCap(marketCap float64, totalSupply uint64, tokenBaseDecimal, tokenQuoteDecimal TokenDecimal) (*big.Int, error) {
+func GetSqrtPriceFromMarketCap(marketCap float64, totalSupply uint64, tokenBaseDecimal, tokenQuoteDecimal shared.TokenDecimal) (*big.Int, error) {
 	if totalSupply == 0 {
 		return nil, errors.New("totalSupply must be greater than zero")
 	}
@@ -1229,7 +1230,7 @@ func GetMigrationQuoteAmount(migrationMarketCap, percentageSupplyOnMigration dec
 func GetPercentageSupplyOnMigration(
 	initialMarketCap decimal.Decimal,
 	migrationMarketCap decimal.Decimal,
-	lockedVesting LockedVestingParameters,
+	lockedVesting shared.LockedVestingParameters,
 	totalLeftover *big.Int,
 	totalTokenSupply *big.Int,
 ) (decimal.Decimal, error) {
@@ -1261,7 +1262,7 @@ func CalculateAdjustedPercentageSupplyOnMigration(
 		FeePercentage        uint8
 		CreatorFeePercentage uint8
 	},
-	lockedVesting LockedVestingParameters,
+	lockedVesting shared.LockedVestingParameters,
 	totalLeftover *big.Int,
 	totalTokenSupply *big.Int,
 ) (decimal.Decimal, error) {
@@ -1287,28 +1288,28 @@ func CalculateAdjustedPercentageSupplyOnMigration(
 	return numerator.Div(denominator), nil
 }
 
-func GetDynamicFeeParams(baseFeeBps uint16, maxPriceChangePercentage uint16) (*DynamicFeeParameters, error) {
-	maxAllowed := uint16(MaxPriceChangePercentageDefault)
+func GetDynamicFeeParams(baseFeeBps uint16, maxPriceChangePercentage uint16) (*shared.DynamicFeeParameters, error) {
+	maxAllowed := uint16(shared.MaxPriceChangePercentageDefault)
 	if maxPriceChangePercentage > maxAllowed {
 		return nil, fmt.Errorf("maxPriceChangePercentage (%d) must be <= %d", maxPriceChangePercentage, maxAllowed)
 	}
 
 	priceRatio := decimal.NewFromInt(int64(maxPriceChangePercentage)).
-		Div(decimal.NewFromInt(int64(MaxBasisPoint))).
+		Div(decimal.NewFromInt(int64(shared.MaxBasisPoint))).
 		Add(decimal.NewFromInt(1))
 	sqrtPriceRatio, err := decimalSqrt(priceRatio)
 	if err != nil {
 		return nil, err
 	}
-	sqrtPriceRatioQ64 := FromDecimalToBig(sqrtPriceRatio.Mul(decimal.NewFromBigInt(OneQ64, 0)))
+	sqrtPriceRatioQ64 := FromDecimalToBig(sqrtPriceRatio.Mul(decimal.NewFromBigInt(shared.OneQ64, 0)))
 
-	deltaBinId := new(big.Int).Sub(sqrtPriceRatioQ64, OneQ64)
-	deltaBinId.Div(deltaBinId, BinStepBpsU128Default)
+	deltaBinId := new(big.Int).Sub(sqrtPriceRatioQ64, shared.OneQ64)
+	deltaBinId.Div(deltaBinId, shared.BinStepBpsU128Default)
 	deltaBinId.Mul(deltaBinId, big.NewInt(2))
 
-	maxVolatilityAccumulator := new(big.Int).Mul(deltaBinId, big.NewInt(MaxBasisPoint))
+	maxVolatilityAccumulator := new(big.Int).Mul(deltaBinId, big.NewInt(shared.MaxBasisPoint))
 
-	squareVfaBin := new(big.Int).Mul(maxVolatilityAccumulator, big.NewInt(BinStepBpsDefault))
+	squareVfaBin := new(big.Int).Mul(maxVolatilityAccumulator, big.NewInt(shared.BinStepBpsDefault))
 	squareVfaBin.Mul(squareVfaBin, squareVfaBin)
 	if squareVfaBin.Sign() == 0 {
 		return nil, errors.New("squareVfaBin must be greater than zero")
@@ -1318,8 +1319,8 @@ func GetDynamicFeeParams(baseFeeBps uint16, maxPriceChangePercentage uint16) (*D
 	maxDynamicFeeNumerator := new(big.Int).Mul(baseFeeNumerator, big.NewInt(int64(maxPriceChangePercentage)))
 	maxDynamicFeeNumerator.Div(maxDynamicFeeNumerator, big.NewInt(100))
 
-	vFee := new(big.Int).Mul(maxDynamicFeeNumerator, DynamicFeeScalingFactor)
-	vFee.Sub(vFee, DynamicFeeRoundingOffset)
+	vFee := new(big.Int).Mul(maxDynamicFeeNumerator, shared.DynamicFeeScalingFactor)
+	vFee.Sub(vFee, shared.DynamicFeeRoundingOffset)
 
 	variableFeeControl := new(big.Int).Div(vFee, squareVfaBin)
 
@@ -1332,19 +1333,19 @@ func GetDynamicFeeParams(baseFeeBps uint16, maxPriceChangePercentage uint16) (*D
 		return nil, err
 	}
 
-	return &DynamicFeeParameters{
-		BinStep:                  uint16(BinStepBpsDefault),
-		BinStepU128:              BigToU128(BinStepBpsU128Default),
-		FilterPeriod:             uint16(DynamicFeeFilterPeriodDefault),
-		DecayPeriod:              uint16(DynamicFeeDecayPeriodDefault),
-		ReductionFactor:          uint16(DynamicFeeReductionFactorDefault),
+	return &shared.DynamicFeeParameters{
+		BinStep:                  uint16(shared.BinStepBpsDefault),
+		BinStepU128:              BigToU128(shared.BinStepBpsU128Default),
+		FilterPeriod:             uint16(shared.DynamicFeeFilterPeriodDefault),
+		DecayPeriod:              uint16(shared.DynamicFeeDecayPeriodDefault),
+		ReductionFactor:          uint16(shared.DynamicFeeReductionFactorDefault),
 		MaxVolatilityAccumulator: maxVolatilityAccumulatorU32,
 		VariableFeeControl:       variableFeeControlU32,
 	}, nil
 }
 
-func GetStartingBaseFeeBpsFromBaseFeeParams(baseFeeParams BaseFeeParams) uint16 {
-	if baseFeeParams.BaseFeeMode == BaseFeeModeRateLimiter {
+func GetStartingBaseFeeBpsFromBaseFeeParams(baseFeeParams shared.BaseFeeParams) uint16 {
+	if baseFeeParams.BaseFeeMode == shared.BaseFeeModeRateLimiter {
 		if baseFeeParams.RateLimiterParam == nil {
 			return 0
 		}
@@ -1359,55 +1360,55 @@ func GetStartingBaseFeeBpsFromBaseFeeParams(baseFeeParams BaseFeeParams) uint16 
 func GetMigratedPoolMarketCapFeeSchedulerParams(
 	startingBaseFeeBps uint16,
 	endingBaseFeeBps uint16,
-	dammV2BaseFeeMode DammV2BaseFeeMode,
+	dammV2BaseFeeMode shared.DammV2BaseFeeMode,
 	numberOfPeriod uint16,
 	sqrtPriceStepBps uint16,
 	schedulerExpirationDuration uint32,
-) (MigratedPoolMarketCapFeeSchedulerParameters, error) {
-	if dammV2BaseFeeMode == DammV2BaseFeeModeFeeTimeSchedulerLinear ||
-		dammV2BaseFeeMode == DammV2BaseFeeModeFeeTimeSchedulerExponential {
+) (shared.MigratedPoolMarketCapFeeSchedulerParameters, error) {
+	if dammV2BaseFeeMode == shared.DammV2BaseFeeModeFeeTimeSchedulerLinear ||
+		dammV2BaseFeeMode == shared.DammV2BaseFeeModeFeeTimeSchedulerExponential {
 		return DefaultMigratedPoolMarketCapFeeSchedulerParams, nil
 	}
 
-	if dammV2BaseFeeMode == DammV2BaseFeeModeRateLimiter {
-		return MigratedPoolMarketCapFeeSchedulerParameters{}, errors.New("RateLimiter is not supported for DAMM v2 migration")
+	if dammV2BaseFeeMode == shared.DammV2BaseFeeModeRateLimiter {
+		return shared.MigratedPoolMarketCapFeeSchedulerParameters{}, errors.New("RateLimiter is not supported for DAMM v2 migration")
 	}
 
 	if numberOfPeriod == 0 {
-		return MigratedPoolMarketCapFeeSchedulerParameters{}, errors.New("numberOfPeriod must be greater than zero")
+		return shared.MigratedPoolMarketCapFeeSchedulerParameters{}, errors.New("numberOfPeriod must be greater than zero")
 	}
 
 	if startingBaseFeeBps <= endingBaseFeeBps {
-		return MigratedPoolMarketCapFeeSchedulerParameters{}, fmt.Errorf("startingBaseFeeBps (%d) must be greater than endingBaseFeeBps (%d)", startingBaseFeeBps, endingBaseFeeBps)
+		return shared.MigratedPoolMarketCapFeeSchedulerParameters{}, fmt.Errorf("startingBaseFeeBps (%d) must be greater than endingBaseFeeBps (%d)", startingBaseFeeBps, endingBaseFeeBps)
 	}
-	if startingBaseFeeBps > MaxFeeBps {
-		return MigratedPoolMarketCapFeeSchedulerParameters{}, fmt.Errorf("startingBaseFeeBps (%d) exceeds maximum allowed", startingBaseFeeBps)
+	if startingBaseFeeBps > shared.MaxFeeBps {
+		return shared.MigratedPoolMarketCapFeeSchedulerParameters{}, fmt.Errorf("startingBaseFeeBps (%d) exceeds maximum allowed", startingBaseFeeBps)
 	}
 	if numberOfPeriod == 0 || sqrtPriceStepBps == 0 || schedulerExpirationDuration == 0 {
-		return MigratedPoolMarketCapFeeSchedulerParameters{}, errors.New("numberOfPeriod, sqrtPriceStepBps, and schedulerExpirationDuration must be greater than zero")
+		return shared.MigratedPoolMarketCapFeeSchedulerParameters{}, errors.New("numberOfPeriod, sqrtPriceStepBps, and schedulerExpirationDuration must be greater than zero")
 	}
 
 	maxBaseFeeNumerator := BpsToFeeNumerator(uint64(startingBaseFeeBps))
 	minBaseFeeNumerator := BpsToFeeNumerator(uint64(endingBaseFeeBps))
 
 	var reductionFactor *big.Int
-	if dammV2BaseFeeMode == DammV2BaseFeeModeFeeMarketCapSchedulerLinear {
+	if dammV2BaseFeeMode == shared.DammV2BaseFeeModeFeeMarketCapSchedulerLinear {
 		totalReduction := new(big.Int).Sub(maxBaseFeeNumerator, minBaseFeeNumerator)
 		reductionFactor = new(big.Int).Div(totalReduction, big.NewInt(int64(numberOfPeriod)))
 	} else {
 		ratio := decimal.NewFromBigInt(minBaseFeeNumerator, 0).Div(decimal.NewFromBigInt(maxBaseFeeNumerator, 0))
 		decayBase := ratio.Pow(decimal.NewFromInt(1).Div(decimal.NewFromInt(int64(numberOfPeriod))))
 		reductionFactor = FromDecimalToBig(
-			decimal.NewFromInt(MaxBasisPoint).Mul(decimal.NewFromInt(1).Sub(decayBase)),
+			decimal.NewFromInt(shared.MaxBasisPoint).Mul(decimal.NewFromInt(1).Sub(decayBase)),
 		)
 	}
 
 	reductionFactorU64, err := BigIntToU64(reductionFactor)
 	if err != nil {
-		return MigratedPoolMarketCapFeeSchedulerParameters{}, err
+		return shared.MigratedPoolMarketCapFeeSchedulerParameters{}, err
 	}
 
-	return MigratedPoolMarketCapFeeSchedulerParameters{
+	return shared.MigratedPoolMarketCapFeeSchedulerParameters{
 		NumberOfPeriod:              numberOfPeriod,
 		SqrtPriceStepBps:            sqrtPriceStepBps,
 		SchedulerExpirationDuration: schedulerExpirationDuration,
@@ -1421,22 +1422,22 @@ func GetLockedVestingParams(
 	cliffUnlockAmount uint64,
 	totalVestingDuration uint64,
 	cliffDurationFromMigrationTime uint64,
-	tokenBaseDecimal TokenDecimal,
-) (LockedVestingParameters, error) {
+	tokenBaseDecimal shared.TokenDecimal,
+) (shared.LockedVestingParameters, error) {
 	if totalLockedVestingAmount == 0 {
-		return LockedVestingParameters{}, nil
+		return shared.LockedVestingParameters{}, nil
 	}
 
 	if totalLockedVestingAmount == cliffUnlockAmount {
 		amountPerPeriod, err := lamportsU64FromUint64(1, tokenBaseDecimal)
 		if err != nil {
-			return LockedVestingParameters{}, err
+			return shared.LockedVestingParameters{}, err
 		}
 		cliffUnlockLamports, err := lamportsU64FromUint64(totalLockedVestingAmount-1, tokenBaseDecimal)
 		if err != nil {
-			return LockedVestingParameters{}, err
+			return shared.LockedVestingParameters{}, err
 		}
-		return LockedVestingParameters{
+		return shared.LockedVestingParameters{
 			AmountPerPeriod:                amountPerPeriod,
 			CliffDurationFromMigrationTime: cliffDurationFromMigrationTime,
 			Frequency:                      1,
@@ -1446,13 +1447,13 @@ func GetLockedVestingParams(
 	}
 
 	if numberOfVestingPeriod == 0 {
-		return LockedVestingParameters{}, errors.New("numberOfVestingPeriod must be greater than zero")
+		return shared.LockedVestingParameters{}, errors.New("numberOfVestingPeriod must be greater than zero")
 	}
 	if totalVestingDuration == 0 {
-		return LockedVestingParameters{}, errors.New("totalVestingDuration must be greater than zero")
+		return shared.LockedVestingParameters{}, errors.New("totalVestingDuration must be greater than zero")
 	}
 	if cliffUnlockAmount > totalLockedVestingAmount {
-		return LockedVestingParameters{}, errors.New("cliff unlock amount cannot be greater than total locked vesting amount")
+		return shared.LockedVestingParameters{}, errors.New("cliff unlock amount cannot be greater than total locked vesting amount")
 	}
 
 	amountPerPeriod := (totalLockedVestingAmount - cliffUnlockAmount) / numberOfVestingPeriod
@@ -1465,14 +1466,14 @@ func GetLockedVestingParams(
 
 	amountPerPeriodLamports, err := lamportsU64FromUint64(roundedAmountPerPeriod, tokenBaseDecimal)
 	if err != nil {
-		return LockedVestingParameters{}, err
+		return shared.LockedVestingParameters{}, err
 	}
 	cliffUnlockLamports, err := lamportsU64FromUint64(adjustedCliffUnlockAmount, tokenBaseDecimal)
 	if err != nil {
-		return LockedVestingParameters{}, err
+		return shared.LockedVestingParameters{}, err
 	}
 
-	return LockedVestingParameters{
+	return shared.LockedVestingParameters{
 		AmountPerPeriod:                amountPerPeriodLamports,
 		CliffDurationFromMigrationTime: cliffDurationFromMigrationTime,
 		Frequency:                      periodFrequency,
@@ -1487,52 +1488,52 @@ func GetLiquidityVestingInfoParams(
 	numberOfPeriods uint16,
 	cliffDurationFromMigrationTime uint32,
 	totalDuration uint64,
-) (LiquidityVestingInfoParameters, error) {
+) (shared.LiquidityVestingInfoParameters, error) {
 	if vestingPercentage > 100 {
-		return LiquidityVestingInfoParameters{}, errors.New("vestingPercentage must be between 0 and 100")
+		return shared.LiquidityVestingInfoParameters{}, errors.New("vestingPercentage must be between 0 and 100")
 	}
 
 	if vestingPercentage == 0 {
 		if bpsPerPeriod != 0 || numberOfPeriods != 0 || cliffDurationFromMigrationTime != 0 || totalDuration != 0 {
-			return LiquidityVestingInfoParameters{}, errors.New("if vestingPercentage is 0, all other parameters must be 0")
+			return shared.LiquidityVestingInfoParameters{}, errors.New("if vestingPercentage is 0, all other parameters must be 0")
 		}
-		return LiquidityVestingInfoParameters{}, nil
+		return shared.LiquidityVestingInfoParameters{}, nil
 	}
 
 	if numberOfPeriods == 0 {
-		return LiquidityVestingInfoParameters{}, errors.New("numberOfPeriods must be greater than zero when vestingPercentage > 0")
+		return shared.LiquidityVestingInfoParameters{}, errors.New("numberOfPeriods must be greater than zero when vestingPercentage > 0")
 	}
 	if totalDuration == 0 {
-		return LiquidityVestingInfoParameters{}, errors.New("totalDuration must be greater than zero")
+		return shared.LiquidityVestingInfoParameters{}, errors.New("totalDuration must be greater than zero")
 	}
-	if int64(bpsPerPeriod) < 0 || bpsPerPeriod > MaxBasisPoint {
-		return LiquidityVestingInfoParameters{}, fmt.Errorf("bpsPerPeriod must be between 0 and %d", MaxBasisPoint)
+	if int64(bpsPerPeriod) < 0 || bpsPerPeriod > shared.MaxBasisPoint {
+		return shared.LiquidityVestingInfoParameters{}, fmt.Errorf("bpsPerPeriod must be between 0 and %d", shared.MaxBasisPoint)
 	}
 
 	frequency := totalDuration / uint64(numberOfPeriods)
 	if frequency == 0 {
-		return LiquidityVestingInfoParameters{}, errors.New("frequency must be greater than zero")
+		return shared.LiquidityVestingInfoParameters{}, errors.New("frequency must be greater than zero")
 	}
 
 	totalBps := uint32(bpsPerPeriod) * uint32(numberOfPeriods)
-	if totalBps > MaxBasisPoint {
-		return LiquidityVestingInfoParameters{}, fmt.Errorf("total BPS must not exceed %d", MaxBasisPoint)
+	if totalBps > shared.MaxBasisPoint {
+		return shared.LiquidityVestingInfoParameters{}, fmt.Errorf("total BPS must not exceed %d", shared.MaxBasisPoint)
 	}
 
 	totalVestingDuration := uint64(cliffDurationFromMigrationTime) + uint64(numberOfPeriods)*frequency
-	if totalVestingDuration > MaxLockDurationInSeconds {
-		return LiquidityVestingInfoParameters{}, fmt.Errorf("total vesting duration must not exceed %d", MaxLockDurationInSeconds)
+	if totalVestingDuration > shared.MaxLockDurationInSeconds {
+		return shared.LiquidityVestingInfoParameters{}, fmt.Errorf("total vesting duration must not exceed %d", shared.MaxLockDurationInSeconds)
 	}
 
 	if cliffDurationFromMigrationTime == 0 && numberOfPeriods == 0 {
-		return LiquidityVestingInfoParameters{}, errors.New("if cliffDurationFromMigrationTime is 0, numberOfPeriods must be > 0")
+		return shared.LiquidityVestingInfoParameters{}, errors.New("if cliffDurationFromMigrationTime is 0, numberOfPeriods must be > 0")
 	}
 
 	if frequency > uint64(^uint32(0)) {
-		return LiquidityVestingInfoParameters{}, errors.New("frequency overflows uint32")
+		return shared.LiquidityVestingInfoParameters{}, errors.New("frequency overflows uint32")
 	}
 
-	return LiquidityVestingInfoParameters{
+	return shared.LiquidityVestingInfoParameters{
 		VestingPercentage:              vestingPercentage,
 		BpsPerPeriod:                   bpsPerPeriod,
 		NumberOfPeriods:                numberOfPeriods,
@@ -1541,10 +1542,10 @@ func GetLiquidityVestingInfoParams(
 	}, nil
 }
 
-func GetBaseFeeParams(baseFeeParams BaseFeeParams, tokenQuoteDecimal TokenDecimal, activationType ActivationType) (BaseFeeParameters, error) {
-	if baseFeeParams.BaseFeeMode == BaseFeeModeRateLimiter {
+func GetBaseFeeParams(baseFeeParams shared.BaseFeeParams, tokenQuoteDecimal shared.TokenDecimal, activationType shared.ActivationType) (shared.BaseFeeParameters, error) {
+	if baseFeeParams.BaseFeeMode == shared.BaseFeeModeRateLimiter {
 		if baseFeeParams.RateLimiterParam == nil {
-			return BaseFeeParameters{}, errors.New("rate limiter parameters are required for RateLimiter mode")
+			return shared.BaseFeeParameters{}, errors.New("rate limiter parameters are required for RateLimiter mode")
 		}
 		return getRateLimiterParams(
 			baseFeeParams.RateLimiterParam.BaseFeeBps,
@@ -1557,7 +1558,7 @@ func GetBaseFeeParams(baseFeeParams BaseFeeParams, tokenQuoteDecimal TokenDecima
 	}
 
 	if baseFeeParams.FeeSchedulerParam == nil {
-		return BaseFeeParameters{}, errors.New("fee scheduler parameters are required for FeeScheduler mode")
+		return shared.BaseFeeParameters{}, errors.New("fee scheduler parameters are required for FeeScheduler mode")
 	}
 	return getFeeSchedulerParams(
 		baseFeeParams.FeeSchedulerParam.StartingFeeBps,
@@ -1569,27 +1570,27 @@ func GetBaseFeeParams(baseFeeParams BaseFeeParams, tokenQuoteDecimal TokenDecima
 }
 
 func GetMigratedPoolFeeParams(
-	migrationOption MigrationOption,
-	migrationFeeOption MigrationFeeOption,
+	migrationOption shared.MigrationOption,
+	migrationFeeOption shared.MigrationFeeOption,
 	migratedPoolFee *struct {
-		CollectFeeMode CollectFeeMode
-		DynamicFee     DammV2DynamicFeeMode
+		CollectFeeMode shared.CollectFeeMode
+		DynamicFee     shared.DammV2DynamicFeeMode
 		PoolFeeBps     uint16
 	},
-) MigratedPoolFee {
-	defaultFeeParams := MigratedPoolFee{
+) shared.MigratedPoolFee {
+	defaultFeeParams := shared.MigratedPoolFee{
 		CollectFeeMode: 0,
 		DynamicFee:     0,
 		PoolFeeBps:     0,
 	}
 
-	if migrationOption == MigrationOptionMetDamm {
+	if migrationOption == shared.MigrationOptionMetDamm {
 		return defaultFeeParams
 	}
 
-	if migrationOption == MigrationOptionMetDammV2 {
-		if migrationFeeOption == MigrationFeeOptionCustomizable && migratedPoolFee != nil {
-			return MigratedPoolFee{
+	if migrationOption == shared.MigrationOptionMetDammV2 {
+		if migrationFeeOption == shared.MigrationFeeOptionCustomizable && migratedPoolFee != nil {
+			return shared.MigratedPoolFee{
 				CollectFeeMode: uint8(migratedPoolFee.CollectFeeMode),
 				DynamicFee:     uint8(migratedPoolFee.DynamicFee),
 				PoolFeeBps:     migratedPoolFee.PoolFeeBps,
@@ -1602,13 +1603,13 @@ func GetMigratedPoolFeeParams(
 }
 
 func buildCurveInternal(
-	params BuildCurveBaseParams,
+	params shared.BuildCurveBaseParams,
 	percentageSupplyOnMigration decimal.Decimal,
 	migrationQuoteThreshold decimal.Decimal,
-) (ConfigParameters, error) {
+) (shared.ConfigParameters, error) {
 	baseFee, err := GetBaseFeeParams(params.BaseFeeParams, params.TokenQuoteDecimal, params.ActivationType)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	lockedVesting, err := GetLockedVestingParams(
@@ -1620,7 +1621,7 @@ func buildCurveInternal(
 		params.TokenBaseDecimal,
 	)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	partnerVestingParams := params.PartnerLiquidityVestingInfoParams
@@ -1635,7 +1636,7 @@ func buildCurveInternal(
 		partnerVestingParams.TotalDuration,
 	)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	creatorVestingParams := params.CreatorLiquidityVestingInfoParams
@@ -1650,12 +1651,12 @@ func buildCurveInternal(
 		creatorVestingParams.TotalDuration,
 	)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
-	poolCreationFeeInLamports, err := lamportsU64FromUint64(params.PoolCreationFee, TokenDecimalNine)
+	poolCreationFeeInLamports, err := lamportsU64FromUint64(params.PoolCreationFee, shared.TokenDecimalNine)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	migratedPoolFeeParams := GetMigratedPoolFeeParams(
@@ -1670,7 +1671,7 @@ func buildCurveInternal(
 
 	totalSupply, err := lamportsFromUint64(params.TotalTokenSupply, params.TokenBaseDecimal)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	migrationQuoteAmount := GetMigrationQuoteAmountFromMigrationQuoteThreshold(
@@ -1682,12 +1683,12 @@ func buildCurveInternal(
 
 	migrationQuoteThresholdInLamport, err := lamportsFromDecimal(migrationQuoteThreshold, params.TokenQuoteDecimal)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	totalLeftover, err := lamportsFromUint64(params.Leftover, params.TokenBaseDecimal)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	migrateSqrtPrice, err := GetSqrtPriceFromPrice(
@@ -1696,7 +1697,7 @@ func buildCurveInternal(
 		int(params.TokenQuoteDecimal),
 	)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	migrationQuoteAmountInLamport := FromDecimalToBig(
@@ -1704,7 +1705,7 @@ func buildCurveInternal(
 	)
 	migrationBaseAmount, err := GetMigrationBaseToken(migrationQuoteAmountInLamport, migrateSqrtPrice, params.MigrationOption)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	totalVestingAmount := GetTotalVestingAmount(lockedVesting)
@@ -1720,7 +1721,7 @@ func buildCurveInternal(
 		params.MigrationFee.FeePercentage,
 	)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	totalDynamicSupply, err := GetTotalSupplyFromCurve(
@@ -1733,28 +1734,28 @@ func buildCurveInternal(
 		params.MigrationFee.FeePercentage,
 	)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	remainingAmount := new(big.Int).Sub(totalSupply, totalDynamicSupply)
-	lastLiquidity, err := mathutil.GetInitialLiquidityFromDeltaBase(remainingAmount, MaxSqrtPrice, migrateSqrtPrice)
+	lastLiquidity, err := mathutil.GetInitialLiquidityFromDeltaBase(remainingAmount, shared.MaxSqrtPrice, migrateSqrtPrice)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 	if lastLiquidity.Sign() != 0 {
-		curve = append(curve, LiquidityDistributionParameters{
-			SqrtPrice: BigToU128(MaxSqrtPrice),
+		curve = append(curve, shared.LiquidityDistributionParameters{
+			SqrtPrice: BigToU128(shared.MaxSqrtPrice),
 			Liquidity: BigToU128(lastLiquidity),
 		})
 	}
 
 	migrationQuoteThresholdU64, err := BigIntToU64(migrationQuoteThresholdInLamport)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 	totalSupplyU64, err := BigIntToU64(totalSupply)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
 	marketCapFeeScheduler, err := buildMigratedPoolMarketCapFeeSchedulerParams(
@@ -1763,11 +1764,11 @@ func buildCurveInternal(
 		params.MigratedPoolBaseFeeMode,
 	)
 	if err != nil {
-		return ConfigParameters{}, err
+		return shared.ConfigParameters{}, err
 	}
 
-	cfg := ConfigParameters{
-		PoolFees: PoolFeeParameters{
+	cfg := shared.ConfigParameters{
+		PoolFees: shared.PoolFeeParameters{
 			BaseFee: baseFee,
 		},
 		CollectFeeMode:             uint8(params.CollectFeeMode),
@@ -1783,13 +1784,13 @@ func buildCurveInternal(
 		SqrtStartPrice:                            BigToU128(sqrtStartPrice),
 		LockedVesting:                             lockedVesting,
 		MigrationFeeOption:                        uint8(params.MigrationFeeOption),
-		TokenSupply: &TokenSupplyParams{
+		TokenSupply: &shared.TokenSupplyParams{
 			PreMigrationTokenSupply:  totalSupplyU64,
 			PostMigrationTokenSupply: totalSupplyU64,
 		},
 		CreatorTradingFeePercentage: params.CreatorTradingFeePercentage,
 		TokenUpdateAuthority:        params.TokenUpdateAuthority,
-		MigrationFee: MigrationFee{
+		MigrationFee: shared.MigrationFee{
 			FeePercentage:        params.MigrationFee.FeePercentage,
 			CreatorFeePercentage: params.MigrationFee.CreatorFeePercentage,
 		},
@@ -1799,7 +1800,7 @@ func buildCurveInternal(
 		CreatorLiquidityVestingInfo: creatorLiquidityVestingInfo,
 		MigratedPoolBaseFeeMode: uint8(derefDammV2BaseFeeMode(
 			params.MigratedPoolBaseFeeMode,
-			DammV2BaseFeeModeFeeTimeSchedulerLinear,
+			shared.DammV2BaseFeeModeFeeTimeSchedulerLinear,
 		)),
 		MigratedPoolMarketCapFeeSchedulerParams: marketCapFeeScheduler,
 		EnableFirstSwapWithMinFee:               params.EnableFirstSwapWithMinFee,
@@ -1808,9 +1809,9 @@ func buildCurveInternal(
 
 	if params.DynamicFeeEnabled {
 		dynamicFeeBps := baseFeeBpsForDynamicFee(params.BaseFeeParams)
-		dynamicFee, err := GetDynamicFeeParams(dynamicFeeBps, uint16(MaxPriceChangePercentageDefault))
+		dynamicFee, err := GetDynamicFeeParams(dynamicFeeBps, uint16(shared.MaxPriceChangePercentageDefault))
 		if err != nil {
-			return ConfigParameters{}, err
+			return shared.ConfigParameters{}, err
 		}
 		cfg.PoolFees.DynamicFee = dynamicFee
 	}
@@ -1818,7 +1819,7 @@ func buildCurveInternal(
 	return cfg, nil
 }
 
-func GetTotalVestingAmount(lockedVesting LockedVestingParameters) *big.Int {
+func GetTotalVestingAmount(lockedVesting shared.LockedVestingParameters) *big.Int {
 	total := new(big.Int).Mul(
 		new(big.Int).SetUint64(lockedVesting.AmountPerPeriod),
 		new(big.Int).SetUint64(lockedVesting.NumberOfPeriod),
@@ -1845,38 +1846,38 @@ func GetLiquidity(baseAmount, quoteAmount, minSqrtPrice, maxSqrtPrice *big.Int) 
 func getFeeSchedulerParams(
 	startingBaseFeeBps uint16,
 	endingBaseFeeBps uint16,
-	baseFeeMode BaseFeeMode,
+	baseFeeMode shared.BaseFeeMode,
 	numberOfPeriod uint64,
 	totalDuration uint64,
-) (BaseFeeParameters, error) {
+) (shared.BaseFeeParameters, error) {
 	if startingBaseFeeBps == endingBaseFeeBps {
 		if numberOfPeriod != 0 || totalDuration != 0 {
-			return BaseFeeParameters{}, errors.New("numberOfPeriod and totalDuration must both be zero")
+			return shared.BaseFeeParameters{}, errors.New("numberOfPeriod and totalDuration must both be zero")
 		}
 		cliffFeeNumerator := BpsToFeeNumerator(uint64(startingBaseFeeBps))
-		return BaseFeeParameters{
-			CliffFeeNumerator: mustU64(cliffFeeNumerator),
-			BaseFeeMode:       uint8(BaseFeeModeFeeSchedulerLinear),
+		return shared.BaseFeeParameters{
+			CliffFeeNumerator: cliffFeeNumerator.Uint64(),
+			BaseFeeMode:       uint8(shared.BaseFeeModeFeeSchedulerLinear),
 		}, nil
 	}
 
 	if numberOfPeriod == 0 {
-		return BaseFeeParameters{}, errors.New("numberOfPeriod must be greater than zero")
+		return shared.BaseFeeParameters{}, errors.New("numberOfPeriod must be greater than zero")
 	}
-	if startingBaseFeeBps > MaxFeeBps {
-		return BaseFeeParameters{}, fmt.Errorf("startingBaseFeeBps (%d) exceeds maximum", startingBaseFeeBps)
+	if startingBaseFeeBps > shared.MaxFeeBps {
+		return shared.BaseFeeParameters{}, fmt.Errorf("startingBaseFeeBps (%d) exceeds maximum", startingBaseFeeBps)
 	}
-	if endingBaseFeeBps < MinFeeBps {
-		return BaseFeeParameters{}, fmt.Errorf("endingBaseFeeBps (%d) is less than minimum", endingBaseFeeBps)
+	if endingBaseFeeBps < shared.MinFeeBps {
+		return shared.BaseFeeParameters{}, fmt.Errorf("endingBaseFeeBps (%d) is less than minimum", endingBaseFeeBps)
 	}
 	if endingBaseFeeBps > startingBaseFeeBps {
-		return BaseFeeParameters{}, errors.New("endingBaseFeeBps must be <= startingBaseFeeBps")
+		return shared.BaseFeeParameters{}, errors.New("endingBaseFeeBps must be <= startingBaseFeeBps")
 	}
 	if totalDuration == 0 {
-		return BaseFeeParameters{}, errors.New("totalDuration must be greater than zero")
+		return shared.BaseFeeParameters{}, errors.New("totalDuration must be greater than zero")
 	}
 	if numberOfPeriod > uint64(^uint16(0)) {
-		return BaseFeeParameters{}, errors.New("numberOfPeriod overflows uint16")
+		return shared.BaseFeeParameters{}, errors.New("numberOfPeriod overflows uint16")
 	}
 
 	maxBaseFeeNumerator := BpsToFeeNumerator(uint64(startingBaseFeeBps))
@@ -1884,24 +1885,24 @@ func getFeeSchedulerParams(
 
 	periodFrequency := totalDuration / numberOfPeriod
 	var reductionFactor *big.Int
-	if baseFeeMode == BaseFeeModeFeeSchedulerLinear {
+	if baseFeeMode == shared.BaseFeeModeFeeSchedulerLinear {
 		totalReduction := new(big.Int).Sub(maxBaseFeeNumerator, minBaseFeeNumerator)
 		reductionFactor = new(big.Int).Div(totalReduction, big.NewInt(int64(numberOfPeriod)))
 	} else {
 		ratio := decimal.NewFromBigInt(minBaseFeeNumerator, 0).Div(decimal.NewFromBigInt(maxBaseFeeNumerator, 0))
 		decayBase := ratio.Pow(decimal.NewFromInt(1).Div(decimal.NewFromInt(int64(numberOfPeriod))))
 		reductionFactor = FromDecimalToBig(
-			decimal.NewFromInt(MaxBasisPoint).Mul(decimal.NewFromInt(1).Sub(decayBase)),
+			decimal.NewFromInt(shared.MaxBasisPoint).Mul(decimal.NewFromInt(1).Sub(decayBase)),
 		)
 	}
 
 	reductionFactorU64, err := BigIntToU64(reductionFactor)
 	if err != nil {
-		return BaseFeeParameters{}, err
+		return shared.BaseFeeParameters{}, err
 	}
 
-	return BaseFeeParameters{
-		CliffFeeNumerator: mustU64(maxBaseFeeNumerator),
+	return shared.BaseFeeParameters{
+		CliffFeeNumerator: maxBaseFeeNumerator.Uint64(),
 		FirstFactor:       uint16(numberOfPeriod),
 		SecondFactor:      periodFrequency,
 		ThirdFactor:       reductionFactorU64,
@@ -1914,57 +1915,57 @@ func getRateLimiterParams(
 	feeIncrementBps uint16,
 	referenceAmount uint64,
 	maxLimiterDuration uint64,
-	tokenQuoteDecimal TokenDecimal,
-	activationType ActivationType,
-) (BaseFeeParameters, error) {
+	tokenQuoteDecimal shared.TokenDecimal,
+	activationType shared.ActivationType,
+) (shared.BaseFeeParameters, error) {
 	cliffFeeNumerator := BpsToFeeNumerator(uint64(baseFeeBps))
 	feeIncrementNumerator := BpsToFeeNumerator(uint64(feeIncrementBps))
 
 	if baseFeeBps == 0 || feeIncrementBps == 0 || referenceAmount == 0 || maxLimiterDuration == 0 {
-		return BaseFeeParameters{}, errors.New("all rate limiter parameters must be greater than zero")
+		return shared.BaseFeeParameters{}, errors.New("all rate limiter parameters must be greater than zero")
 	}
-	if baseFeeBps > MaxFeeBps {
-		return BaseFeeParameters{}, fmt.Errorf("baseFeeBps (%d) exceeds maximum allowed", baseFeeBps)
+	if baseFeeBps > shared.MaxFeeBps {
+		return shared.BaseFeeParameters{}, fmt.Errorf("baseFeeBps (%d) exceeds maximum allowed", baseFeeBps)
 	}
-	if baseFeeBps < MinFeeBps {
-		return BaseFeeParameters{}, fmt.Errorf("baseFeeBps (%d) is less than minimum allowed", baseFeeBps)
+	if baseFeeBps < shared.MinFeeBps {
+		return shared.BaseFeeParameters{}, fmt.Errorf("baseFeeBps (%d) is less than minimum allowed", baseFeeBps)
 	}
-	if feeIncrementBps > MaxFeeBps {
-		return BaseFeeParameters{}, fmt.Errorf("feeIncrementBps (%d) exceeds maximum allowed", feeIncrementBps)
+	if feeIncrementBps > shared.MaxFeeBps {
+		return shared.BaseFeeParameters{}, fmt.Errorf("feeIncrementBps (%d) exceeds maximum allowed", feeIncrementBps)
 	}
-	if feeIncrementNumerator.Cmp(big.NewInt(FeeDenominator)) >= 0 {
-		return BaseFeeParameters{}, errors.New("fee increment numerator must be less than FEE_DENOMINATOR")
+	if feeIncrementNumerator.Cmp(big.NewInt(shared.FeeDenominator)) >= 0 {
+		return shared.BaseFeeParameters{}, errors.New("fee increment numerator must be less than FEE_DENOMINATOR")
 	}
 
-	deltaNumerator := new(big.Int).Sub(big.NewInt(MaxFeeNumerator), cliffFeeNumerator)
+	deltaNumerator := new(big.Int).Sub(big.NewInt(shared.MaxFeeNumerator), cliffFeeNumerator)
 	maxIndex := new(big.Int).Div(deltaNumerator, feeIncrementNumerator)
 	if maxIndex.Cmp(big.NewInt(1)) < 0 {
-		return BaseFeeParameters{}, errors.New("fee increment is too large for the given base fee")
+		return shared.BaseFeeParameters{}, errors.New("fee increment is too large for the given base fee")
 	}
 
-	if cliffFeeNumerator.Cmp(big.NewInt(MinFeeNumerator)) < 0 || cliffFeeNumerator.Cmp(big.NewInt(MaxFeeNumerator)) > 0 {
-		return BaseFeeParameters{}, errors.New("base fee must be between minimum and maximum")
+	if cliffFeeNumerator.Cmp(big.NewInt(shared.MinFeeNumerator)) < 0 || cliffFeeNumerator.Cmp(big.NewInt(shared.MaxFeeNumerator)) > 0 {
+		return shared.BaseFeeParameters{}, errors.New("base fee must be between minimum and maximum")
 	}
 
-	maxDuration := uint64(MaxRateLimiterDurationInSeconds)
-	if activationType == ActivationTypeSlot {
-		maxDuration = uint64(MaxRateLimiterDurationInSlots)
+	maxDuration := uint64(shared.MaxRateLimiterDurationInSeconds)
+	if activationType == shared.ActivationTypeSlot {
+		maxDuration = uint64(shared.MaxRateLimiterDurationInSlots)
 	}
 	if maxLimiterDuration > maxDuration {
-		return BaseFeeParameters{}, fmt.Errorf("max limiter duration exceeds maximum allowed value of %d", maxDuration)
+		return shared.BaseFeeParameters{}, fmt.Errorf("max limiter duration exceeds maximum allowed value of %d", maxDuration)
 	}
 
 	referenceAmountLamports, err := lamportsU64FromUint64(referenceAmount, tokenQuoteDecimal)
 	if err != nil {
-		return BaseFeeParameters{}, err
+		return shared.BaseFeeParameters{}, err
 	}
 
-	return BaseFeeParameters{
-		CliffFeeNumerator: mustU64(cliffFeeNumerator),
+	return shared.BaseFeeParameters{
+		CliffFeeNumerator: cliffFeeNumerator.Uint64(),
 		FirstFactor:       feeIncrementBps,
 		SecondFactor:      maxLimiterDuration,
 		ThirdFactor:       referenceAmountLamports,
-		BaseFeeMode:       uint8(BaseFeeModeRateLimiter),
+		BaseFeeMode:       uint8(shared.BaseFeeModeRateLimiter),
 	}, nil
 }
 
@@ -2024,15 +2025,15 @@ func fourthRootBigIntDecimalMul(a, b decimal.Decimal) (*big.Int, error) {
 }
 
 func buildMigratedPoolMarketCapFeeSchedulerParams(
-	params *MigratedPoolMarketCapFeeSchedulerParams,
-	baseFeeParams BaseFeeParams,
-	baseFeeMode *DammV2BaseFeeMode,
-) (MigratedPoolMarketCapFeeSchedulerParameters, error) {
+	params *shared.MigratedPoolMarketCapFeeSchedulerParams,
+	baseFeeParams shared.BaseFeeParams,
+	baseFeeMode *shared.DammV2BaseFeeMode,
+) (shared.MigratedPoolMarketCapFeeSchedulerParameters, error) {
 	if params == nil {
 		return DefaultMigratedPoolMarketCapFeeSchedulerParams, nil
 	}
 
-	mode := derefDammV2BaseFeeMode(baseFeeMode, DammV2BaseFeeModeFeeTimeSchedulerLinear)
+	mode := derefDammV2BaseFeeMode(baseFeeMode, shared.DammV2BaseFeeModeFeeTimeSchedulerLinear)
 	starting := GetStartingBaseFeeBpsFromBaseFeeParams(baseFeeParams)
 	out, err := GetMigratedPoolMarketCapFeeSchedulerParams(
 		starting,
@@ -2043,13 +2044,13 @@ func buildMigratedPoolMarketCapFeeSchedulerParams(
 		params.SchedulerExpirationDuration,
 	)
 	if err != nil {
-		return MigratedPoolMarketCapFeeSchedulerParameters{}, err
+		return shared.MigratedPoolMarketCapFeeSchedulerParameters{}, err
 	}
 	return out, nil
 }
 
-func baseFeeBpsForDynamicFee(baseFeeParams BaseFeeParams) uint16 {
-	if baseFeeParams.BaseFeeMode == BaseFeeModeRateLimiter {
+func baseFeeBpsForDynamicFee(baseFeeParams shared.BaseFeeParams) uint16 {
+	if baseFeeParams.BaseFeeMode == shared.BaseFeeModeRateLimiter {
 		if baseFeeParams.RateLimiterParam == nil {
 			return 0
 		}
@@ -2061,7 +2062,7 @@ func baseFeeBpsForDynamicFee(baseFeeParams BaseFeeParams) uint16 {
 	return baseFeeParams.FeeSchedulerParam.EndingFeeBps
 }
 
-func derefDammV2BaseFeeMode(v *DammV2BaseFeeMode, fallback DammV2BaseFeeMode) DammV2BaseFeeMode {
+func derefDammV2BaseFeeMode(v *shared.DammV2BaseFeeMode, fallback shared.DammV2BaseFeeMode) shared.DammV2BaseFeeMode {
 	if v == nil {
 		return fallback
 	}
@@ -2077,11 +2078,11 @@ func decimalFromFloat(v float64) decimal.Decimal {
 	return decimal.NewFromFloat(v)
 }
 
-func lamportsFromUint64(amount uint64, tokenDecimal TokenDecimal) (*big.Int, error) {
+func lamportsFromUint64(amount uint64, tokenDecimal shared.TokenDecimal) (*big.Int, error) {
 	return ConvertToLamports(strconv.FormatUint(amount, 10), int32(tokenDecimal))
 }
 
-func lamportsU64FromUint64(amount uint64, tokenDecimal TokenDecimal) (uint64, error) {
+func lamportsU64FromUint64(amount uint64, tokenDecimal shared.TokenDecimal) (uint64, error) {
 	val, err := lamportsFromUint64(amount, tokenDecimal)
 	if err != nil {
 		return 0, err
@@ -2089,7 +2090,7 @@ func lamportsU64FromUint64(amount uint64, tokenDecimal TokenDecimal) (uint64, er
 	return BigIntToU64(val)
 }
 
-func lamportsFromDecimal(amount decimal.Decimal, tokenDecimal TokenDecimal) (*big.Int, error) {
+func lamportsFromDecimal(amount decimal.Decimal, tokenDecimal shared.TokenDecimal) (*big.Int, error) {
 	val, err := ConvertToLamports(amount.String(), int32(tokenDecimal))
 	if err != nil {
 		return nil, err
@@ -2105,12 +2106,4 @@ func bigIntToUint32(v *big.Int) (uint32, error) {
 		return 0, errors.New("value overflows uint32")
 	}
 	return uint32(v.Uint64()), nil
-}
-
-func mustU64(v *big.Int) uint64 {
-	out, err := BigIntToU64(v)
-	if err != nil {
-		panic(err)
-	}
-	return out
 }

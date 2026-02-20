@@ -6,13 +6,13 @@ import (
 	"math"
 	"math/big"
 
-
 	solanago "github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/rpc"
+	"github.com/krazyTry/meteora-go/dynamic_bonding_curve/shared"
 	"github.com/shopspring/decimal"
 )
 
-func ValidateFeeScheduler(numberOfPeriod uint16, periodFrequency, reductionFactor, cliffFeeNumerator *big.Int, baseFeeMode BaseFeeMode) bool {
+func ValidateFeeScheduler(numberOfPeriod uint16, periodFrequency, reductionFactor, cliffFeeNumerator *big.Int, baseFeeMode shared.BaseFeeMode) bool {
 	if periodFrequency.Sign() != 0 || numberOfPeriod != 0 || reductionFactor.Sign() != 0 {
 		if numberOfPeriod == 0 || periodFrequency.Sign() == 0 || reductionFactor.Sign() == 0 {
 			return false
@@ -23,14 +23,14 @@ func ValidateFeeScheduler(numberOfPeriod uint16, periodFrequency, reductionFacto
 		return false
 	}
 	maxFeeNumerator := GetFeeSchedulerMaxBaseFeeNumerator(cliffFeeNumerator)
-	if minFeeNumerator.Cmp(big.NewInt(MinFeeNumerator)) < 0 || maxFeeNumerator.Cmp(big.NewInt(MaxFeeNumerator)) > 0 {
+	if minFeeNumerator.Cmp(big.NewInt(shared.MinFeeNumerator)) < 0 || maxFeeNumerator.Cmp(big.NewInt(shared.MaxFeeNumerator)) > 0 {
 		return false
 	}
 	return true
 }
 
-func ValidateFeeRateLimiter(cliffFeeNumerator, feeIncrementBps, maxLimiterDuration, referenceAmount *big.Int, collectFeeMode CollectFeeMode, activationType ActivationType) bool {
-	if collectFeeMode != CollectFeeModeQuoteToken {
+func ValidateFeeRateLimiter(cliffFeeNumerator, feeIncrementBps, maxLimiterDuration, referenceAmount *big.Int, collectFeeMode shared.CollectFeeMode, activationType shared.ActivationType) bool {
+	if collectFeeMode != shared.CollectFeeModeQuoteToken {
 		return false
 	}
 	isZero := referenceAmount.Sign() == 0 && maxLimiterDuration.Sign() == 0 && feeIncrementBps.Sign() == 0
@@ -41,21 +41,21 @@ func ValidateFeeRateLimiter(cliffFeeNumerator, feeIncrementBps, maxLimiterDurati
 	if !isNonZero {
 		return false
 	}
-	maxLimiterDurationLimit := big.NewInt(MaxRateLimiterDurationInSeconds)
-	if activationType == ActivationTypeSlot {
-		maxLimiterDurationLimit = big.NewInt(MaxRateLimiterDurationInSlots)
+	maxLimiterDurationLimit := big.NewInt(shared.MaxRateLimiterDurationInSeconds)
+	if activationType == shared.ActivationTypeSlot {
+		maxLimiterDurationLimit = big.NewInt(shared.MaxRateLimiterDurationInSlots)
 	}
 	if maxLimiterDuration.Cmp(maxLimiterDurationLimit) > 0 {
 		return false
 	}
-	feeIncrementNumerator, err := ToNumerator(feeIncrementBps, big.NewInt(FeeDenominator))
+	feeIncrementNumerator, err := ToNumerator(feeIncrementBps, big.NewInt(shared.FeeDenominator))
 	if err != nil {
 		return false
 	}
-	if feeIncrementNumerator.Cmp(big.NewInt(FeeDenominator)) >= 0 {
+	if feeIncrementNumerator.Cmp(big.NewInt(shared.FeeDenominator)) >= 0 {
 		return false
 	}
-	if cliffFeeNumerator.Cmp(big.NewInt(MinFeeNumerator)) < 0 || cliffFeeNumerator.Cmp(big.NewInt(MaxFeeNumerator)) > 0 {
+	if cliffFeeNumerator.Cmp(big.NewInt(shared.MinFeeNumerator)) < 0 || cliffFeeNumerator.Cmp(big.NewInt(shared.MaxFeeNumerator)) > 0 {
 		return false
 	}
 	minFeeNumerator, err := GetFeeNumeratorFromIncludedAmount(cliffFeeNumerator, referenceAmount, feeIncrementBps, big.NewInt(0))
@@ -66,22 +66,22 @@ func ValidateFeeRateLimiter(cliffFeeNumerator, feeIncrementBps, maxLimiterDurati
 	if err != nil {
 		return false
 	}
-	return minFeeNumerator.Cmp(big.NewInt(MinFeeNumerator)) >= 0 && maxFeeNumerator.Cmp(big.NewInt(MaxFeeNumerator)) <= 0
+	return minFeeNumerator.Cmp(big.NewInt(shared.MinFeeNumerator)) >= 0 && maxFeeNumerator.Cmp(big.NewInt(shared.MaxFeeNumerator)) <= 0
 }
 
-func ValidatePoolFees(poolFees PoolFeeParameters, collectFeeMode CollectFeeMode, activationType ActivationType) bool {
+func ValidatePoolFees(poolFees shared.PoolFeeParameters, collectFeeMode shared.CollectFeeMode, activationType shared.ActivationType) bool {
 	if poolFees.BaseFee.CliffFeeNumerator == 0 {
 		return false
 	}
-	if poolFees.BaseFee.CliffFeeNumerator < uint64(MinFeeNumerator) {
+	if poolFees.BaseFee.CliffFeeNumerator < uint64(shared.MinFeeNumerator) {
 		return false
 	}
-	if poolFees.BaseFee.BaseFeeMode == uint8(BaseFeeModeFeeSchedulerLinear) || poolFees.BaseFee.BaseFeeMode == uint8(BaseFeeModeFeeSchedulerExponential) {
-		if !ValidateFeeScheduler(poolFees.BaseFee.FirstFactor, new(big.Int).SetUint64(poolFees.BaseFee.SecondFactor), new(big.Int).SetUint64(poolFees.BaseFee.ThirdFactor), new(big.Int).SetUint64(poolFees.BaseFee.CliffFeeNumerator), BaseFeeMode(poolFees.BaseFee.BaseFeeMode)) {
+	if poolFees.BaseFee.BaseFeeMode == uint8(shared.BaseFeeModeFeeSchedulerLinear) || poolFees.BaseFee.BaseFeeMode == uint8(shared.BaseFeeModeFeeSchedulerExponential) {
+		if !ValidateFeeScheduler(poolFees.BaseFee.FirstFactor, new(big.Int).SetUint64(poolFees.BaseFee.SecondFactor), new(big.Int).SetUint64(poolFees.BaseFee.ThirdFactor), new(big.Int).SetUint64(poolFees.BaseFee.CliffFeeNumerator), shared.BaseFeeMode(poolFees.BaseFee.BaseFeeMode)) {
 			return false
 		}
 	}
-	if poolFees.BaseFee.BaseFeeMode == uint8(BaseFeeModeRateLimiter) {
+	if poolFees.BaseFee.BaseFeeMode == uint8(shared.BaseFeeModeRateLimiter) {
 		if !ValidateFeeRateLimiter(new(big.Int).SetUint64(poolFees.BaseFee.CliffFeeNumerator), new(big.Int).SetUint64(uint64(poolFees.BaseFee.FirstFactor)), new(big.Int).SetUint64(poolFees.BaseFee.SecondFactor), new(big.Int).SetUint64(poolFees.BaseFee.ThirdFactor), collectFeeMode, activationType) {
 			return false
 		}
@@ -94,63 +94,65 @@ func ValidatePoolFees(poolFees PoolFeeParameters, collectFeeMode CollectFeeMode,
 	return true
 }
 
-func ValidateDynamicFee(dynamicFee *DynamicFeeParameters) bool {
+func ValidateDynamicFee(dynamicFee *shared.DynamicFeeParameters) bool {
 	if dynamicFee == nil {
 		return true
 	}
-	if dynamicFee.BinStep != uint16(BinStepBpsDefault) {
+	if dynamicFee.BinStep != uint16(shared.BinStepBpsDefault) {
 		return false
 	}
-	if dynamicFee.BinStepU128.BigInt().Cmp(BinStepBpsU128Default) != 0 {
+	if dynamicFee.BinStepU128.BigInt().Cmp(shared.BinStepBpsU128Default) != 0 {
 		return false
 	}
 	if dynamicFee.FilterPeriod >= dynamicFee.DecayPeriod {
 		return false
 	}
-	if dynamicFee.ReductionFactor > uint16(MaxBasisPoint) {
+	if dynamicFee.ReductionFactor > uint16(shared.MaxBasisPoint) {
 		return false
 	}
-	if dynamicFee.VariableFeeControl > uint32(U24Max) {
+	if dynamicFee.VariableFeeControl > uint32(shared.U24Max) {
 		return false
 	}
-	if dynamicFee.MaxVolatilityAccumulator > uint32(U24Max) {
+	if dynamicFee.MaxVolatilityAccumulator > uint32(shared.U24Max) {
 		return false
 	}
 	return true
 }
 
-func ValidateCollectFeeMode(collectFeeMode CollectFeeMode) bool {
-	return collectFeeMode == CollectFeeModeQuoteToken || collectFeeMode == CollectFeeModeOutputToken
+func ValidateCollectFeeMode(collectFeeMode shared.CollectFeeMode) bool {
+	return collectFeeMode == shared.CollectFeeModeQuoteToken || collectFeeMode == shared.CollectFeeModeOutputToken
 }
 
-func ValidateMigrationAndTokenType(migrationOption MigrationOption, tokenType TokenType) bool {
-	if migrationOption == MigrationOptionMetDamm {
-		return tokenType == TokenTypeSPL
+func ValidateMigrationAndTokenType(migrationOption shared.MigrationOption, tokenType shared.TokenType) bool {
+	if migrationOption == shared.MigrationOptionMetDamm {
+		return tokenType == shared.TokenTypeSPL
 	}
 	return true
 }
 
-func ValidateActivationType(activationType ActivationType) bool {
-	return activationType == ActivationTypeSlot || activationType == ActivationTypeTimestamp
+func ValidateActivationType(activationType shared.ActivationType) bool {
+	return activationType == shared.ActivationTypeSlot || activationType == shared.ActivationTypeTimestamp
 }
 
-func ValidateMigrationFeeOption(migrationFeeOption MigrationFeeOption, migrationOption *MigrationOption) bool {
-	if migrationFeeOption == MigrationFeeOptionCustomizable {
+func ValidateMigrationFeeOption(migrationFeeOption shared.MigrationFeeOption, migrationOption *shared.MigrationOption) bool {
+	if migrationFeeOption == shared.MigrationFeeOptionCustomizable {
 		if migrationOption == nil {
 			return false
 		}
-		return *migrationOption == MigrationOptionMetDammV2
+		return *migrationOption == shared.MigrationOptionMetDammV2
 	}
 	switch migrationFeeOption {
-	case MigrationFeeOptionFixedBps25, MigrationFeeOptionFixedBps30, MigrationFeeOptionFixedBps100, MigrationFeeOptionFixedBps200, MigrationFeeOptionFixedBps400, MigrationFeeOptionFixedBps600:
+	case shared.MigrationFeeOptionFixedBps25, shared.MigrationFeeOptionFixedBps30,
+		shared.MigrationFeeOptionFixedBps100, shared.MigrationFeeOptionFixedBps200,
+		shared.MigrationFeeOptionFixedBps400, shared.MigrationFeeOptionFixedBps600:
 		return true
 	default:
 		return false
 	}
 }
 
-func ValidateTokenDecimals(tokenDecimal TokenDecimal) bool {
-	return tokenDecimal >= TokenDecimalSix && tokenDecimal <= TokenDecimalNine
+func ValidateTokenDecimals(tokenDecimal shared.TokenDecimal) bool {
+	return tokenDecimal >= shared.TokenDecimalSix && tokenDecimal <= shared.TokenDecimalNine
 }
 
 func ValidateLPPercentages(partnerLiquidityPercentage, partnerPermanentLockedLiquidityPercentage, creatorLiquidityPercentage, creatorPermanentLockedLiquidityPercentage, partnerVestingPercentage, creatorVestingPercentage uint8) bool {
@@ -158,12 +160,12 @@ func ValidateLPPercentages(partnerLiquidityPercentage, partnerPermanentLockedLiq
 	return total == 100
 }
 
-func ValidateCurve(curve []LiquidityDistributionParameters, sqrtStartPrice *big.Int) bool {
-	if len(curve) == 0 || len(curve) > MaxCurvePoint {
+func ValidateCurve(curve []shared.LiquidityDistributionParameters, sqrtStartPrice *big.Int) bool {
+	if len(curve) == 0 || len(curve) > shared.MaxCurvePoint {
 		return false
 	}
 	first := curve[0]
-	if first.SqrtPrice.BigInt().Cmp(sqrtStartPrice) <= 0 || first.Liquidity.BigInt().Sign() <= 0 || first.SqrtPrice.BigInt().Cmp(MaxSqrtPrice) > 0 {
+	if first.SqrtPrice.BigInt().Cmp(sqrtStartPrice) <= 0 || first.Liquidity.BigInt().Sign() <= 0 || first.SqrtPrice.BigInt().Cmp(shared.MaxSqrtPrice) > 0 {
 		return false
 	}
 	for i := 1; i < len(curve); i++ {
@@ -173,10 +175,10 @@ func ValidateCurve(curve []LiquidityDistributionParameters, sqrtStartPrice *big.
 			return false
 		}
 	}
-	return curve[len(curve)-1].SqrtPrice.BigInt().Cmp(MaxSqrtPrice) <= 0
+	return curve[len(curve)-1].SqrtPrice.BigInt().Cmp(shared.MaxSqrtPrice) <= 0
 }
 
-func ValidateTokenSupply(tokenSupply *TokenSupplyParams, leftoverReceiver solanago.PublicKey, swapBaseAmount, migrationBaseAmount *big.Int, lockedVesting LockedVestingParameters, swapBaseAmountBuffer *big.Int) bool {
+func ValidateTokenSupply(tokenSupply *shared.TokenSupplyParams, leftoverReceiver solanago.PublicKey, swapBaseAmount, migrationBaseAmount *big.Int, lockedVesting shared.LockedVestingParameters, swapBaseAmountBuffer *big.Int) bool {
 	if tokenSupply == nil {
 		return true
 	}
@@ -215,9 +217,11 @@ func ValidateTokenSupply(tokenSupply *TokenSupplyParams, leftoverReceiver solana
 	return true
 }
 
-func ValidateTokenUpdateAuthorityOptions(option TokenUpdateAuthorityOption) bool {
+func ValidateTokenUpdateAuthorityOptions(option shared.TokenUpdateAuthorityOption) bool {
 	switch option {
-	case TokenUpdateAuthorityCreatorUpdateAuthority, TokenUpdateAuthorityImmutable, TokenUpdateAuthorityPartnerUpdateAuthority, TokenUpdateAuthorityCreatorUpdateAndMintAuthority, TokenUpdateAuthorityPartnerUpdateAndMintAuthority:
+	case shared.TokenUpdateAuthorityCreatorUpdateAuthority, shared.TokenUpdateAuthorityImmutable,
+		shared.TokenUpdateAuthorityPartnerUpdateAuthority, shared.TokenUpdateAuthorityCreatorUpdateAndMintAuthority,
+		shared.TokenUpdateAuthorityPartnerUpdateAndMintAuthority:
 		return true
 	default:
 		return false
@@ -228,10 +232,10 @@ func ValidatePoolCreationFee(poolCreationFee uint64) bool {
 	if poolCreationFee == 0 {
 		return true
 	}
-	return poolCreationFee >= MinPoolCreationFee && poolCreationFee <= MaxPoolCreationFee
+	return poolCreationFee >= shared.MinPoolCreationFee && poolCreationFee <= shared.MaxPoolCreationFee
 }
 
-func ValidateLiquidityVestingInfo(vestingInfo LiquidityVestingInfoParameters) bool {
+func ValidateLiquidityVestingInfo(vestingInfo shared.LiquidityVestingInfoParameters) bool {
 	isZero := vestingInfo.VestingPercentage == 0 &&
 		vestingInfo.BpsPerPeriod == 0 &&
 		vestingInfo.NumberOfPeriods == 0 &&
@@ -249,56 +253,56 @@ func ValidateLiquidityVestingInfo(vestingInfo LiquidityVestingInfoParameters) bo
 	return true
 }
 
-func ValidateMinimumLockedLiquidity(partnerPermanentLockedLiquidityPercentage, creatorPermanentLockedLiquidityPercentage uint8, partnerLiquidityVestingInfo, creatorLiquidityVestingInfo *LiquidityVestingInfoParameters) bool {
-	lockedBpsAtDay1 := CalculateLockedLiquidityBpsAtTime(partnerPermanentLockedLiquidityPercentage, creatorPermanentLockedLiquidityPercentage, partnerLiquidityVestingInfo, creatorLiquidityVestingInfo, SecondsPerDay)
-	return lockedBpsAtDay1 >= MinLockedLiquidityBps
+func ValidateMinimumLockedLiquidity(partnerPermanentLockedLiquidityPercentage, creatorPermanentLockedLiquidityPercentage uint8, partnerLiquidityVestingInfo, creatorLiquidityVestingInfo *shared.LiquidityVestingInfoParameters) bool {
+	lockedBpsAtDay1 := CalculateLockedLiquidityBpsAtTime(partnerPermanentLockedLiquidityPercentage, creatorPermanentLockedLiquidityPercentage, partnerLiquidityVestingInfo, creatorLiquidityVestingInfo, shared.SecondsPerDay)
+	return lockedBpsAtDay1 >= shared.MinLockedLiquidityBps
 }
 
-func ValidateMigratedPoolFee(migratedPoolFee MigratedPoolFee, migrationOption *MigrationOption, migrationFeeOption *MigrationFeeOption) bool {
+func ValidateMigratedPoolFee(migratedPoolFee shared.MigratedPoolFee, migrationOption *shared.MigrationOption, migrationFeeOption *shared.MigrationFeeOption) bool {
 	isEmpty := func() bool {
 		return migratedPoolFee.CollectFeeMode == 0 && migratedPoolFee.DynamicFee == 0 && migratedPoolFee.PoolFeeBps == 0
 	}
 	if migrationOption != nil && migrationFeeOption != nil {
-		if *migrationOption == MigrationOptionMetDamm {
+		if *migrationOption == shared.MigrationOptionMetDamm {
 			return isEmpty()
 		}
-		if *migrationOption == MigrationOptionMetDammV2 && *migrationFeeOption != MigrationFeeOptionCustomizable {
+		if *migrationOption == shared.MigrationOptionMetDammV2 && *migrationFeeOption != shared.MigrationFeeOptionCustomizable {
 			return isEmpty()
 		}
 	}
 	if isEmpty() {
 		return true
 	}
-	if migratedPoolFee.PoolFeeBps < uint16(MinMigratedPoolFeeBps) || migratedPoolFee.PoolFeeBps > uint16(MaxMigratedPoolFeeBps) {
+	if migratedPoolFee.PoolFeeBps < uint16(shared.MinMigratedPoolFeeBps) || migratedPoolFee.PoolFeeBps > uint16(shared.MaxMigratedPoolFeeBps) {
 		return false
 	}
-	if !ValidateCollectFeeMode(CollectFeeMode(migratedPoolFee.CollectFeeMode)) {
+	if !ValidateCollectFeeMode(shared.CollectFeeMode(migratedPoolFee.CollectFeeMode)) {
 		return false
 	}
-	if migratedPoolFee.DynamicFee != uint8(DammV2DynamicFeeModeDisabled) && migratedPoolFee.DynamicFee != uint8(DammV2DynamicFeeModeEnabled) {
+	if migratedPoolFee.DynamicFee != uint8(shared.DammV2DynamicFeeModeDisabled) && migratedPoolFee.DynamicFee != uint8(shared.DammV2DynamicFeeModeEnabled) {
 		return false
 	}
 	return true
 }
 
-func ValidateMigratedPoolBaseFeeMode(migratedPoolBaseFeeMode DammV2BaseFeeMode, migratedPoolMarketCapFeeSchedulerParams MigratedPoolMarketCapFeeSchedulerParameters, migrationOption *MigrationOption) error {
-	if migrationOption != nil && *migrationOption != MigrationOptionMetDammV2 {
+func ValidateMigratedPoolBaseFeeMode(migratedPoolBaseFeeMode shared.DammV2BaseFeeMode, migratedPoolMarketCapFeeSchedulerParams shared.MigratedPoolMarketCapFeeSchedulerParameters, migrationOption *shared.MigrationOption) error {
+	if migrationOption != nil && *migrationOption != shared.MigrationOptionMetDammV2 {
 		return nil
 	}
-	if migratedPoolBaseFeeMode == DammV2BaseFeeModeRateLimiter {
+	if migratedPoolBaseFeeMode == shared.DammV2BaseFeeModeRateLimiter {
 		return errors.New("RateLimiter (mode 2) is not supported for DAMM V2 migration")
 	}
 	isFixedFeeParams := migratedPoolMarketCapFeeSchedulerParams.NumberOfPeriod == 0 &&
 		migratedPoolMarketCapFeeSchedulerParams.SqrtPriceStepBps == 0 &&
 		migratedPoolMarketCapFeeSchedulerParams.SchedulerExpirationDuration == 0 &&
 		migratedPoolMarketCapFeeSchedulerParams.ReductionFactor == 0
-	if migratedPoolBaseFeeMode == DammV2BaseFeeModeFeeTimeSchedulerLinear || migratedPoolBaseFeeMode == DammV2BaseFeeModeFeeTimeSchedulerExponential {
+	if migratedPoolBaseFeeMode == shared.DammV2BaseFeeModeFeeTimeSchedulerLinear || migratedPoolBaseFeeMode == shared.DammV2BaseFeeModeFeeTimeSchedulerExponential {
 		if !isFixedFeeParams {
 			return errors.New("FeeTimeScheduler modes only work as fixed fee for migrated pools")
 		}
 		return nil
 	}
-	if migratedPoolBaseFeeMode == DammV2BaseFeeModeFeeMarketCapSchedulerLinear || migratedPoolBaseFeeMode == DammV2BaseFeeModeFeeMarketCapSchedulerExp {
+	if migratedPoolBaseFeeMode == shared.DammV2BaseFeeModeFeeMarketCapSchedulerLinear || migratedPoolBaseFeeMode == shared.DammV2BaseFeeModeFeeMarketCapSchedulerExp {
 		if isFixedFeeParams {
 			return nil
 		}
@@ -310,34 +314,34 @@ func ValidateMigratedPoolBaseFeeMode(migratedPoolBaseFeeMode DammV2BaseFeeMode, 
 	return errors.New("Unknown migratedPoolBaseFeeMode")
 }
 
-func ValidateMigrationFee(migrationFee MigrationFee) error {
-	if migrationFee.FeePercentage > MaxMigrationFeePercentage {
+func ValidateMigrationFee(migrationFee shared.MigrationFee) error {
+	if migrationFee.FeePercentage > shared.MaxMigrationFeePercentage {
 		return errors.New("Migration fee percentage out of range")
 	}
-	if migrationFee.CreatorFeePercentage > MaxCreatorMigrationFeePercentage {
+	if migrationFee.CreatorFeePercentage > shared.MaxCreatorMigrationFeePercentage {
 		return errors.New("Migration creator fee percentage out of range")
 	}
 	return nil
 }
 
-func ValidateConfigParameters(configParam CreateConfigParams) error {
-	if !ValidatePoolFees(configParam.PoolFees, CollectFeeMode(configParam.CollectFeeMode), ActivationType(configParam.ActivationType)) {
+func ValidateConfigParameters(configParam shared.CreateConfigParams) error {
+	if !ValidatePoolFees(configParam.PoolFees, shared.CollectFeeMode(configParam.CollectFeeMode), shared.ActivationType(configParam.ActivationType)) {
 		return errors.New("Invalid pool fees")
 	}
-	if !ValidateCollectFeeMode(CollectFeeMode(configParam.CollectFeeMode)) {
+	if !ValidateCollectFeeMode(shared.CollectFeeMode(configParam.CollectFeeMode)) {
 		return errors.New("Invalid collect fee mode")
 	}
-	if !ValidateTokenUpdateAuthorityOptions(TokenUpdateAuthorityOption(configParam.TokenUpdateAuthority)) {
+	if !ValidateTokenUpdateAuthorityOptions(shared.TokenUpdateAuthorityOption(configParam.TokenUpdateAuthority)) {
 		return errors.New("Invalid option for token update authority")
 	}
-	if !ValidateMigrationAndTokenType(MigrationOption(configParam.MigrationOption), TokenType(configParam.TokenType)) {
+	if !ValidateMigrationAndTokenType(shared.MigrationOption(configParam.MigrationOption), shared.TokenType(configParam.TokenType)) {
 		return errors.New("Token type must be SPL for MeteoraDamm migration")
 	}
-	if !ValidateActivationType(ActivationType(configParam.ActivationType)) {
+	if !ValidateActivationType(shared.ActivationType(configParam.ActivationType)) {
 		return errors.New("Invalid activation type")
 	}
-	migrationOption := MigrationOption(configParam.MigrationOption)
-	migrationFeeOption := MigrationFeeOption(configParam.MigrationFeeOption)
+	migrationOption := shared.MigrationOption(configParam.MigrationOption)
+	migrationFeeOption := shared.MigrationFeeOption(configParam.MigrationFeeOption)
 	if !ValidateMigrationFeeOption(migrationFeeOption, &migrationOption) {
 		return errors.New("Invalid migration fee option")
 	}
@@ -347,7 +351,7 @@ func ValidateConfigParameters(configParam CreateConfigParams) error {
 	if configParam.CreatorTradingFeePercentage > 100 {
 		return errors.New("Creator trading fee percentage must be between 0 and 100")
 	}
-	if !ValidateTokenDecimals(TokenDecimal(configParam.TokenDecimal)) {
+	if !ValidateTokenDecimals(shared.TokenDecimal(configParam.TokenDecimal)) {
 		return errors.New("Token decimal must be between 6 and 9")
 	}
 	partnerVestingPercentage := configParam.PartnerLiquidityVestingInfo.VestingPercentage
@@ -358,11 +362,11 @@ func ValidateConfigParameters(configParam CreateConfigParams) error {
 	if !ValidatePoolCreationFee(configParam.PoolCreationFee) {
 		return errors.New("Invalid pool creation fee")
 	}
-	if migrationOption == MigrationOptionMetDamm {
+	if migrationOption == shared.MigrationOptionMetDamm {
 		if !isZeroVesting(configParam.PartnerLiquidityVestingInfo) || !isZeroVesting(configParam.CreatorLiquidityVestingInfo) {
 			return errors.New("Liquidity vesting is not supported for MeteoraDamm migration")
 		}
-	} else if migrationOption == MigrationOptionMetDammV2 {
+	} else if migrationOption == shared.MigrationOptionMetDammV2 {
 		if !ValidateLiquidityVestingInfo(configParam.PartnerLiquidityVestingInfo) {
 			return errors.New("Invalid partner liquidity vesting info")
 		}
@@ -374,24 +378,24 @@ func ValidateConfigParameters(configParam CreateConfigParams) error {
 	if err != nil {
 		return err
 	}
-	if sqrtMigrationPrice.Cmp(MaxSqrtPrice) >= 0 {
+	if sqrtMigrationPrice.Cmp(shared.MaxSqrtPrice) >= 0 {
 		return errors.New("Migration sqrt price exceeds maximum")
 	}
 	if !ValidateMinimumLockedLiquidity(configParam.PartnerPermanentLockedLiquidityPercentage, configParam.CreatorPermanentLockedLiquidityPercentage, &configParam.PartnerLiquidityVestingInfo, &configParam.CreatorLiquidityVestingInfo) {
-		locked := CalculateLockedLiquidityBpsAtTime(configParam.PartnerPermanentLockedLiquidityPercentage, configParam.CreatorPermanentLockedLiquidityPercentage, &configParam.PartnerLiquidityVestingInfo, &configParam.CreatorLiquidityVestingInfo, SecondsPerDay)
+		locked := CalculateLockedLiquidityBpsAtTime(configParam.PartnerPermanentLockedLiquidityPercentage, configParam.CreatorPermanentLockedLiquidityPercentage, &configParam.PartnerLiquidityVestingInfo, &configParam.CreatorLiquidityVestingInfo, shared.SecondsPerDay)
 		return errors.New("Invalid migration locked liquidity: " + decimal.NewFromInt(int64(locked)).String())
 	}
 	if configParam.MigrationQuoteThreshold == 0 {
 		return errors.New("Migration quote threshold must be greater than 0")
 	}
-	if configParam.SqrtStartPrice.BigInt().Cmp(MinSqrtPrice) < 0 || configParam.SqrtStartPrice.BigInt().Cmp(MaxSqrtPrice) >= 0 {
+	if configParam.SqrtStartPrice.BigInt().Cmp(shared.MinSqrtPrice) < 0 || configParam.SqrtStartPrice.BigInt().Cmp(shared.MaxSqrtPrice) >= 0 {
 		return errors.New("Invalid sqrt start price")
 	}
 	if !ValidateMigratedPoolFee(configParam.MigratedPoolFee, &migrationOption, &migrationFeeOption) {
 		return errors.New("Invalid migrated pool fee parameters")
 	}
-	if migrationOption == MigrationOptionMetDammV2 {
-		if err := ValidateMigratedPoolBaseFeeMode(DammV2BaseFeeMode(configParam.MigratedPoolBaseFeeMode), configParam.MigratedPoolMarketCapFeeSchedulerParams, &migrationOption); err != nil {
+	if migrationOption == shared.MigrationOptionMetDammV2 {
+		if err := ValidateMigratedPoolBaseFeeMode(shared.DammV2BaseFeeMode(configParam.MigratedPoolBaseFeeMode), configParam.MigratedPoolMarketCapFeeSchedulerParams, &migrationOption); err != nil {
 			return err
 		}
 	}
@@ -441,12 +445,12 @@ func ValidateConfigParameters(configParam CreateConfigParams) error {
 	return nil
 }
 
-func isZeroVesting(v LiquidityVestingInfoParameters) bool {
+func isZeroVesting(v shared.LiquidityVestingInfoParameters) bool {
 	return v.VestingPercentage == 0 && v.BpsPerPeriod == 0 && v.NumberOfPeriods == 0 && v.CliffDurationFromMigrationTime == 0 && v.Frequency == 0
 }
 
-func ValidateBaseTokenType(baseTokenType TokenType, poolConfig PoolConfig) bool {
-	return baseTokenType == TokenType(poolConfig.TokenType)
+func ValidateBaseTokenType(baseTokenType shared.TokenType, poolConfig shared.PoolConfig) bool {
+	return baseTokenType == shared.TokenType(poolConfig.TokenType)
 }
 
 func ValidateBalance(ctx context.Context, client *rpc.Client, owner, inputMint, inputTokenAccount solanago.PublicKey, amountIn *big.Int) error {

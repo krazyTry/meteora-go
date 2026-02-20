@@ -60,13 +60,13 @@ func (s *PoolService) initializeSplPool(params InitializePoolBaseParams) (solana
 		params.BaseVault,
 		params.QuoteVault,
 		*mintMetadata,
-		MetaplexProgramID,
+		helpers.MetaplexProgramID,
 		params.Payer,
 		token.ProgramID,
 		token.ProgramID,
 		system.ProgramID,
 		helpers.DeriveDbcEventAuthority(),
-		DynamicBondingCurveProgramID,
+		helpers.DynamicBondingCurveProgramID,
 	)
 }
 
@@ -87,7 +87,7 @@ func (s *PoolService) initializeToken2022Pool(params InitializePoolBaseParams) (
 		solanago.Token2022ProgramID,
 		system.ProgramID,
 		helpers.DeriveDbcEventAuthority(),
-		DynamicBondingCurveProgramID,
+		helpers.DynamicBondingCurveProgramID,
 	)
 }
 
@@ -104,7 +104,7 @@ func (s *PoolService) CreateConfigIx(params CreateConfigParams) (solanago.Instru
 		params.Payer,
 		system.ProgramID,
 		helpers.DeriveDbcEventAuthority(),
-		DynamicBondingCurveProgramID,
+		helpers.DynamicBondingCurveProgramID,
 	)
 }
 
@@ -390,7 +390,7 @@ func (s *PoolService) SwapBuyIx(ctx context.Context, firstBuyParam FirstBuyParam
 		inputProgram,
 		optionalPubkey(firstBuyParam.ReferralTokenAccount),
 		helpers.DeriveDbcEventAuthority(),
-		DynamicBondingCurveProgramID,
+		helpers.DynamicBondingCurveProgramID,
 	)
 	if err != nil {
 		return
@@ -477,7 +477,7 @@ func (s *PoolService) Swap(ctx context.Context, params SwapParams) ([]solanago.I
 		}(),
 		optionalPubkey(params.ReferralTokenAccount),
 		helpers.DeriveDbcEventAuthority(),
-		DynamicBondingCurveProgramID,
+		helpers.DynamicBondingCurveProgramID,
 	)
 	if err != nil {
 		return nil, nil, nil, err
@@ -590,7 +590,7 @@ func (s *PoolService) Swap2(ctx context.Context, params Swap2Params) ([]solanago
 		}(),
 		optionalPubkey(params.ReferralTokenAccount),
 		helpers.DeriveDbcEventAuthority(),
-		DynamicBondingCurveProgramID,
+		helpers.DynamicBondingCurveProgramID,
 	)
 	if err != nil {
 		return nil, nil, nil, err

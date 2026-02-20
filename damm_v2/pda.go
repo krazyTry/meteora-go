@@ -3,7 +3,6 @@ package dammv2
 import (
 	"bytes"
 	"encoding/binary"
-	"math/big"
 
 	solanago "github.com/gagliardetto/solana-go"
 )
@@ -97,16 +96,4 @@ func DerivePositionNftAccount(positionNftMint solanago.PublicKey) solanago.Publi
 func DeriveOperatorAddress(whitelistedAddress solanago.PublicKey) solanago.PublicKey {
 	pub, _, _ := solanago.FindProgramAddress([][]byte{[]byte("operator"), whitelistedAddress.Bytes()}, CpAmmProgramID)
 	return pub
-}
-
-func indexBytesLE(v *big.Int, size int) []byte {
-	if v == nil {
-		return make([]byte, size)
-	}
-	b := v.Bytes()
-	out := make([]byte, size)
-	for i := 0; i < len(b) && i < size; i++ {
-		out[i] = b[len(b)-1-i]
-	}
-	return out
 }

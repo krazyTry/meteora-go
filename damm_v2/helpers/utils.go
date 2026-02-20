@@ -10,6 +10,7 @@ import (
 	binary "github.com/gagliardetto/binary"
 	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/rpc"
+	"github.com/krazyTry/meteora-go/damm_v2/shared"
 	dammv2gen "github.com/krazyTry/meteora-go/gen/damm_v2"
 )
 
@@ -21,9 +22,9 @@ func GetUnClaimLpFee(poolState *dammv2gen.Pool, positionState *dammv2gen.Positio
 	feeBPerTokenStored := new(big.Int).Sub(leBytesToBigInt(poolState.FeeBPerLiquidity[:]), leBytesToBigInt(positionState.FeeBPerTokenCheckpoint[:]))
 
 	feeA := new(big.Int).Mul(totalPositionLiquidity, feeAPerTokenStored)
-	feeA.Rsh(feeA, LiquidityScale)
+	feeA.Rsh(feeA, shared.LiquidityScale)
 	feeB := new(big.Int).Mul(totalPositionLiquidity, feeBPerTokenStored)
-	feeB.Rsh(feeB, LiquidityScale)
+	feeB.Rsh(feeB, shared.LiquidityScale)
 
 	feeTokenA = new(big.Int).Add(big.NewInt(int64(positionState.FeeAPending)), feeA)
 	feeTokenB = new(big.Int).Add(big.NewInt(int64(positionState.FeeBPending)), feeB)

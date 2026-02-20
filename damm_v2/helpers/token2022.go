@@ -49,19 +49,32 @@ func calculateInverseFee(transferFeeBasisPoints uint16, maximumFee *big.Int, pos
 	return calculateFee(transferFeeBasisPoints, maximumFee, preFeeAmount)
 }
 
-func calculateFee(transferFeeBasisPoints uint16, maximumFee *big.Int, amount *big.Int) *big.Int {
-	if transferFeeBasisPoints == 0 || amount.Sign() == 0 {
+func calculateFee(transferFeeBasisPoints uint16, maximumFee *big.Int, preFeeAmount *big.Int) *big.Int {
+	// if transferFeeBasisPoints == 0 || amount.Sign() == 0 {
+	// 	return big.NewInt(0)
+	// }
+	// if transferFeeBasisPoints == maxFeeBasisPoints {
+	// 	return new(big.Int).Set(maximumFee)
+	// }
+	// fee := new(big.Int).Mul(amount, big.NewInt(int64(transferFeeBasisPoints)))
+	// fee.Div(fee, big.NewInt(maxFeeBasisPoints))
+	// if fee.Cmp(maximumFee) > 0 {
+	// 	return new(big.Int).Set(maximumFee)
+	// }
+	// return fee
+
+	if transferFeeBasisPoints == 0 || preFeeAmount.Sign() == 0 {
 		return big.NewInt(0)
 	}
-	if transferFeeBasisPoints == maxFeeBasisPoints {
-		return new(big.Int).Set(maximumFee)
-	}
-	fee := new(big.Int).Mul(amount, big.NewInt(int64(transferFeeBasisPoints)))
-	fee.Div(fee, big.NewInt(maxFeeBasisPoints))
-	if fee.Cmp(maximumFee) > 0 {
-		return new(big.Int).Set(maximumFee)
-	}
-	return fee
+
+	numerator := new(big.Int).Mul(preFeeAmount, new(big.Int).SetUint64(uint64(transferFeeBasisPoints)))
+
+	// rawFee = (numerator + 10000 - 1) / 10000  => ceil(numerator/10000)
+	rawFee := new(big.Int).Add(numerator, big.NewInt(maxFeeBasisPoints-1))
+	rawFee.Div(rawFee, big.NewInt(maxFeeBasisPoints))
+
+	// fee = min(rawFee, maximumFee)
+	return minBigInt(rawFee, maximumFee)
 }
 
 func CalculateTransferFeeIncludedAmount(transferFeeExcludedAmount *big.Int, tokenInfo *TokenInfo) TransferFeeIncludedAmount {

@@ -10,6 +10,7 @@ import (
 	"github.com/krazyTry/meteora-go/damm_v2/helpers"
 	"github.com/krazyTry/meteora-go/damm_v2/math"
 	"github.com/krazyTry/meteora-go/damm_v2/math/pool_fees"
+	"github.com/krazyTry/meteora-go/damm_v2/shared"
 	dammv2gen "github.com/krazyTry/meteora-go/gen/damm_v2"
 )
 
@@ -48,13 +49,13 @@ func (c *CpAmm) GetQuote(params GetQuoteParams) (QuoteResult, error) {
 	if err != nil {
 		return QuoteResult{}, err
 	}
-	totalFee := new(big.Int).Add(swapResult.TradingFee, swapResult.ProtocolFee)
-	totalFee.Add(totalFee, swapResult.PartnerFee)
-	totalFee.Add(totalFee, swapResult.ReferralFee)
+	totalFee := new(big.Int).Add(new(big.Int).SetUint64(swapResult.TradingFee), new(big.Int).SetUint64(swapResult.ProtocolFee))
+	totalFee.Add(totalFee, new(big.Int).SetUint64(swapResult.PartnerFee))
+	totalFee.Add(totalFee, new(big.Int).SetUint64(swapResult.ReferralFee))
 	return QuoteResult{
 		SwapInAmount:     params.InAmount,
-		ConsumedInAmount: swapResult.IncludedFeeInputAmount,
-		SwapOutAmount:    swapResult.OutputAmount,
+		ConsumedInAmount: new(big.Int).SetUint64(swapResult.IncludedFeeInputAmount),
+		SwapOutAmount:    new(big.Int).SetUint64(swapResult.OutputAmount),
 		MinSwapOutAmount: swapResult.MinimumAmountOut,
 		TotalFee:         totalFee,
 		PriceImpact:      swapResult.PriceImpact,
@@ -284,8 +285,8 @@ func (c *CpAmm) CreateCustomPool(ctx context.Context, params InitializeCustomize
 		HasAlphaVault:   params.HasAlphaVault,
 		Liquidity:       u128FromBig(params.LiquidityDelta),
 		SqrtPrice:       u128FromBig(params.InitSqrtPrice),
-		ActivationType:  params.ActivationType,
-		CollectFeeMode:  params.CollectFeeMode,
+		ActivationType:  uint8(params.ActivationType),
+		CollectFeeMode:  uint8(params.CollectFeeMode),
 		ActivationPoint: toU64Ptr(params.ActivationPoint),
 	}
 	initIx, err := dammv2gen.NewInitializeCustomizablePoolInstruction(
@@ -368,8 +369,8 @@ func (c *CpAmm) CreateCustomPoolWithDynamicConfig(ctx context.Context, params In
 		HasAlphaVault:   params.HasAlphaVault,
 		Liquidity:       u128FromBig(params.LiquidityDelta),
 		SqrtPrice:       u128FromBig(params.InitSqrtPrice),
-		ActivationType:  params.ActivationType,
-		CollectFeeMode:  params.CollectFeeMode,
+		ActivationType:  uint8(params.ActivationType),
+		CollectFeeMode:  uint8(params.CollectFeeMode),
 		ActivationPoint: toU64Ptr(params.ActivationPoint),
 	}
 	initIx, err := dammv2gen.NewInitializePoolWithDynamicConfigInstruction(
@@ -773,7 +774,7 @@ func (c *CpAmm) Swap(ctx context.Context, params SwapParams) (TxBuilder, error) 
 	baseFeeMode := BaseFeeMode(data[8])
 	rateLimiterApplied := false
 	if baseFeeMode == BaseFeeModeRateLimiter {
-		currentPoint, err := helpers.GetCurrentPoint(ctx, c.Client, uint8(poolState.ActivationType))
+		currentPoint, err := helpers.GetCurrentPoint(ctx, c.Client, shared.ActivationType(poolState.ActivationType))
 		if err != nil {
 			return nil, err
 		}
@@ -904,7 +905,7 @@ func (c *CpAmm) Swap2(ctx context.Context, params Swap2Params) (TxBuilder, error
 	baseFeeMode := BaseFeeMode(data[8])
 	rateLimiterApplied := false
 	if baseFeeMode == BaseFeeModeRateLimiter {
-		currentPoint, err := helpers.GetCurrentPoint(ctx, c.Client, uint8(poolState.ActivationType))
+		currentPoint, err := helpers.GetCurrentPoint(ctx, c.Client, shared.ActivationType(poolState.ActivationType))
 		if err != nil {
 			return nil, err
 		}

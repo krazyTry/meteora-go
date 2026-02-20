@@ -21,7 +21,7 @@ func GetFeeInPeriod(cliffFeeNumerator, reductionFactor *big.Int, passedPeriod in
 	bps.Div(bps, big.NewInt(shared.BasisPointMax))
 	base := new(big.Int).Sub(shared.OneQ64, bps)
 	result := Pow(base, big.NewInt(int64(passedPeriod)))
-	if result.Cmp(shared.MaxU128) > 0 {
+	if result.Cmp(shared.U128Max) > 0 {
 		return big.NewInt(0)
 	}
 	fee := new(big.Int).Mul(result, cliffFeeNumerator)

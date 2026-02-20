@@ -56,7 +56,7 @@ func (s *CreatorService) CreatePoolMetadata(ctx context.Context, params CreateVi
 		params.Payer,
 		system.ProgramID,
 		helpers.DeriveDbcEventAuthority(),
-		DynamicBondingCurveProgramID,
+		helpers.DynamicBondingCurveProgramID,
 	)
 }
 
@@ -73,7 +73,7 @@ func (s *CreatorService) TransferPoolCreator(ctx context.Context, params Transfe
 		params.Creator,
 		params.NewCreator,
 		helpers.DeriveDbcEventAuthority(),
-		DynamicBondingCurveProgramID,
+		helpers.DynamicBondingCurveProgramID,
 	)
 	if err != nil {
 		return nil, err
@@ -126,7 +126,7 @@ func (s *CreatorService) CreatorWithdrawSurplus(ctx context.Context, params Crea
 		params.Creator,
 		tokenQuoteProgram,
 		helpers.DeriveDbcEventAuthority(),
-		DynamicBondingCurveProgramID,
+		helpers.DynamicBondingCurveProgramID,
 	)
 	if err != nil {
 		return nil, err
@@ -179,7 +179,7 @@ func (s *CreatorService) WithdrawMigrationFee(ctx context.Context, params Withdr
 		params.Sender,
 		tokenQuoteProgram,
 		helpers.DeriveDbcEventAuthority(),
-		DynamicBondingCurveProgramID,
+		helpers.DynamicBondingCurveProgramID,
 	)
 	if err != nil {
 		return nil, err
@@ -229,7 +229,7 @@ func (s *CreatorService) claimWithQuoteMintSol(ctx context.Context, params Claim
 		TokenBaseProgram:  params.TokenBaseProgram,
 		TokenQuoteProgram: params.TokenQuoteProgram,
 		EventAuthority:    helpers.DeriveDbcEventAuthority(),
-		Program:           DynamicBondingCurveProgramID,
+		Program:           helpers.DynamicBondingCurveProgramID,
 	}
 	return accounts, pre, post, nil
 }
@@ -253,7 +253,7 @@ func (s *CreatorService) claimWithQuoteMintNotSol(ctx context.Context, params Cl
 		TokenBaseProgram:  params.TokenBaseProgram,
 		TokenQuoteProgram: params.TokenQuoteProgram,
 		EventAuthority:    helpers.DeriveDbcEventAuthority(),
-		Program:           DynamicBondingCurveProgramID,
+		Program:           helpers.DynamicBondingCurveProgramID,
 	}
 	return accounts, pre, nil
 }
@@ -440,7 +440,7 @@ func (s *CreatorService) ClaimCreatorTradingFee2(ctx context.Context, params Cla
 			tokenBaseProgram,
 			tokenQuoteProgram,
 			helpers.DeriveDbcEventAuthority(),
-			DynamicBondingCurveProgramID,
+			helpers.DynamicBondingCurveProgramID,
 		)
 		if err != nil {
 			return nil, nil, nil, err

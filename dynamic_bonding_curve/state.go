@@ -6,6 +6,7 @@ import (
 	"math/big"
 
 	"github.com/krazyTry/meteora-go/dynamic_bonding_curve/helpers"
+	"github.com/krazyTry/meteora-go/dynamic_bonding_curve/shared"
 	dbcidl "github.com/krazyTry/meteora-go/gen/dynamic_bonding_curve"
 
 	solanago "github.com/gagliardetto/solana-go"
@@ -38,7 +39,7 @@ func (s *StateService) GetPoolConfig(ctx context.Context, configAddress solanago
 
 func (s *StateService) GetPoolConfigs(ctx context.Context) ([]ProgramAccount[PoolConfig], error) {
 	filters := helpers.CreateProgramAccountFilter(helpers.AccountKeyPoolConfig, nil)
-	accounts, err := s.RPC.GetProgramAccountsWithOpts(ctx, DynamicBondingCurveProgramID, &rpc.GetProgramAccountsOpts{Commitment: s.Commitment, Filters: filters})
+	accounts, err := s.RPC.GetProgramAccountsWithOpts(ctx, helpers.DynamicBondingCurveProgramID, &rpc.GetProgramAccountsOpts{Commitment: s.Commitment, Filters: filters})
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +57,7 @@ func (s *StateService) GetPoolConfigs(ctx context.Context) ([]ProgramAccount[Poo
 func (s *StateService) GetPoolConfigsByOwner(ctx context.Context, owner solanago.PublicKey) ([]ProgramAccount[PoolConfig], error) {
 	// filters := helpers.CreateProgramAccountFilter(owner, 72)
 	filters := helpers.CreateProgramAccountFilter(helpers.AccountKeyPoolConfig, nil)
-	accounts, err := s.RPC.GetProgramAccountsWithOpts(ctx, DynamicBondingCurveProgramID, &rpc.GetProgramAccountsOpts{Commitment: s.Commitment, Filters: filters})
+	accounts, err := s.RPC.GetProgramAccountsWithOpts(ctx, helpers.DynamicBondingCurveProgramID, &rpc.GetProgramAccountsOpts{Commitment: s.Commitment, Filters: filters})
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +92,7 @@ func (s *StateService) GetPool(ctx context.Context, poolAddress solanago.PublicK
 
 func (s *StateService) GetPools(ctx context.Context) ([]ProgramAccount[VirtualPool], error) {
 	filters := helpers.CreateProgramAccountFilter(helpers.AccountKeyVirtualPool, nil)
-	accounts, err := s.RPC.GetProgramAccountsWithOpts(ctx, DynamicBondingCurveProgramID, &rpc.GetProgramAccountsOpts{Commitment: s.Commitment, Filters: filters})
+	accounts, err := s.RPC.GetProgramAccountsWithOpts(ctx, helpers.DynamicBondingCurveProgramID, &rpc.GetProgramAccountsOpts{Commitment: s.Commitment, Filters: filters})
 	if err != nil {
 		return nil, err
 	}
@@ -110,9 +111,9 @@ func (s *StateService) GetPoolsByConfig(ctx context.Context, configAddress solan
 	// filters := helpers.CreateProgramAccountFilter(configAddress, 72)
 	filters := helpers.CreateProgramAccountFilter(helpers.AccountKeyVirtualPool, &helpers.Filter{
 		Owner:  configAddress,
-		Offset: helpers.ComputeStructOffset(new(helpers.VirtualPool), "Config"),
+		Offset: helpers.ComputeStructOffset(new(shared.VirtualPool), "Config"),
 	})
-	accounts, err := s.RPC.GetProgramAccountsWithOpts(ctx, DynamicBondingCurveProgramID, &rpc.GetProgramAccountsOpts{Commitment: s.Commitment, Filters: filters})
+	accounts, err := s.RPC.GetProgramAccountsWithOpts(ctx, helpers.DynamicBondingCurveProgramID, &rpc.GetProgramAccountsOpts{Commitment: s.Commitment, Filters: filters})
 	if err != nil {
 		return nil, err
 	}
@@ -131,9 +132,9 @@ func (s *StateService) GetPoolsByCreator(ctx context.Context, creatorAddress sol
 	// filters := helpers.CreateProgramAccountFilter(creatorAddress, 104)
 	filters := helpers.CreateProgramAccountFilter(helpers.AccountKeyVirtualPool, &helpers.Filter{
 		Owner:  creatorAddress,
-		Offset: helpers.ComputeStructOffset(new(helpers.VirtualPool), "Creator"),
+		Offset: helpers.ComputeStructOffset(new(shared.VirtualPool), "Creator"),
 	})
-	accounts, err := s.RPC.GetProgramAccountsWithOpts(ctx, DynamicBondingCurveProgramID, &rpc.GetProgramAccountsOpts{Commitment: s.Commitment, Filters: filters})
+	accounts, err := s.RPC.GetProgramAccountsWithOpts(ctx, helpers.DynamicBondingCurveProgramID, &rpc.GetProgramAccountsOpts{Commitment: s.Commitment, Filters: filters})
 	if err != nil {
 		return nil, err
 	}
@@ -153,10 +154,10 @@ func (s *StateService) GetPoolByBaseMint(ctx context.Context, baseMint solanago.
 
 	filters := helpers.CreateProgramAccountFilter(helpers.AccountKeyVirtualPool, &helpers.Filter{
 		Owner:  baseMint,
-		Offset: helpers.ComputeStructOffset(new(helpers.VirtualPool), "BaseMint"),
+		Offset: helpers.ComputeStructOffset(new(shared.VirtualPool), "BaseMint"),
 	})
 
-	accounts, err := s.RPC.GetProgramAccountsWithOpts(ctx, DynamicBondingCurveProgramID, &rpc.GetProgramAccountsOpts{Commitment: s.Commitment, Filters: filters})
+	accounts, err := s.RPC.GetProgramAccountsWithOpts(ctx, helpers.DynamicBondingCurveProgramID, &rpc.GetProgramAccountsOpts{Commitment: s.Commitment, Filters: filters})
 	if err != nil {
 		return nil, err
 	}
@@ -210,9 +211,9 @@ func (s *StateService) GetPoolMetadata(ctx context.Context, poolAddress solanago
 	// filters := helpers.CreateProgramAccountFilter(poolAddress, 8)
 	filters := helpers.CreateProgramAccountFilter(helpers.AccountKeyVirtualPoolMetadata, &helpers.Filter{
 		Owner:  poolAddress,
-		Offset: helpers.ComputeStructOffset(new(helpers.VirtualPoolMetadata), "VirtualPool"),
+		Offset: helpers.ComputeStructOffset(new(shared.VirtualPoolMetadata), "VirtualPool"),
 	})
-	accounts, err := s.RPC.GetProgramAccountsWithOpts(ctx, DynamicBondingCurveProgramID, &rpc.GetProgramAccountsOpts{Commitment: s.Commitment, Filters: filters})
+	accounts, err := s.RPC.GetProgramAccountsWithOpts(ctx, helpers.DynamicBondingCurveProgramID, &rpc.GetProgramAccountsOpts{Commitment: s.Commitment, Filters: filters})
 	if err != nil {
 		return nil, err
 	}
@@ -231,9 +232,9 @@ func (s *StateService) GetPartnerMetadata(ctx context.Context, partnerAddress so
 	// filters := helpers.CreateProgramAccountFilter(partnerAddress, 8)
 	filters := helpers.CreateProgramAccountFilter(helpers.AccountKeyPartnerMetadata, &helpers.Filter{
 		Owner:  partnerAddress,
-		Offset: helpers.ComputeStructOffset(new(helpers.PartnerMetadata), "FeeClaimer"),
+		Offset: helpers.ComputeStructOffset(new(shared.PartnerMetadata), "FeeClaimer"),
 	})
-	accounts, err := s.RPC.GetProgramAccountsWithOpts(ctx, DynamicBondingCurveProgramID, &rpc.GetProgramAccountsOpts{Commitment: s.Commitment, Filters: filters})
+	accounts, err := s.RPC.GetProgramAccountsWithOpts(ctx, helpers.DynamicBondingCurveProgramID, &rpc.GetProgramAccountsOpts{Commitment: s.Commitment, Filters: filters})
 	if err != nil {
 		return nil, err
 	}

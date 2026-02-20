@@ -150,17 +150,11 @@ func GetTokenInfo(ctx context.Context, client *rpc.Client, mint solanago.PublicK
 		return nil, err
 	}
 
-	epochInfo, err := client.GetEpochInfo(ctx, rpc.CommitmentFinalized)
-	if err != nil {
-		return nil, err
-	}
-
 	if !out.Value.Owner.Equals(solanago.Token2022ProgramID) {
 		return &TokenInfo{
-			Owner:        out.Value.Owner,
-			Mint:         mint,
-			CurrentEpoch: epochInfo.Epoch,
-			Decimals:     mintAcc.Decimals,
+			Owner:    out.Value.Owner,
+			Mint:     mint,
+			Decimals: mintAcc.Decimals,
 		}, nil
 	}
 
@@ -173,11 +167,15 @@ func GetTokenInfo(ctx context.Context, client *rpc.Client, mint solanago.PublicK
 		return &TokenInfo{
 			Owner:           out.Value.Owner,
 			Mint:            mint,
-			CurrentEpoch:    epochInfo.Epoch,
 			Decimals:        mintAcc.Decimals,
 			HasTransferFee:  false,
 			HasTransferHook: ext.HasTransferHook,
 		}, nil
+	}
+
+	epochInfo, err := client.GetEpochInfo(ctx, rpc.CommitmentFinalized)
+	if err != nil {
+		return nil, err
 	}
 
 	fee := ext.TransferFeeConfig.FeeForEpoch(epochInfo.Epoch)
@@ -185,7 +183,6 @@ func GetTokenInfo(ctx context.Context, client *rpc.Client, mint solanago.PublicK
 	return &TokenInfo{
 		Owner:           out.Value.Owner,
 		Mint:            mint,
-		CurrentEpoch:    epochInfo.Epoch,
 		Decimals:        mintAcc.Decimals,
 		BasisPoints:     fee.FeeBps,
 		MaximumFee:      new(big.Int).SetUint64(fee.MaxFee),

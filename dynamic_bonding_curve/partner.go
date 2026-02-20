@@ -54,7 +54,7 @@ func (s *PartnerService) CreateConfig(ctx context.Context, params CreateConfigPa
 		params.Payer,
 		system.ProgramID,
 		helpers.DeriveDbcEventAuthority(),
-		DynamicBondingCurveProgramID,
+		helpers.DynamicBondingCurveProgramID,
 	)
 }
 
@@ -73,7 +73,7 @@ func (s *PartnerService) CreatePartnerMetadata(ctx context.Context, params Creat
 		params.FeeClaimer,
 		system.ProgramID,
 		helpers.DeriveDbcEventAuthority(),
-		DynamicBondingCurveProgramID,
+		helpers.DynamicBondingCurveProgramID,
 	)
 }
 
@@ -118,7 +118,7 @@ func (s *PartnerService) claimWithQuoteMintSol(ctx context.Context, params Claim
 		TokenBaseProgram:  params.TokenBaseProgram,
 		TokenQuoteProgram: params.TokenQuoteProgram,
 		EventAuthority:    helpers.DeriveDbcEventAuthority(),
-		Program:           DynamicBondingCurveProgramID,
+		Program:           helpers.DynamicBondingCurveProgramID,
 	}
 	return accounts, pre, post, nil
 }
@@ -143,7 +143,7 @@ func (s *PartnerService) claimWithQuoteMintNotSol(ctx context.Context, params Cl
 		TokenBaseProgram:  params.TokenBaseProgram,
 		TokenQuoteProgram: params.TokenQuoteProgram,
 		EventAuthority:    helpers.DeriveDbcEventAuthority(),
-		Program:           DynamicBondingCurveProgramID,
+		Program:           helpers.DynamicBondingCurveProgramID,
 	}
 	return accounts, pre, nil
 }
@@ -336,7 +336,7 @@ func (s *PartnerService) ClaimPartnerTradingFee2(ctx context.Context, params Cla
 			tokenBaseProgram,
 			tokenQuoteProgram,
 			helpers.DeriveDbcEventAuthority(),
-			DynamicBondingCurveProgramID,
+			helpers.DynamicBondingCurveProgramID,
 		)
 		if err != nil {
 			return nil, nil, nil, err
@@ -425,7 +425,7 @@ func (s *PartnerService) PartnerWithdrawSurplus(ctx context.Context, params Part
 		params.FeeClaimer,
 		tokenQuoteProgram,
 		helpers.DeriveDbcEventAuthority(),
-		DynamicBondingCurveProgramID,
+		helpers.DynamicBondingCurveProgramID,
 	)
 	if err != nil {
 		return nil, err
@@ -478,7 +478,7 @@ func (s *PartnerService) PartnerWithdrawMigrationFee(ctx context.Context, params
 		params.Sender,
 		tokenQuoteProgram,
 		helpers.DeriveDbcEventAuthority(),
-		DynamicBondingCurveProgramID,
+		helpers.DynamicBondingCurveProgramID,
 	)
 	if err != nil {
 		return nil, err
@@ -506,6 +506,6 @@ func (s *PartnerService) ClaimPartnerPoolCreationFee(ctx context.Context, params
 		configState.FeeClaimer,
 		params.FeeReceiver,
 		helpers.DeriveDbcEventAuthority(),
-		DynamicBondingCurveProgramID,
+		helpers.DynamicBondingCurveProgramID,
 	)
 }

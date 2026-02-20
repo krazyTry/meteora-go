@@ -4,6 +4,7 @@ import (
 	"math/big"
 
 	solanago "github.com/gagliardetto/solana-go"
+	"github.com/krazyTry/meteora-go/dynamic_bonding_curve/shared"
 	dammv1gen "github.com/krazyTry/meteora-go/gen/damm_v1"
 	dammv2gen "github.com/krazyTry/meteora-go/gen/damm_v2"
 	dbcgen "github.com/krazyTry/meteora-go/gen/dynamic_bonding_curve"
@@ -20,67 +21,9 @@ const (
 	AccountKeyPoolConfig                   = "PoolConfig"
 	AccountKeyVirtualPool                  = "VirtualPool"
 	AccountKeyVirtualPoolMetadata          = "VirtualPoolMetadata"
-
-	MaxCurvePoint = 16
-
-	Offset     = 64
-	Resolution = 64
-
-	FeeDenominator = 1_000_000_000
-	MaxBasisPoint  = 10_000
-
-	U16Max = 65_535
-	U24Max = 16_777_215
-
-	MinFeeBps = 25
-	MaxFeeBps = 9900
-
-	MinFeeNumerator = 2_500_000
-	MaxFeeNumerator = 990_000_000
-
-	MaxRateLimiterDurationInSeconds = 43_200
-	MaxRateLimiterDurationInSlots   = 108_000
-
-	DynamicFeeFilterPeriodDefault    = 10
-	DynamicFeeDecayPeriodDefault     = 120
-	DynamicFeeReductionFactorDefault = 5000
-	BinStepBpsDefault                = 1
-	MaxPriceChangePercentageDefault  = 20
-
-	ProtocolFeePercent = 20
-	HostFeePercent     = 20
-
-	SwapBufferPercentage = 25
-
-	MaxMigrationFeePercentage        = 99
-	MaxCreatorMigrationFeePercentage = 100
-
-	MinLockedLiquidityBps    = 1000
-	SecondsPerDay            = 86400
-	MaxLockDurationInSeconds = 63_072_000
-
-	ProtocolPoolCreationFeePercent = 10
-	MinPoolCreationFee             = 1_000_000
-	MaxPoolCreationFee             = 100_000_000_000
-
-	MinMigratedPoolFeeBps = 10
-	MaxMigratedPoolFeeBps = 1000
 )
 
 var (
-	OneQ64 = new(big.Int).Lsh(big.NewInt(1), Resolution)
-
-	U64Max  = new(big.Int).SetUint64(^uint64(0))
-	U128Max = bigIntFromString("340282366920938463463374607431768211455")
-
-	MinSqrtPrice = bigIntFromString("4295048016")
-	MaxSqrtPrice = bigIntFromString("79226673521066979257578248091")
-
-	DynamicFeeScalingFactor  = bigIntFromString("100000000000")
-	DynamicFeeRoundingOffset = bigIntFromString("99999999999")
-
-	BinStepBpsU128Default = bigIntFromString("1844674407370955")
-
 	DynamicBondingCurveProgramID = dbcgen.ProgramID
 	MetaplexProgramID            = solanago.MustPublicKeyFromBase58("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s")
 	DammV1ProgramID              = dammv1gen.ProgramID
@@ -108,8 +51,8 @@ var (
 		solanago.MustPublicKeyFromBase58("A8gMrEPJkacWkcb3DGwtJwTe16HktSEfvwtuDh2MCtck"),
 	}
 
-	DefaultLiquidityVestingInfoParams = LiquidityVestingInfoParams{
-		LiquidityVestingInfoParameters: LiquidityVestingInfoParameters{
+	DefaultLiquidityVestingInfoParams = shared.LiquidityVestingInfoParams{
+		LiquidityVestingInfoParameters: shared.LiquidityVestingInfoParameters{
 			VestingPercentage:              0,
 			BpsPerPeriod:                   0,
 			NumberOfPeriods:                0,
@@ -119,7 +62,7 @@ var (
 		TotalDuration: 0,
 	}
 
-	DefaultMigratedPoolMarketCapFeeSchedulerParams = MigratedPoolMarketCapFeeSchedulerParameters{
+	DefaultMigratedPoolMarketCapFeeSchedulerParams = shared.MigratedPoolMarketCapFeeSchedulerParameters{
 		NumberOfPeriod:              0,
 		SqrtPriceStepBps:            0,
 		SchedulerExpirationDuration: 0,
@@ -135,39 +78,39 @@ func bigIntFromString(v string) *big.Int {
 	return out
 }
 
-func GetDammV2Config(migrationFeeOption MigrationFeeOption) solanago.PublicKey {
+func GetDammV2Config(migrationFeeOption shared.MigrationFeeOption) solanago.PublicKey {
 	switch migrationFeeOption {
-	case MigrationFeeOptionFixedBps25:
+	case shared.MigrationFeeOptionFixedBps25:
 		return DammV2MigrationFeeAddress[migrationFeeOption]
-	case MigrationFeeOptionFixedBps30:
+	case shared.MigrationFeeOptionFixedBps30:
 		return DammV2MigrationFeeAddress[migrationFeeOption]
-	case MigrationFeeOptionFixedBps100:
+	case shared.MigrationFeeOptionFixedBps100:
 		return DammV2MigrationFeeAddress[migrationFeeOption]
-	case MigrationFeeOptionFixedBps200:
+	case shared.MigrationFeeOptionFixedBps200:
 		return DammV2MigrationFeeAddress[migrationFeeOption]
-	case MigrationFeeOptionFixedBps400:
+	case shared.MigrationFeeOptionFixedBps400:
 		return DammV2MigrationFeeAddress[migrationFeeOption]
-	case MigrationFeeOptionFixedBps600:
+	case shared.MigrationFeeOptionFixedBps600:
 		return DammV2MigrationFeeAddress[migrationFeeOption]
-	case MigrationFeeOptionCustomizable:
+	case shared.MigrationFeeOptionCustomizable:
 		return DammV2MigrationFeeAddress[migrationFeeOption]
 	}
 	return solanago.PublicKey{}
 }
 
-func GetDammV1Config(migrationFeeOption MigrationFeeOption) solanago.PublicKey {
+func GetDammV1Config(migrationFeeOption shared.MigrationFeeOption) solanago.PublicKey {
 	switch migrationFeeOption {
-	case MigrationFeeOptionFixedBps25:
+	case shared.MigrationFeeOptionFixedBps25:
 		return DammV1MigrationFeeAddress[migrationFeeOption]
-	case MigrationFeeOptionFixedBps30:
+	case shared.MigrationFeeOptionFixedBps30:
 		return DammV1MigrationFeeAddress[migrationFeeOption]
-	case MigrationFeeOptionFixedBps100:
+	case shared.MigrationFeeOptionFixedBps100:
 		return DammV1MigrationFeeAddress[migrationFeeOption]
-	case MigrationFeeOptionFixedBps200:
+	case shared.MigrationFeeOptionFixedBps200:
 		return DammV1MigrationFeeAddress[migrationFeeOption]
-	case MigrationFeeOptionFixedBps400:
+	case shared.MigrationFeeOptionFixedBps400:
 		return DammV1MigrationFeeAddress[migrationFeeOption]
-	case MigrationFeeOptionFixedBps600:
+	case shared.MigrationFeeOptionFixedBps600:
 		return DammV1MigrationFeeAddress[migrationFeeOption]
 	}
 	return solanago.PublicKey{}

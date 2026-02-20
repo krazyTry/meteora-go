@@ -3,6 +3,8 @@ package helpers
 import (
 	"errors"
 	"math/big"
+
+	"github.com/krazyTry/meteora-go/dynamic_bonding_curve/shared"
 )
 
 func Add(a, b *big.Int) *big.Int {
@@ -27,7 +29,7 @@ func Div(a, b *big.Int) (*big.Int, error) {
 	return new(big.Int).Div(a, b), nil
 }
 
-func MulDiv(x, y, denominator *big.Int, rounding Rounding) (*big.Int, error) {
+func MulDiv(x, y, denominator *big.Int, rounding shared.Rounding) (*big.Int, error) {
 	if denominator.Sign() == 0 {
 		return nil, errors.New("MulDiv: division by zero")
 	}
@@ -35,7 +37,7 @@ func MulDiv(x, y, denominator *big.Int, rounding Rounding) (*big.Int, error) {
 		return new(big.Int).Mul(x, y), nil
 	}
 	prod := new(big.Int).Mul(x, y)
-	if rounding == RoundingUp {
+	if rounding == shared.RoundingUp {
 		numerator := new(big.Int).Add(prod, new(big.Int).Sub(denominator, big.NewInt(1)))
 		return new(big.Int).Div(numerator, denominator), nil
 	}
@@ -51,11 +53,11 @@ func GetInitialLiquidityFromDeltaQuote(quoteAmount, sqrtMinPrice, sqrtPrice *big
 	return Div(quoteAmountShifted, priceDelta)
 }
 
-func GetDeltaAmountBaseUnsigned(lowerSqrtPrice, upperSqrtPrice, liquidity *big.Int, round Rounding) (*big.Int, error) {
+func GetDeltaAmountBaseUnsigned(lowerSqrtPrice, upperSqrtPrice, liquidity *big.Int, round shared.Rounding) (*big.Int, error) {
 	return GetDeltaAmountBaseUnsignedUnchecked(lowerSqrtPrice, upperSqrtPrice, liquidity, round)
 }
 
-func GetDeltaAmountBaseUnsignedUnchecked(lowerSqrtPrice, upperSqrtPrice, liquidity *big.Int, round Rounding) (*big.Int, error) {
+func GetDeltaAmountBaseUnsignedUnchecked(lowerSqrtPrice, upperSqrtPrice, liquidity *big.Int, round shared.Rounding) (*big.Int, error) {
 	numerator1 := new(big.Int).Set(liquidity)
 	numerator2, err := Sub(upperSqrtPrice, lowerSqrtPrice)
 	if err != nil {
@@ -68,22 +70,22 @@ func GetDeltaAmountBaseUnsignedUnchecked(lowerSqrtPrice, upperSqrtPrice, liquidi
 	return MulDiv(numerator1, numerator2, denominator, round)
 }
 
-func GetDeltaAmountQuoteUnsigned(lowerSqrtPrice, upperSqrtPrice, liquidity *big.Int, round Rounding) (*big.Int, error) {
+func GetDeltaAmountQuoteUnsigned(lowerSqrtPrice, upperSqrtPrice, liquidity *big.Int, round shared.Rounding) (*big.Int, error) {
 	return GetDeltaAmountQuoteUnsignedUnchecked(lowerSqrtPrice, upperSqrtPrice, liquidity, round)
 }
 
-func GetDeltaAmountQuoteUnsignedUnchecked(lowerSqrtPrice, upperSqrtPrice, liquidity *big.Int, round Rounding) (*big.Int, error) {
+func GetDeltaAmountQuoteUnsignedUnchecked(lowerSqrtPrice, upperSqrtPrice, liquidity *big.Int, round shared.Rounding) (*big.Int, error) {
 	deltaSqrtPrice, err := Sub(upperSqrtPrice, lowerSqrtPrice)
 	if err != nil {
 		return nil, err
 	}
 	prod := Mul(liquidity, deltaSqrtPrice)
-	if round == RoundingUp {
-		denominator := new(big.Int).Lsh(big.NewInt(1), Resolution*2)
+	if round == shared.RoundingUp {
+		denominator := new(big.Int).Lsh(big.NewInt(1), shared.Resolution*2)
 		numerator := new(big.Int).Add(prod, new(big.Int).Sub(denominator, big.NewInt(1)))
 		return Div(numerator, denominator)
 	}
-	return new(big.Int).Rsh(prod, Resolution*2), nil
+	return new(big.Int).Rsh(prod, shared.Resolution*2), nil
 }
 
 func GetNextSqrtPriceFromInput(sqrtPrice, liquidity, amountIn *big.Int, baseForQuote bool) (*big.Int, error) {
@@ -104,7 +106,7 @@ func GetNextSqrtPriceFromBaseAmountInRoundingUp(sqrtPrice, liquidity, amount *bi
 		return new(big.Int).Set(sqrtPrice), nil
 	}
 	product := Mul(amount, sqrtPrice)
-	if product.Cmp(U128Max) > 0 {
+	if product.Cmp(shared.U128Max) > 0 {
 		quotient, err := Div(liquidity, sqrtPrice)
 		if err != nil {
 			return nil, err
@@ -113,11 +115,11 @@ func GetNextSqrtPriceFromBaseAmountInRoundingUp(sqrtPrice, liquidity, amount *bi
 		return Div(liquidity, denominator)
 	}
 	denominator := new(big.Int).Add(liquidity, product)
-	return MulDiv(liquidity, sqrtPrice, denominator, RoundingUp)
+	return MulDiv(liquidity, sqrtPrice, denominator, shared.RoundingUp)
 }
 
 func GetNextSqrtPriceFromQuoteAmountInRoundingDown(sqrtPrice, liquidity, amount *big.Int) (*big.Int, error) {
-	quotient := new(big.Int).Lsh(amount, Resolution*2)
+	quotient := new(big.Int).Lsh(amount, shared.Resolution*2)
 	q, err := Div(quotient, liquidity)
 	if err != nil {
 		return nil, err

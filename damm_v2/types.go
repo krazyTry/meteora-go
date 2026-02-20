@@ -22,11 +22,11 @@ const (
 	RoundingDown = shared.RoundingDown
 )
 
-type ActivationPoint uint8
+type ActivationPoint = shared.ActivationPoint
 
 const (
-	ActivationPointTimestamp ActivationPoint = 0
-	ActivationPointSlot      ActivationPoint = 1
+	ActivationPointTimestamp = shared.ActivationPointTimestamp
+	ActivationPointSlot      = shared.ActivationPointSlot
 )
 
 type BaseFeeMode = shared.BaseFeeMode
@@ -169,8 +169,8 @@ type InitializeCustomizeablePoolParams struct {
 	InitSqrtPrice   *big.Int
 	PoolFees        PoolFeesParams
 	HasAlphaVault   bool
-	ActivationType  uint8
-	CollectFeeMode  uint8
+	ActivationType  ActivationType
+	CollectFeeMode  CollectFeeMode
 	ActivationPoint *big.Int
 	TokenAProgram   solanago.PublicKey
 	TokenBProgram   solanago.PublicKey
@@ -267,8 +267,6 @@ type LiquidityDeltaParams struct {
 	SqrtPrice       *big.Int
 	SqrtMinPrice    *big.Int
 	SqrtMaxPrice    *big.Int
-	TokenAInfo      *TokenInfo
-	TokenBInfo      *TokenInfo
 }
 
 type RemoveLiquidityParams struct {
@@ -412,9 +410,6 @@ type SwapAmount struct {
 	AmountIn  *big.Int
 	AmountOut *big.Int
 }
-
-// IdlSwapResult2 is the IDL-generated swap result type.
-type IdlSwapResult2 = dammv2gen.SwapResult2
 
 type SwapResult2 = shared.SwapResult2
 
@@ -691,6 +686,3 @@ type FeeOnAmountResult = shared.FeeOnAmountResult
 type SplitFees = shared.SplitFees
 
 type PositionNftAccount = helpers.PositionNftAccount
-
-// Optional numeric wrappers used in fee utils.
-type Decimal = decimal.Decimal

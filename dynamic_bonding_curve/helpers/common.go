@@ -8,6 +8,7 @@ import (
 
 	solanago "github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/rpc"
+	"github.com/krazyTry/meteora-go/dynamic_bonding_curve/shared"
 )
 
 func GetFirstKey(key1, key2 solanago.PublicKey) []byte {
@@ -95,7 +96,7 @@ func GetTotalTokenSupply(swapBaseAmount, migrationBaseThreshold *big.Int, locked
 	return total, nil
 }
 
-func CreateSqrtPrices(prices []string, tokenADecimal, tokenBDecimal TokenDecimal) ([]*big.Int, error) {
+func CreateSqrtPrices(prices []string, tokenADecimal, tokenBDecimal shared.TokenDecimal) ([]*big.Int, error) {
 	list := make([]*big.Int, len(prices))
 	for k := range prices {
 		price, err := GetSqrtPriceFromPrice(prices[k], int(tokenADecimal), int(tokenBDecimal))

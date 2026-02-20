@@ -6,10 +6,11 @@ import (
 	"math/big"
 
 	bin "github.com/gagliardetto/binary"
+	"github.com/krazyTry/meteora-go/dynamic_bonding_curve/shared"
 	"github.com/shopspring/decimal"
 )
 
-func GetBaseTokenForSwap(sqrtStartPrice, sqrtMigrationPrice *big.Int, curve []LiquidityDistributionParameters) (*big.Int, error) {
+func GetBaseTokenForSwap(sqrtStartPrice, sqrtMigrationPrice *big.Int, curve []shared.LiquidityDistributionParameters) (*big.Int, error) {
 	total := big.NewInt(0)
 	for i := 0; i < len(curve); i++ {
 		lower := sqrtStartPrice
@@ -17,14 +18,14 @@ func GetBaseTokenForSwap(sqrtStartPrice, sqrtMigrationPrice *big.Int, curve []Li
 			lower = curve[i-1].SqrtPrice.BigInt()
 		}
 		if curve[i].SqrtPrice.BigInt().Cmp(sqrtMigrationPrice) > 0 {
-			delta, err := GetDeltaAmountBaseUnsigned(lower, sqrtMigrationPrice, curve[i].Liquidity.BigInt(), RoundingUp)
+			delta, err := GetDeltaAmountBaseUnsigned(lower, sqrtMigrationPrice, curve[i].Liquidity.BigInt(), shared.RoundingUp)
 			if err != nil {
 				return nil, err
 			}
 			total.Add(total, delta)
 			break
 		}
-		delta, err := GetDeltaAmountBaseUnsigned(lower, curve[i].SqrtPrice.BigInt(), curve[i].Liquidity.BigInt(), RoundingUp)
+		delta, err := GetDeltaAmountBaseUnsigned(lower, curve[i].SqrtPrice.BigInt(), curve[i].Liquidity.BigInt(), shared.RoundingUp)
 		if err != nil {
 			return nil, err
 		}
@@ -41,8 +42,8 @@ func GetMigrationQuoteThresholdFromMigrationQuoteAmount(migrationQuoteAmount dec
 	return migrationQuoteAmount.Mul(decimal.NewFromInt(100)).Div(decimal.NewFromInt(100).Sub(migrationFeePercent))
 }
 
-func GetMigrationBaseToken(migrationQuoteAmount, sqrtMigrationPrice *big.Int, migrationOption MigrationOption) (*big.Int, error) {
-	if migrationOption == MigrationOptionMetDamm {
+func GetMigrationBaseToken(migrationQuoteAmount, sqrtMigrationPrice *big.Int, migrationOption shared.MigrationOption) (*big.Int, error) {
+	if migrationOption == shared.MigrationOptionMetDamm {
 		price := new(big.Int).Mul(sqrtMigrationPrice, sqrtMigrationPrice)
 		quote := new(big.Int).Lsh(migrationQuoteAmount, 128)
 		div, mod := new(big.Int).QuoRem(quote, price, new(big.Int))
@@ -51,12 +52,12 @@ func GetMigrationBaseToken(migrationQuoteAmount, sqrtMigrationPrice *big.Int, mi
 		}
 		return div, nil
 	}
-	if migrationOption == MigrationOptionMetDammV2 {
-		liquidity, err := GetInitialLiquidityFromDeltaQuote(migrationQuoteAmount, MinSqrtPrice, sqrtMigrationPrice)
+	if migrationOption == shared.MigrationOptionMetDammV2 {
+		liquidity, err := GetInitialLiquidityFromDeltaQuote(migrationQuoteAmount, shared.MinSqrtPrice, sqrtMigrationPrice)
 		if err != nil {
 			return nil, err
 		}
-		baseAmount, err := GetDeltaAmountBaseUnsigned(sqrtMigrationPrice, MaxSqrtPrice, liquidity, RoundingUp)
+		baseAmount, err := GetDeltaAmountBaseUnsigned(sqrtMigrationPrice, shared.MaxSqrtPrice, liquidity, shared.RoundingUp)
 		if err != nil {
 			return nil, err
 		}
@@ -65,12 +66,12 @@ func GetMigrationBaseToken(migrationQuoteAmount, sqrtMigrationPrice *big.Int, mi
 	return nil, errors.New("Invalid migration option")
 }
 
-func GetMigrationThresholdPrice(migrationThreshold, sqrtStartPrice *big.Int, curve []LiquidityDistributionParameters) (*big.Int, error) {
+func GetMigrationThresholdPrice(migrationThreshold, sqrtStartPrice *big.Int, curve []shared.LiquidityDistributionParameters) (*big.Int, error) {
 	if len(curve) == 0 {
 		return nil, errors.New("Curve is empty")
 	}
 	nextSqrtPrice := new(big.Int).Set(sqrtStartPrice)
-	totalAmount, err := GetDeltaAmountQuoteUnsigned(nextSqrtPrice, curve[0].SqrtPrice.BigInt(), curve[0].Liquidity.BigInt(), RoundingUp)
+	totalAmount, err := GetDeltaAmountQuoteUnsigned(nextSqrtPrice, curve[0].SqrtPrice.BigInt(), curve[0].Liquidity.BigInt(), shared.RoundingUp)
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +81,7 @@ func GetMigrationThresholdPrice(migrationThreshold, sqrtStartPrice *big.Int, cur
 	amountLeft := new(big.Int).Sub(migrationThreshold, totalAmount)
 	nextSqrtPrice = curve[0].SqrtPrice.BigInt()
 	for i := 1; i < len(curve); i++ {
-		maxAmount, err := GetDeltaAmountQuoteUnsigned(nextSqrtPrice, curve[i].SqrtPrice.BigInt(), curve[i].Liquidity.BigInt(), RoundingUp)
+		maxAmount, err := GetDeltaAmountQuoteUnsigned(nextSqrtPrice, curve[i].SqrtPrice.BigInt(), curve[i].Liquidity.BigInt(), shared.RoundingUp)
 		if err != nil {
 			return nil, err
 		}
@@ -101,9 +102,9 @@ func GetMigrationThresholdPrice(migrationThreshold, sqrtStartPrice *big.Int, cur
 	return nextSqrtPrice, nil
 }
 
-func GetSwapAmountWithBuffer(swapBaseAmount, sqrtStartPrice *big.Int, curve []LiquidityDistributionParameters) (*big.Int, error) {
-	swapAmountBuffer := new(big.Int).Add(swapBaseAmount, new(big.Int).Div(new(big.Int).Mul(swapBaseAmount, big.NewInt(SwapBufferPercentage)), big.NewInt(100)))
-	maxBaseAmountOnCurve, err := GetBaseTokenForSwap(sqrtStartPrice, MaxSqrtPrice, curve)
+func GetSwapAmountWithBuffer(swapBaseAmount, sqrtStartPrice *big.Int, curve []shared.LiquidityDistributionParameters) (*big.Int, error) {
+	swapAmountBuffer := new(big.Int).Add(swapBaseAmount, new(big.Int).Div(new(big.Int).Mul(swapBaseAmount, big.NewInt(shared.SwapBufferPercentage)), big.NewInt(100)))
+	maxBaseAmountOnCurve, err := GetBaseTokenForSwap(sqrtStartPrice, shared.MaxSqrtPrice, curve)
 	if err != nil {
 		return nil, err
 	}
@@ -113,11 +114,11 @@ func GetSwapAmountWithBuffer(swapBaseAmount, sqrtStartPrice *big.Int, curve []Li
 	return swapAmountBuffer, nil
 }
 
-func GetVestingLockedLiquidityBpsAtNSeconds(vestingInfo *LiquidityVestingInfoParameters, nSeconds uint64) uint64 {
+func GetVestingLockedLiquidityBpsAtNSeconds(vestingInfo *shared.LiquidityVestingInfoParameters, nSeconds uint64) uint64 {
 	if vestingInfo == nil || vestingInfo.VestingPercentage == 0 {
 		return 0
 	}
-	totalLiquidity := U128Max
+	totalLiquidity := shared.U128Max
 	totalVestedLiquidity := new(big.Int).Div(new(big.Int).Mul(totalLiquidity, big.NewInt(int64(vestingInfo.VestingPercentage))), big.NewInt(100))
 	bpsPerPeriod := vestingInfo.BpsPerPeriod
 	numberOfPeriods := vestingInfo.NumberOfPeriods
@@ -125,7 +126,7 @@ func GetVestingLockedLiquidityBpsAtNSeconds(vestingInfo *LiquidityVestingInfoPar
 	cliffDuration := vestingInfo.CliffDurationFromMigrationTime
 
 	totalBpsAfterCliff := bpsPerPeriod * numberOfPeriods
-	totalVestingLiquidityAfterCliff := new(big.Int).Div(new(big.Int).Mul(totalVestedLiquidity, big.NewInt(int64(totalBpsAfterCliff))), big.NewInt(MaxBasisPoint))
+	totalVestingLiquidityAfterCliff := new(big.Int).Div(new(big.Int).Mul(totalVestedLiquidity, big.NewInt(int64(totalBpsAfterCliff))), big.NewInt(shared.MaxBasisPoint))
 
 	liquidityPerPeriod := big.NewInt(0)
 	adjustedFrequency := frequency
@@ -159,11 +160,11 @@ func GetVestingLockedLiquidityBpsAtNSeconds(vestingInfo *LiquidityVestingInfoPar
 		}
 	}
 	locked := new(big.Int).Sub(totalVestedLiquidity, unlocked)
-	liquidityLockedBps := new(big.Int).Div(new(big.Int).Mul(locked, big.NewInt(MaxBasisPoint)), totalLiquidity)
+	liquidityLockedBps := new(big.Int).Div(new(big.Int).Mul(locked, big.NewInt(shared.MaxBasisPoint)), totalLiquidity)
 	return liquidityLockedBps.Uint64()
 }
 
-func CalculateLockedLiquidityBpsAtTime(partnerPermanentLockedLiquidityPercentage, creatorPermanentLockedLiquidityPercentage uint8, partnerLiquidityVestingInfo, creatorLiquidityVestingInfo *LiquidityVestingInfoParameters, elapsedSeconds uint64) uint64 {
+func CalculateLockedLiquidityBpsAtTime(partnerPermanentLockedLiquidityPercentage, creatorPermanentLockedLiquidityPercentage uint8, partnerLiquidityVestingInfo, creatorLiquidityVestingInfo *shared.LiquidityVestingInfoParameters, elapsedSeconds uint64) uint64 {
 	partnerVested := GetVestingLockedLiquidityBpsAtNSeconds(partnerLiquidityVestingInfo, elapsedSeconds)
 	creatorVested := GetVestingLockedLiquidityBpsAtNSeconds(creatorLiquidityVestingInfo, elapsedSeconds)
 	partnerPermanent := uint64(partnerPermanentLockedLiquidityPercentage) * 100

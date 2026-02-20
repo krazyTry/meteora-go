@@ -5,17 +5,17 @@ import (
 
 	binary "github.com/gagliardetto/binary"
 
+	"github.com/krazyTry/meteora-go/damm_v2/shared"
 	dammv2gen "github.com/krazyTry/meteora-go/gen/damm_v2"
 )
 
-func EncodeFeeTimeSchedulerParams(maxBaseFeeNumerator *big.Int, numberOfPeriod uint16, periodFrequency *big.Int, reductionFactor *big.Int, baseFeeMode uint8) ([]byte, error) {
+func EncodeFeeTimeSchedulerParams(maxBaseFeeNumerator *big.Int, numberOfPeriod uint16, periodFrequency *big.Int, reductionFactor *big.Int, baseFeeMode shared.BaseFeeMode) ([]byte, error) {
 	params := dammv2gen.BorshFeeTimeScheduler{
 		CliffFeeNumerator: toU64(maxBaseFeeNumerator),
 		NumberOfPeriod:    numberOfPeriod,
 		PeriodFrequency:   toU64(periodFrequency),
 		ReductionFactor:   toU64(reductionFactor),
-		BaseFeeMode:       baseFeeMode,
-		Padding:           FeePadding,
+		BaseFeeMode:       uint8(baseFeeMode),
 	}
 	return params.Marshal()
 }
@@ -36,15 +36,14 @@ func DecodePodAlignedFeeTimeScheduler(data []byte) (dammv2gen.PodAlignedFeeTimeS
 	return out, nil
 }
 
-func EncodeFeeMarketCapSchedulerParams(cliffFeeNumerator *bigInt, numberOfPeriod uint16, sqrtPriceStepBps uint16, schedulerExpirationDuration uint32, reductionFactor *bigInt, baseFeeMode uint8) ([]byte, error) {
+func EncodeFeeMarketCapSchedulerParams(cliffFeeNumerator *big.Int, numberOfPeriod uint16, sqrtPriceStepBps uint16, schedulerExpirationDuration uint32, reductionFactor *big.Int, baseFeeMode shared.BaseFeeMode) ([]byte, error) {
 	params := dammv2gen.BorshFeeMarketCapScheduler{
 		CliffFeeNumerator:           toU64(cliffFeeNumerator),
 		NumberOfPeriod:              numberOfPeriod,
 		SqrtPriceStepBps:            uint32(sqrtPriceStepBps),
 		SchedulerExpirationDuration: schedulerExpirationDuration,
 		ReductionFactor:             toU64(reductionFactor),
-		BaseFeeMode:                 baseFeeMode,
-		Padding:                     FeePadding,
+		BaseFeeMode:                 uint8(baseFeeMode),
 	}
 	return params.Marshal()
 }
@@ -65,15 +64,14 @@ func DecodePodAlignedFeeMarketCapScheduler(data []byte) (dammv2gen.PodAlignedFee
 	return out, nil
 }
 
-func EncodeFeeRateLimiterParams(cliffFeeNumerator *bigInt, feeIncrementBps uint16, maxLimiterDuration uint32, maxFeeBps uint16, referenceAmount *bigInt) ([]byte, error) {
+func EncodeFeeRateLimiterParams(cliffFeeNumerator *big.Int, feeIncrementBps uint16, maxLimiterDuration uint32, maxFeeBps uint16, referenceAmount *big.Int) ([]byte, error) {
 	params := dammv2gen.BorshFeeRateLimiter{
 		CliffFeeNumerator:  toU64(cliffFeeNumerator),
 		FeeIncrementBps:    feeIncrementBps,
 		MaxLimiterDuration: maxLimiterDuration,
 		MaxFeeBps:          uint32(maxFeeBps),
 		ReferenceAmount:    toU64(referenceAmount),
-		BaseFeeMode:        BaseFeeModeRateLimiter,
-		Padding:            FeePadding,
+		BaseFeeMode:        uint8(shared.BaseFeeModeRateLimiter),
 	}
 	return params.Marshal()
 }
@@ -94,10 +92,7 @@ func DecodePodAlignedFeeRateLimiter(data []byte) (dammv2gen.PodAlignedFeeRateLim
 	return out, nil
 }
 
-// bigInt is a local alias for readability.
-type bigInt = big.Int
-
-func toU64(v *bigInt) uint64 {
+func toU64(v *big.Int) uint64 {
 	if v == nil {
 		return 0
 	}

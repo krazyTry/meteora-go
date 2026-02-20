@@ -4,6 +4,7 @@ import (
 	"math/big"
 
 	"github.com/krazyTry/meteora-go/damm_v2/math/pool_fees"
+	"github.com/krazyTry/meteora-go/damm_v2/shared"
 )
 
 func ValidateFeeTimeScheduler(numberOfPeriod uint16, periodFrequency, reductionFactor, cliffFeeNumerator *big.Int, baseFeeMode BaseFeeMode, poolVersion PoolVersion) bool {
@@ -22,7 +23,7 @@ func ValidateFeeMarketCapBaseFeeIsStatic(currentPoint, activationPoint, schedule
 	return pool_fees.ValidateFeeMarketCapBaseFeeIsStatic(currentPoint, activationPoint, schedulerExpirationDuration)
 }
 
-func ValidateFeeRateLimiter(cliffFeeNumerator *big.Int, feeIncrementBps uint16, maxFeeBps uint16, maxLimiterDuration uint32, referenceAmount *big.Int, collectFeeMode CollectFeeMode, activationType ActivationType, poolVersion PoolVersion) bool {
+func ValidateFeeRateLimiter(cliffFeeNumerator *big.Int, feeIncrementBps uint16, maxFeeBps uint16, maxLimiterDuration uint32, referenceAmount *big.Int, collectFeeMode shared.CollectFeeMode, activationType ActivationType, poolVersion PoolVersion) bool {
 	return pool_fees.ValidateFeeRateLimiter(cliffFeeNumerator, feeIncrementBps, maxFeeBps, maxLimiterDuration, referenceAmount, collectFeeMode, activationType, poolVersion)
 }
 

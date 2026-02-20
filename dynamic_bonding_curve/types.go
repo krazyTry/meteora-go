@@ -4,138 +4,136 @@ import (
 	"math/big"
 
 	solanago "github.com/gagliardetto/solana-go"
-	"github.com/krazyTry/meteora-go/dynamic_bonding_curve/helpers"
 	"github.com/krazyTry/meteora-go/dynamic_bonding_curve/shared"
 )
 
 // IDL type aliases.
+type ConfigParameters = shared.ConfigParameters
 
-type ConfigParameters = helpers.ConfigParameters
+type LockedVestingParameters = shared.LockedVestingParameters
 
-type LockedVestingParameters = helpers.LockedVestingParameters
+type InitializePoolParameters = shared.InitializePoolParameters
 
-type InitializePoolParameters = helpers.InitializePoolParameters
+type PoolFeeParameters = shared.PoolFeeParameters
 
-type PoolFeeParameters = helpers.PoolFeeParameters
+type DynamicFeeParameters = shared.DynamicFeeParameters
 
-type DynamicFeeParameters = helpers.DynamicFeeParameters
+type LiquidityDistributionParameters = shared.LiquidityDistributionParameters
 
-type LiquidityDistributionParameters = helpers.LiquidityDistributionParameters
+type MigratedPoolMarketCapFeeSchedulerParameters = shared.MigratedPoolMarketCapFeeSchedulerParameters
 
-type MigratedPoolMarketCapFeeSchedulerParameters = helpers.MigratedPoolMarketCapFeeSchedulerParameters
+type LiquidityVestingInfoParameters = shared.LiquidityVestingInfoParameters
 
-type LiquidityVestingInfoParameters = helpers.LiquidityVestingInfoParameters
+type CreatePartnerMetadataParameters = shared.CreatePartnerMetadataParameters
+type CreateVirtualPoolMetadataParameters = shared.CreateVirtualPoolMetadataParameters
 
-type CreatePartnerMetadataParameters = helpers.CreatePartnerMetadataParameters
-type CreateVirtualPoolMetadataParameters = helpers.CreateVirtualPoolMetadataParameters
+type PoolFeesConfig = shared.PoolFeesConfig
 
-type PoolFeesConfig = helpers.PoolFeesConfig
+type BaseFeeConfig = shared.BaseFeeConfig
+type BaseFeeParameters = shared.BaseFeeParameters
 
-type BaseFeeConfig = helpers.BaseFeeConfig
-type BaseFeeParameters = helpers.BaseFeeParameters
+type DynamicFeeConfig = shared.DynamicFeeConfig
 
-type DynamicFeeConfig = helpers.DynamicFeeConfig
+type MigratedPoolFee = shared.MigratedPoolFee
 
-type MigratedPoolFee = helpers.MigratedPoolFee
+type MigrationFee = shared.MigrationFee
 
-type MigrationFee = helpers.MigrationFee
-
-type TokenSupplyParams = helpers.TokenSupplyParams
+type TokenSupplyParams = shared.TokenSupplyParams
 
 type SwapResult = shared.SwapResult
 
 type SwapResult2 = shared.SwapResult2
 
-type VolatilityTracker = helpers.VolatilityTracker
+type VolatilityTracker = shared.VolatilityTracker
 
 // IDL accounts.
 
-type PoolConfig = helpers.PoolConfig
+type PoolConfig = shared.PoolConfig
 
-type VirtualPool = helpers.VirtualPool
+type VirtualPool = shared.VirtualPool
 
-type MeteoraDammMigrationMetadata = helpers.MeteoraDammMigrationMetadata
+type MeteoraDammMigrationMetadata = shared.MeteoraDammMigrationMetadata
 
-type LockEscrow = helpers.LockEscrow
+type LockEscrow = shared.LockEscrow
 
-type PartnerMetadata = helpers.PartnerMetadata
+type PartnerMetadata = shared.PartnerMetadata
 
-type VirtualPoolMetadata = helpers.VirtualPoolMetadata
+type VirtualPoolMetadata = shared.VirtualPoolMetadata
 
 // Enums.
 
-type ActivationType = helpers.ActivationType
+type ActivationType = shared.ActivationType
 
 const (
-	ActivationTypeSlot      = helpers.ActivationTypeSlot
-	ActivationTypeTimestamp = helpers.ActivationTypeTimestamp
+	ActivationTypeSlot      = shared.ActivationTypeSlot
+	ActivationTypeTimestamp = shared.ActivationTypeTimestamp
 )
 
-type TokenType = helpers.TokenType
+type TokenType = shared.TokenType
 
 const (
-	TokenTypeSPL       = helpers.TokenTypeSPL
-	TokenTypeToken2022 = helpers.TokenTypeToken2022
+	TokenTypeSPL       = shared.TokenTypeSPL
+	TokenTypeToken2022 = shared.TokenTypeToken2022
 )
 
-type CollectFeeMode = helpers.CollectFeeMode
+type CollectFeeMode = shared.CollectFeeMode
 
 const (
-	CollectFeeModeQuoteToken  = helpers.CollectFeeModeQuoteToken
-	CollectFeeModeOutputToken = helpers.CollectFeeModeOutputToken
+	CollectFeeModeQuoteToken  = shared.CollectFeeModeQuoteToken
+	CollectFeeModeOutputToken = shared.CollectFeeModeOutputToken
 )
 
-type DammV2DynamicFeeMode = helpers.DammV2DynamicFeeMode
+type DammV2DynamicFeeMode = shared.DammV2DynamicFeeMode
 
 const (
-	DammV2DynamicFeeModeDisabled = helpers.DammV2DynamicFeeModeDisabled
-	DammV2DynamicFeeModeEnabled  = helpers.DammV2DynamicFeeModeEnabled
+	DammV2DynamicFeeModeDisabled = shared.DammV2DynamicFeeModeDisabled
+	DammV2DynamicFeeModeEnabled  = shared.DammV2DynamicFeeModeEnabled
 )
 
-type DammV2BaseFeeMode = helpers.DammV2BaseFeeMode
+type DammV2BaseFeeMode = shared.DammV2BaseFeeMode
 
 const (
-	DammV2BaseFeeModeFeeTimeSchedulerLinear      = helpers.DammV2BaseFeeModeFeeTimeSchedulerLinear
-	DammV2BaseFeeModeFeeTimeSchedulerExponential = helpers.DammV2BaseFeeModeFeeTimeSchedulerExponential
-	DammV2BaseFeeModeRateLimiter                 = helpers.DammV2BaseFeeModeRateLimiter
-	DammV2BaseFeeModeFeeMarketCapSchedulerLinear = helpers.DammV2BaseFeeModeFeeMarketCapSchedulerLinear
-	DammV2BaseFeeModeFeeMarketCapSchedulerExp    = helpers.DammV2BaseFeeModeFeeMarketCapSchedulerExp
+	DammV2BaseFeeModeFeeTimeSchedulerLinear      = shared.DammV2BaseFeeModeFeeTimeSchedulerLinear
+	DammV2BaseFeeModeFeeTimeSchedulerExponential = shared.DammV2BaseFeeModeFeeTimeSchedulerExponential
+	DammV2BaseFeeModeRateLimiter                 = shared.DammV2BaseFeeModeRateLimiter
+	DammV2BaseFeeModeFeeMarketCapSchedulerLinear = shared.DammV2BaseFeeModeFeeMarketCapSchedulerLinear
+	DammV2BaseFeeModeFeeMarketCapSchedulerExp    = shared.DammV2BaseFeeModeFeeMarketCapSchedulerExp
 )
 
-type MigrationOption = helpers.MigrationOption
+type MigrationOption = shared.MigrationOption
 
 const (
-	MigrationOptionMetDamm   = helpers.MigrationOptionMetDamm
-	MigrationOptionMetDammV2 = helpers.MigrationOptionMetDammV2
+	MigrationOptionMetDamm   = shared.MigrationOptionMetDamm
+	MigrationOptionMetDammV2 = shared.MigrationOptionMetDammV2
 )
 
-type BaseFeeMode = helpers.BaseFeeMode
+type BaseFeeMode = shared.BaseFeeMode
 
 const (
-	BaseFeeModeFeeSchedulerLinear      = helpers.BaseFeeModeFeeSchedulerLinear
-	BaseFeeModeFeeSchedulerExponential = helpers.BaseFeeModeFeeSchedulerExponential
-	BaseFeeModeRateLimiter             = helpers.BaseFeeModeRateLimiter
+	BaseFeeModeFeeSchedulerLinear      = shared.BaseFeeModeFeeSchedulerLinear
+	BaseFeeModeFeeSchedulerExponential = shared.BaseFeeModeFeeSchedulerExponential
+	BaseFeeModeRateLimiter             = shared.BaseFeeModeRateLimiter
 )
 
-type MigrationFeeOption = helpers.MigrationFeeOption
+type MigrationFeeOption = shared.MigrationFeeOption
 
 const (
-	MigrationFeeOptionFixedBps25   = helpers.MigrationFeeOptionFixedBps25
-	MigrationFeeOptionFixedBps30   = helpers.MigrationFeeOptionFixedBps30
-	MigrationFeeOptionFixedBps100  = helpers.MigrationFeeOptionFixedBps100
-	MigrationFeeOptionFixedBps200  = helpers.MigrationFeeOptionFixedBps200
-	MigrationFeeOptionFixedBps400  = helpers.MigrationFeeOptionFixedBps400
-	MigrationFeeOptionFixedBps600  = helpers.MigrationFeeOptionFixedBps600
-	MigrationFeeOptionCustomizable = helpers.MigrationFeeOptionCustomizable
+	MigrationFeeOptionFixedBps25   = shared.MigrationFeeOptionFixedBps25
+	MigrationFeeOptionFixedBps30   = shared.MigrationFeeOptionFixedBps30
+	MigrationFeeOptionFixedBps100  = shared.MigrationFeeOptionFixedBps100
+	MigrationFeeOptionFixedBps200  = shared.MigrationFeeOptionFixedBps200
+	MigrationFeeOptionFixedBps400  = shared.MigrationFeeOptionFixedBps400
+	MigrationFeeOptionFixedBps600  = shared.MigrationFeeOptionFixedBps600
+	MigrationFeeOptionCustomizable = shared.MigrationFeeOptionCustomizable
 )
 
-type TokenDecimal = helpers.TokenDecimal
+type TokenDecimal = shared.TokenDecimal
 
 const (
-	TokenDecimalSix   = helpers.TokenDecimalSix
-	TokenDecimalSeven = helpers.TokenDecimalSeven
-	TokenDecimalEight = helpers.TokenDecimalEight
-	TokenDecimalNine  = helpers.TokenDecimalNine
+	TokenDecimalSix   = shared.TokenDecimalSix
+	TokenDecimalSeven = shared.TokenDecimalSeven
+	TokenDecimalEight = shared.TokenDecimalEight
+	TokenDecimalNine  = shared.TokenDecimalNine
 )
 
 type TradeDirection = shared.TradeDirection
@@ -145,69 +143,77 @@ const (
 	TradeDirectionQuoteToBase = shared.TradeDirectionQuoteToBase
 )
 
-type Rounding = helpers.Rounding
+type Rounding = shared.Rounding
 
 const (
-	RoundingUp   = helpers.RoundingUp
-	RoundingDown = helpers.RoundingDown
+	RoundingUp   = shared.RoundingUp
+	RoundingDown = shared.RoundingDown
 )
 
-type TokenUpdateAuthorityOption = helpers.TokenUpdateAuthorityOption
+type TokenUpdateAuthorityOption = shared.TokenUpdateAuthorityOption
 
 const (
-	TokenUpdateAuthorityCreatorUpdateAuthority        = helpers.TokenUpdateAuthorityCreatorUpdateAuthority
-	TokenUpdateAuthorityImmutable                     = helpers.TokenUpdateAuthorityImmutable
-	TokenUpdateAuthorityPartnerUpdateAuthority        = helpers.TokenUpdateAuthorityPartnerUpdateAuthority
-	TokenUpdateAuthorityCreatorUpdateAndMintAuthority = helpers.TokenUpdateAuthorityCreatorUpdateAndMintAuthority
-	TokenUpdateAuthorityPartnerUpdateAndMintAuthority = helpers.TokenUpdateAuthorityPartnerUpdateAndMintAuthority
+	TokenUpdateAuthorityCreatorUpdateAuthority        = shared.TokenUpdateAuthorityCreatorUpdateAuthority
+	TokenUpdateAuthorityImmutable                     = shared.TokenUpdateAuthorityImmutable
+	TokenUpdateAuthorityPartnerUpdateAuthority        = shared.TokenUpdateAuthorityPartnerUpdateAuthority
+	TokenUpdateAuthorityCreatorUpdateAndMintAuthority = shared.TokenUpdateAuthorityCreatorUpdateAndMintAuthority
+	TokenUpdateAuthorityPartnerUpdateAndMintAuthority = shared.TokenUpdateAuthorityPartnerUpdateAndMintAuthority
 )
 
-type SwapMode = helpers.SwapMode
+type SwapMode = shared.SwapMode
 
 const (
-	SwapModeExactIn     = helpers.SwapModeExactIn
-	SwapModePartialFill = helpers.SwapModePartialFill
-	SwapModeExactOut    = helpers.SwapModeExactOut
+	SwapModeExactIn     = shared.SwapModeExactIn
+	SwapModePartialFill = shared.SwapModePartialFill
+	SwapModeExactOut    = shared.SwapModeExactOut
 )
 
-type MigrationProgress = helpers.MigrationProgress
+type MigrationProgress = shared.MigrationProgress
 
 const (
-	MigrationProgressPreBondingCurve  = helpers.MigrationProgressPreBondingCurve
-	MigrationProgressPostBondingCurve = helpers.MigrationProgressPostBondingCurve
-	MigrationProgressLockedVesting    = helpers.MigrationProgressLockedVesting
-	MigrationProgressCreatedPool      = helpers.MigrationProgressCreatedPool
+	MigrationProgressPreBondingCurve  = shared.MigrationProgressPreBondingCurve
+	MigrationProgressPostBondingCurve = shared.MigrationProgressPostBondingCurve
+	MigrationProgressLockedVesting    = shared.MigrationProgressLockedVesting
+	MigrationProgressCreatedPool      = shared.MigrationProgressCreatedPool
 )
-
-var GetDammV2Config = helpers.GetDammV2Config
-
-var GetDammV1Config = helpers.GetDammV1Config
 
 // IsMigrated defines the migration status
-type IsMigrated = helpers.IsMigrated
+type IsMigrated = shared.IsMigrated
 
 const (
-	IsMigratedProcess   = helpers.IsMigratedProcess
-	IsMigratedCompleted = helpers.IsMigratedCompleted
+	IsMigratedProcess   = shared.IsMigratedProcess
+	IsMigratedCompleted = shared.IsMigratedCompleted
 )
 
 // WithdrawMigrationFeeFlag defines the migration fee withdrawal flags
-type WithdrawMigrationFeeFlag = helpers.WithdrawMigrationFeeFlag
+type WithdrawMigrationFeeFlag = shared.WithdrawMigrationFeeFlag
 
 const (
-	PartnerWithdrawMigrationFeeFlag = helpers.PartnerWithdrawMigrationFeeFlag
-	CreatorWithdrawMigrationFeeFlag = helpers.CreatorWithdrawMigrationFeeFlag
+	PartnerWithdrawMigrationFeeFlag = shared.PartnerWithdrawMigrationFeeFlag
+	CreatorWithdrawMigrationFeeFlag = shared.CreatorWithdrawMigrationFeeFlag
 )
 
-type MigrationFeeWithdrawStatus = helpers.MigrationFeeWithdrawStatus
+type MigrationFeeWithdrawStatus = shared.MigrationFeeWithdrawStatus
 
 // Param/DTO structs mirroring TS types.
 
-type CreateConfigParams = helpers.CreateConfigParams
+type CreateConfigParams = shared.CreateConfigParams
 
 // BaseFee equals BaseFeeConfig without padding.
 
-type BaseFee = helpers.BaseFeeConfig
+type BaseFee = shared.BaseFeeConfig
+
+type BaseFeeHandler = shared.BaseFeeHandler
+
+type FeeMode = shared.FeeMode
+
+type SwapQuoteResult = shared.SwapQuoteResult
+
+type SwapQuote2Result = shared.SwapQuote2Result
+
+type FeeOnAmountResult = shared.FeeOnAmountResult
+
+type SwapAmount = shared.SwapAmount
 
 type InitializePoolBaseParams struct {
 	Name         string
@@ -488,9 +494,6 @@ type ClaimPartnerPoolCreationFeeParams struct {
 }
 
 // Interfaces.
-
-type BaseFeeHandler = shared.BaseFeeHandler
-
 type FeeResult struct {
 	Amount      *big.Int
 	ProtocolFee *big.Int
@@ -498,22 +501,12 @@ type FeeResult struct {
 	ReferralFee *big.Int
 }
 
-type FeeMode = shared.FeeMode
-
-type SwapQuoteResult = shared.SwapQuoteResult
-
-type SwapQuote2Result = shared.SwapQuote2Result
-
-type FeeOnAmountResult = shared.FeeOnAmountResult
-
 type PrepareSwapParams struct {
 	InputMint          solanago.PublicKey
 	OutputMint         solanago.PublicKey
 	InputTokenProgram  solanago.PublicKey
 	OutputTokenProgram solanago.PublicKey
 }
-
-type SwapAmount = shared.SwapAmount
 
 type ProgramAccount[T any] struct {
 	Pubkey  solanago.PublicKey

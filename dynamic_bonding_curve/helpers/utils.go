@@ -11,6 +11,7 @@ import (
 	"github.com/gagliardetto/solana-go"
 	solanago "github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/rpc"
+	"github.com/krazyTry/meteora-go/dynamic_bonding_curve/shared"
 	"github.com/shopspring/decimal"
 )
 
@@ -110,11 +111,11 @@ func IsDefaultLockedVesting(lockedVesting struct {
 }
 
 func BpsToFeeNumerator(bps uint64) *big.Int {
-	return new(big.Int).Div(new(big.Int).Mul(new(big.Int).SetUint64(bps), big.NewInt(FeeDenominator)), big.NewInt(MaxBasisPoint))
+	return new(big.Int).Div(new(big.Int).Mul(new(big.Int).SetUint64(bps), big.NewInt(shared.FeeDenominator)), big.NewInt(shared.MaxBasisPoint))
 }
 
 func FeeNumeratorToBps(feeNumerator *big.Int) uint64 {
-	return new(big.Int).Div(new(big.Int).Mul(feeNumerator, big.NewInt(MaxBasisPoint)), big.NewInt(FeeDenominator)).Uint64()
+	return new(big.Int).Div(new(big.Int).Mul(feeNumerator, big.NewInt(shared.MaxBasisPoint)), big.NewInt(shared.FeeDenominator)).Uint64()
 }
 
 // BigIntToU64 converts a non-negative big.Int to uint64 with bounds check.

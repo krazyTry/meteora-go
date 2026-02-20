@@ -4,10 +4,8 @@ import (
 	"errors"
 	"math/big"
 
-	binary "github.com/gagliardetto/binary"
-
+	"github.com/krazyTry/meteora-go/damm_v2/helpers"
 	"github.com/krazyTry/meteora-go/damm_v2/shared"
-	dammv2gen "github.com/krazyTry/meteora-go/gen/damm_v2"
 )
 
 // FeeRateLimiter implements BaseFeeHandler.
@@ -127,7 +125,7 @@ func GetBaseFeeHandler(rawData []byte) (shared.BaseFeeHandler, error) {
 	baseFeeMode := shared.BaseFeeMode(modeIndex)
 	switch baseFeeMode {
 	case shared.BaseFeeModeFeeTimeSchedulerLinear, shared.BaseFeeModeFeeTimeSchedulerExponential:
-		poolFees, err := decodePodAlignedFeeTimeScheduler(rawData)
+		poolFees, err := helpers.DecodePodAlignedFeeTimeScheduler(rawData)
 		if err != nil {
 			return nil, err
 		}
@@ -139,7 +137,7 @@ func GetBaseFeeHandler(rawData []byte) (shared.BaseFeeHandler, error) {
 			FeeTimeSchedulerMode: shared.BaseFeeMode(poolFees.BaseFeeMode),
 		}, nil
 	case shared.BaseFeeModeRateLimiter:
-		poolFees, err := decodePodAlignedFeeRateLimiter(rawData)
+		poolFees, err := helpers.DecodePodAlignedFeeRateLimiter(rawData)
 		if err != nil {
 			return nil, err
 		}
@@ -151,7 +149,7 @@ func GetBaseFeeHandler(rawData []byte) (shared.BaseFeeHandler, error) {
 			ReferenceAmount:    new(big.Int).SetUint64(poolFees.ReferenceAmount),
 		}, nil
 	case shared.BaseFeeModeFeeMarketCapSchedulerLinear, shared.BaseFeeModeFeeMarketCapSchedulerExp:
-		poolFees, err := decodePodAlignedFeeMarketCapScheduler(rawData)
+		poolFees, err := helpers.DecodePodAlignedFeeMarketCapScheduler(rawData)
 		if err != nil {
 			return nil, err
 		}
@@ -166,28 +164,4 @@ func GetBaseFeeHandler(rawData []byte) (shared.BaseFeeHandler, error) {
 	default:
 		return nil, errors.New("invalid base fee mode")
 	}
-}
-
-func decodePodAlignedFeeTimeScheduler(data []byte) (dammv2gen.PodAlignedFeeTimeScheduler, error) {
-	var out dammv2gen.PodAlignedFeeTimeScheduler
-	if err := out.UnmarshalWithDecoder(binary.NewBorshDecoder(data)); err != nil {
-		return dammv2gen.PodAlignedFeeTimeScheduler{}, err
-	}
-	return out, nil
-}
-
-func decodePodAlignedFeeRateLimiter(data []byte) (dammv2gen.PodAlignedFeeRateLimiter, error) {
-	var out dammv2gen.PodAlignedFeeRateLimiter
-	if err := out.UnmarshalWithDecoder(binary.NewBorshDecoder(data)); err != nil {
-		return dammv2gen.PodAlignedFeeRateLimiter{}, err
-	}
-	return out, nil
-}
-
-func decodePodAlignedFeeMarketCapScheduler(data []byte) (dammv2gen.PodAlignedFeeMarketCapScheduler, error) {
-	var out dammv2gen.PodAlignedFeeMarketCapScheduler
-	if err := out.UnmarshalWithDecoder(binary.NewBorshDecoder(data)); err != nil {
-		return dammv2gen.PodAlignedFeeMarketCapScheduler{}, err
-	}
-	return out, nil
 }

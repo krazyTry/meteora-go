@@ -4,8 +4,6 @@ import (
 	"errors"
 	"math/big"
 
-	"github.com/shopspring/decimal"
-
 	solanago "github.com/gagliardetto/solana-go"
 	"github.com/krazyTry/meteora-go/damm_v2/helpers"
 	"github.com/krazyTry/meteora-go/damm_v2/shared"
@@ -79,15 +77,15 @@ func GetSwapResultFromExactInput(poolState *dammv2gen.Pool, amountIn *big.Int, f
 	}
 
 	return shared.SwapResult2{
-		IncludedFeeInputAmount: new(big.Int).Set(amountIn),
-		ExcludedFeeInputAmount: actualAmountIn,
-		AmountLeft:             amountLeft,
-		OutputAmount:           actualAmountOut,
-		NextSqrtPrice:          nextSqrtPrice,
-		TradingFee:             actualTradingFee,
-		ProtocolFee:            actualProtocolFee,
-		PartnerFee:             actualPartnerFee,
-		ReferralFee:            actualReferralFee,
+		IncludedFeeInputAmount: amountIn.Uint64(),
+		ExcludedFeeInputAmount: actualAmountIn.Uint64(),
+		AmountLeft:             amountLeft.Uint64(),
+		OutputAmount:           actualAmountOut.Uint64(),
+		NextSqrtPrice:          u128FromBig(nextSqrtPrice),
+		TradingFee:             actualTradingFee.Uint64(),
+		ProtocolFee:            actualProtocolFee.Uint64(),
+		PartnerFee:             actualPartnerFee.Uint64(),
+		ReferralFee:            actualReferralFee.Uint64(),
 	}, nil
 }
 
@@ -196,15 +194,15 @@ func GetSwapResultFromPartialInput(poolState *dammv2gen.Pool, amountIn *big.Int,
 	}
 
 	return shared.SwapResult2{
-		IncludedFeeInputAmount: includedFeeInputAmount,
-		ExcludedFeeInputAmount: actualAmountIn,
-		AmountLeft:             amountLeft,
-		OutputAmount:           actualAmountOut,
-		NextSqrtPrice:          nextSqrtPrice,
-		TradingFee:             actualTradingFee,
-		ProtocolFee:            actualProtocolFee,
-		PartnerFee:             actualPartnerFee,
-		ReferralFee:            actualReferralFee,
+		IncludedFeeInputAmount: includedFeeInputAmount.Uint64(),
+		ExcludedFeeInputAmount: actualAmountIn.Uint64(),
+		AmountLeft:             amountLeft.Uint64(),
+		OutputAmount:           actualAmountOut.Uint64(),
+		NextSqrtPrice:          u128FromBig(nextSqrtPrice),
+		TradingFee:             actualTradingFee.Uint64(),
+		ProtocolFee:            actualProtocolFee.Uint64(),
+		PartnerFee:             actualPartnerFee.Uint64(),
+		ReferralFee:            actualReferralFee.Uint64(),
 	}, nil
 }
 
@@ -311,15 +309,15 @@ func GetSwapResultFromExactOutput(poolState *dammv2gen.Pool, amountOut *big.Int,
 	}
 
 	return shared.SwapResult2{
-		AmountLeft:             big.NewInt(0),
-		IncludedFeeInputAmount: includedFeeInputAmount,
-		ExcludedFeeInputAmount: inputAmount,
-		OutputAmount:           amountOut,
-		NextSqrtPrice:          nextSqrtPrice,
-		TradingFee:             actualTradingFee,
-		ProtocolFee:            actualProtocolFee,
-		PartnerFee:             actualPartnerFee,
-		ReferralFee:            actualReferralFee,
+		AmountLeft:             0,
+		IncludedFeeInputAmount: includedFeeInputAmount.Uint64(),
+		ExcludedFeeInputAmount: inputAmount.Uint64(),
+		OutputAmount:           amountOut.Uint64(),
+		NextSqrtPrice:          u128FromBig(nextSqrtPrice),
+		TradingFee:             actualTradingFee.Uint64(),
+		ProtocolFee:            actualProtocolFee.Uint64(),
+		PartnerFee:             actualPartnerFee.Uint64(),
+		ReferralFee:            actualReferralFee.Uint64(),
 	}, nil
 }
 
@@ -363,18 +361,18 @@ func SwapQuoteExactInput(pool *dammv2gen.Pool, currentPoint, amountIn *big.Int, 
 	feeMode := GetFeeMode(shared.CollectFeeMode(pool.CollectFeeMode), tradeDirection, hasReferral)
 	actualAmountIn := new(big.Int).Set(amountIn)
 	if inputTokenInfo != nil {
-		actualAmountIn = CalculateTransferFeeExcludedAmount(amountIn, inputTokenInfo).Amount
+		actualAmountIn = helpers.CalculateTransferFeeExcludedAmount(amountIn, inputTokenInfo).Amount
 	}
 	swapResult, err := GetSwapResultFromExactInput(pool, actualAmountIn, feeMode, tradeDirection, currentPoint)
 	if err != nil {
 		return shared.Quote2Result{}, err
 	}
-	actualAmountOut := new(big.Int).Set(swapResult.OutputAmount)
+	actualAmountOut := new(big.Int).SetUint64(swapResult.OutputAmount)
 	if outputTokenInfo != nil {
-		actualAmountOut = CalculateTransferFeeExcludedAmount(swapResult.OutputAmount, outputTokenInfo).Amount
+		actualAmountOut = helpers.CalculateTransferFeeExcludedAmount(new(big.Int).SetUint64(swapResult.OutputAmount), outputTokenInfo).Amount
 	}
-	minimumAmountOut := getAmountWithSlippage(actualAmountOut, slippage, shared.SwapModeExactIn)
-	priceImpact, _ := getPriceImpact(actualAmountIn, actualAmountOut, pool.SqrtPrice.BigInt(), aToB, tokenADecimal, tokenBDecimal)
+	minimumAmountOut := helpers.GetAmountWithSlippage(actualAmountOut, slippage, shared.SwapModeExactIn)
+	priceImpact, _ := helpers.GetPriceImpact(actualAmountIn, actualAmountOut, pool.SqrtPrice.BigInt(), aToB, tokenADecimal, tokenBDecimal)
 	return shared.Quote2Result{SwapResult2: swapResult, MinimumAmountOut: minimumAmountOut, PriceImpact: priceImpact}, nil
 }
 
@@ -392,18 +390,18 @@ func SwapQuoteExactOutput(pool *dammv2gen.Pool, currentPoint, amountOut *big.Int
 	feeMode := GetFeeMode(shared.CollectFeeMode(pool.CollectFeeMode), tradeDirection, hasReferral)
 	actualAmountOut := new(big.Int).Set(amountOut)
 	if outputTokenInfo != nil {
-		actualAmountOut = CalculateTransferFeeIncludedAmount(amountOut, outputTokenInfo).Amount
+		actualAmountOut = helpers.CalculateTransferFeeIncludedAmount(amountOut, outputTokenInfo).Amount
 	}
 	swapResult, err := GetSwapResultFromExactOutput(pool, actualAmountOut, feeMode, tradeDirection, currentPoint)
 	if err != nil {
 		return shared.Quote2Result{}, err
 	}
-	actualAmountIn := new(big.Int).Set(swapResult.IncludedFeeInputAmount)
+	actualAmountIn := new(big.Int).SetUint64(swapResult.IncludedFeeInputAmount)
 	if inputTokenInfo != nil {
-		actualAmountIn = CalculateTransferFeeIncludedAmount(swapResult.IncludedFeeInputAmount, inputTokenInfo).Amount
+		actualAmountIn = helpers.CalculateTransferFeeIncludedAmount(new(big.Int).SetUint64(swapResult.IncludedFeeInputAmount), inputTokenInfo).Amount
 	}
-	maximumAmountIn := getAmountWithSlippage(actualAmountIn, slippage, shared.SwapModeExactOut)
-	priceImpact, _ := getPriceImpact(actualAmountIn, actualAmountOut, pool.SqrtPrice.BigInt(), aToB, tokenADecimal, tokenBDecimal)
+	maximumAmountIn := helpers.GetAmountWithSlippage(actualAmountIn, slippage, shared.SwapModeExactOut)
+	priceImpact, _ := helpers.GetPriceImpact(actualAmountIn, actualAmountOut, pool.SqrtPrice.BigInt(), aToB, tokenADecimal, tokenBDecimal)
 	return shared.Quote2Result{SwapResult2: swapResult, MaximumAmountIn: maximumAmountIn, PriceImpact: priceImpact}, nil
 }
 
@@ -421,18 +419,18 @@ func SwapQuotePartialInput(pool *dammv2gen.Pool, currentPoint, amountIn *big.Int
 	feeMode := GetFeeMode(shared.CollectFeeMode(pool.CollectFeeMode), tradeDirection, hasReferral)
 	actualAmountIn := new(big.Int).Set(amountIn)
 	if inputTokenInfo != nil {
-		actualAmountIn = CalculateTransferFeeExcludedAmount(amountIn, inputTokenInfo).Amount
+		actualAmountIn = helpers.CalculateTransferFeeExcludedAmount(amountIn, inputTokenInfo).Amount
 	}
 	swapResult, err := GetSwapResultFromPartialInput(pool, actualAmountIn, feeMode, tradeDirection, currentPoint)
 	if err != nil {
 		return shared.Quote2Result{}, err
 	}
-	actualAmountOut := new(big.Int).Set(swapResult.OutputAmount)
+	actualAmountOut := new(big.Int).SetUint64(swapResult.OutputAmount)
 	if outputTokenInfo != nil {
-		actualAmountOut = CalculateTransferFeeExcludedAmount(swapResult.OutputAmount, outputTokenInfo).Amount
+		actualAmountOut = helpers.CalculateTransferFeeExcludedAmount(new(big.Int).SetUint64(swapResult.OutputAmount), outputTokenInfo).Amount
 	}
-	minimumAmountOut := getAmountWithSlippage(actualAmountOut, slippage, shared.SwapModePartialFill)
-	priceImpact, _ := getPriceImpact(actualAmountIn, actualAmountOut, pool.SqrtPrice.BigInt(), aToB, tokenADecimal, tokenBDecimal)
+	minimumAmountOut := helpers.GetAmountWithSlippage(actualAmountOut, slippage, shared.SwapModePartialFill)
+	priceImpact, _ := helpers.GetPriceImpact(actualAmountIn, actualAmountOut, pool.SqrtPrice.BigInt(), aToB, tokenADecimal, tokenBDecimal)
 	return shared.Quote2Result{SwapResult2: swapResult, MinimumAmountOut: minimumAmountOut, PriceImpact: priceImpact}, nil
 }
 
@@ -442,43 +440,4 @@ func hasPartner(poolState *dammv2gen.Pool) bool {
 
 func isSwapEnabled(pool *dammv2gen.Pool, currentPoint *big.Int) bool {
 	return pool.PoolStatus == uint8(shared.PoolStatusEnable) && currentPoint.Cmp(big.NewInt(int64(pool.ActivationPoint))) >= 0
-}
-
-func getAmountWithSlippage(amount *big.Int, slippageBps uint16, swapMode shared.SwapMode) *big.Int {
-	if slippageBps == 0 {
-		return new(big.Int).Set(amount)
-	}
-	if swapMode == shared.SwapModeExactOut {
-		factor := new(big.Int).Add(big.NewInt(shared.BasisPointMax), big.NewInt(int64(slippageBps)))
-		return new(big.Int).Div(new(big.Int).Mul(amount, factor), big.NewInt(shared.BasisPointMax))
-	}
-	factor := new(big.Int).Sub(big.NewInt(shared.BasisPointMax), big.NewInt(int64(slippageBps)))
-	return new(big.Int).Div(new(big.Int).Mul(amount, factor), big.NewInt(shared.BasisPointMax))
-}
-
-func getPriceImpact(amountIn, amountOut, currentSqrtPrice *big.Int, aToB bool, tokenADecimal, tokenBDecimal uint8) (decimal.Decimal, error) {
-	if amountIn.Sign() == 0 {
-		return decimal.Zero, nil
-	}
-	if amountOut.Sign() == 0 {
-		return decimal.Zero, errors.New("amount out must be greater than 0")
-	}
-	spotPrice := getPriceFromSqrtPrice(currentSqrtPrice, tokenADecimal, tokenBDecimal)
-	executionPrice := decimal.NewFromBigInt(amountIn, 0).Div(decimal.NewFromBigInt(amountOut, 0))
-	if aToB {
-		executionPrice = decimal.NewFromInt(1).Div(executionPrice)
-	}
-	priceImpact := executionPrice.Sub(spotPrice).Abs().Div(spotPrice).Mul(decimal.NewFromInt(100))
-	return priceImpact, nil
-}
-
-func getPriceFromSqrtPrice(sqrtPrice *big.Int, tokenADecimal, tokenBDecimal uint8) decimal.Decimal {
-	decSqrt := decimal.NewFromBigInt(sqrtPrice, 0)
-	price := decSqrt.Mul(decSqrt).
-		Mul(decimal.New(1, int32(tokenADecimal-tokenBDecimal))).
-		Div(decimal.NewFromBigInt(
-			new(big.Int).Lsh(big.NewInt(1), 128),
-			0,
-		))
-	return price
 }
