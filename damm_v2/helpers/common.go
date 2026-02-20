@@ -3,6 +3,7 @@ package helpers
 import (
 	"context"
 	"errors"
+	"math"
 	"math/big"
 
 	binary "github.com/gagliardetto/binary"
@@ -103,14 +104,84 @@ func GetFeeTimeSchedulerParams(startingBaseFeeBps, endingBaseFeeBps uint16, base
 	if totalDuration == 0 || numberOfPeriod == 0 {
 		return dammv2gen.BaseFeeParameters{}, errors.New("totalDuration and numberOfPeriod must be > 0")
 	}
-	cliffFee := BpsToFeeNumerator(startingBaseFeeBps)
-	reductionFactor := BpsToFeeNumerator(startingBaseFeeBps - endingBaseFeeBps)
+
+	maxBaseFeeNumerator := BpsToFeeNumerator(startingBaseFeeBps)
+	minBaseFeeNumerator := BpsToFeeNumerator(endingBaseFeeBps)
 	periodFrequency := new(big.Int).Div(big.NewInt(int64(totalDuration)), big.NewInt(int64(numberOfPeriod)))
-	data, err := EncodeFeeTimeSchedulerParams(cliffFee, numberOfPeriod, periodFrequency, reductionFactor, baseFeeMode)
+
+	var reductionFactor *big.Int
+	if baseFeeMode == BaseFeeModeFeeTimeSchedulerLinear {
+		totalReduction := new(big.Int).Sub(maxBaseFeeNumerator, minBaseFeeNumerator)
+		reductionFactor = new(big.Int).Div(totalReduction, big.NewInt(int64(numberOfPeriod)))
+	} else {
+		decayBase := decayBase(minBaseFeeNumerator, maxBaseFeeNumerator, uint64(numberOfPeriod))
+		reductionFactor = calculateReductionFactor(decayBase, BasisPointMax)
+	}
+
+	data, err := EncodeFeeTimeSchedulerParams(maxBaseFeeNumerator, numberOfPeriod, periodFrequency, reductionFactor, baseFeeMode)
 	if err != nil {
 		return dammv2gen.BaseFeeParameters{}, err
 	}
 	return dammv2gen.BaseFeeParameters{Data: toBaseFeeData(data)}, nil
+}
+
+// DecayBase computes:
+//
+//	ratio    = min / max
+//	decayBase = ratio^(1/numberOfPeriod)
+//
+// min/max are big.Int (exact), ratio is big.Float (high precision).
+// Pow uses float64 math.Pow due to stdlib limitations.
+func decayBase(minBaseFeeNumerator, maxBaseFeeNumerator *big.Int, numberOfPeriod uint64) *big.Float {
+	if numberOfPeriod == 0 {
+		panic("numberOfPeriod cannot be 0")
+	}
+	if maxBaseFeeNumerator.Sign() == 0 {
+		panic("maxBaseFeeNumerator cannot be 0")
+	}
+	// 如果你希望强制 0<min<=max，可以加校验：
+	// if minBaseFeeNumerator.Sign() <= 0 || minBaseFeeNumerator.Cmp(maxBaseFeeNumerator) > 0 { ... }
+
+	prec := uint(256)
+
+	// ratio = min / max (big.Float)
+	minF := new(big.Float).SetPrec(prec).SetInt(minBaseFeeNumerator)
+	maxF := new(big.Float).SetPrec(prec).SetInt(maxBaseFeeNumerator)
+
+	ratio := new(big.Float).SetPrec(prec).Quo(minF, maxF)
+
+	// exponent = 1 / numberOfPeriod
+	exp := new(big.Float).SetPrec(prec).Quo(
+		new(big.Float).SetPrec(prec).SetInt64(1),
+		new(big.Float).SetPrec(prec).SetUint64(numberOfPeriod),
+	)
+
+	// decayBase = pow(ratio, exp)  (via float64)
+	r64, _ := ratio.Float64()
+	e64, _ := exp.Float64()
+
+	decay := math.Pow(r64, e64)
+	decayBase := new(big.Float).SetPrec(prec).SetFloat64(decay)
+
+	return decayBase
+}
+
+func calculateReductionFactor(decayBase *big.Float, basisPointMax int64) *big.Int {
+	prec := uint(256)
+
+	// 1 - decayBase
+	one := new(big.Float).SetPrec(prec).SetInt64(1)
+	oneMinusDecay := new(big.Float).SetPrec(prec).Sub(one, decayBase)
+
+	// BASIS_POINT_MAX * (1 - decayBase)
+	basisF := new(big.Float).SetPrec(prec).SetInt64(basisPointMax)
+	resultFloat := new(big.Float).SetPrec(prec).Mul(basisF, oneMinusDecay)
+
+	// 转换为 big.Int（向下取整）
+	resultInt := new(big.Int)
+	resultFloat.Int(resultInt) // 截断，相当于 floor
+
+	return resultInt
 }
 
 func GetFeeRateLimiterParams(startingBaseFeeBps uint16, maxFeeBps uint16, maxLimiterDuration uint32, referenceAmount *big.Int) (dammv2gen.BaseFeeParameters, error) {
@@ -153,12 +224,12 @@ func GetBaseFeeParams(baseFeeMode uint8, startingBaseFeeBps uint16, endingBaseFe
 }
 
 // GetDynamicFeeParams builds dynamic fee parameters from base fee and max price change.
-func GetDynamicFeeParams(baseFeeBps uint16, maxPriceChangeBps uint16) (dammv2gen.DynamicFeeParameters, error) {
+func GetDynamicFeeParams(baseFeeBps uint16, maxPriceChangeBps uint16) (*dammv2gen.DynamicFeeParameters, error) {
 	if maxPriceChangeBps == 0 {
 		maxPriceChangeBps = MaxPriceChangeBpsDefault
 	}
 	if maxPriceChangeBps > MaxPriceChangeBpsDefault {
-		return dammv2gen.DynamicFeeParameters{}, errors.New("maxPriceChangeBps must be <= MaxPriceChangeBpsDefault")
+		return nil, errors.New("maxPriceChangeBps must be <= MaxPriceChangeBpsDefault")
 	}
 
 	priceRatio := new(big.Float).SetPrec(256).SetFloat64(float64(maxPriceChangeBps)/float64(BasisPointMax) + 1)
@@ -181,7 +252,7 @@ func GetDynamicFeeParams(baseFeeBps uint16, maxPriceChangeBps uint16) (dammv2gen
 	vFee.Sub(vFee, DynamicFeeRoundingOffset)
 	variableFeeControl := new(big.Int).Div(vFee, squareVfaBin)
 
-	return dammv2gen.DynamicFeeParameters{
+	return &dammv2gen.DynamicFeeParameters{
 		BinStep:                  BinStepBpsDefault,
 		BinStepU128:              uint128FromBig(BinStepBpsU128Default),
 		FilterPeriod:             DynamicFeeFilterPeriodDefault,
@@ -233,10 +304,7 @@ func GetPriceFromSqrtPrice(sqrtPrice *big.Int, tokenADecimal, tokenBDecimal uint
 	price := decSqrt.Mul(decSqrt).
 		Mul(decimal.New(1, int32(tokenADecimal-tokenBDecimal))).
 		Div(decimal.NewFromBigInt(
-			new(big.Int).Lsh(
-				decimal.NewFromInt(1).BigInt(),
-				128,
-			),
+			new(big.Int).Lsh(big.NewInt(1), 128),
 			0,
 		))
 	return price
@@ -252,6 +320,14 @@ func GetSqrtPriceFromPrice(price decimal.Decimal, tokenADecimal, tokenBDecimal u
 	sqrtValue.Mul(sqrtValue, new(big.Float).SetInt(new(big.Int).Lsh(big.NewInt(1), 64)))
 	sqrtValueQ64, _ := sqrtValue.Int(nil)
 	return sqrtValueQ64
+}
+
+// initialPoolTokenAmount = tokenAmount * 10^decimals
+func GetInitialPoolTokenAmount(amount *big.Int, decimals uint8) *big.Int {
+	// 10^decimals
+	scale := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(decimals)), nil)
+	// tokenAmount * 10^decimals
+	return new(big.Int).Mul(amount, scale)
 }
 
 func GetPriceImpact(amountIn, amountOut, currentSqrtPrice *big.Int, aToB bool, tokenADecimal, tokenBDecimal uint8) (decimal.Decimal, error) {

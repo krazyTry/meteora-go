@@ -26,6 +26,7 @@ var MAX_SQRT_PRICE_LE_BYTES = [16]byte{uint8(0x9b), uint8(0x57), uint8(0x69), ui
 const MIN_FEE_NUMERATOR = uint64(0x186a0)
 
 var MIN_SQRT_PRICE_LE_BYTES = [16]byte{uint8(0x50), uint8(0x3b), uint8(0x1), uint8(0x0), uint8(0x1), uint8(0x0), uint8(0x0), uint8(0x0), uint8(0x0), uint8(0x0), uint8(0x0), uint8(0x0), uint8(0x0), uint8(0x0), uint8(0x0), uint8(0x0)}
+
 var POOL_AUTHORITY_PREFIX = []byte{112, 111, 111, 108, 95, 97, 117, 116, 104, 111, 114, 105, 116, 121}
 var POOL_PREFIX = []byte{112, 111, 111, 108}
 var POSITION_NFT_ACCOUNT_PREFIX = []byte{112, 111, 115, 105, 116, 105, 111, 110, 95, 110, 102, 116, 95, 97, 99, 99, 111, 117, 110, 116}

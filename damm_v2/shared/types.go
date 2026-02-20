@@ -24,11 +24,12 @@ const (
 	BaseFeeModeFeeMarketCapSchedulerExp    BaseFeeMode = 4
 )
 
-type CollectFeeMode uint8
+type CollectFeeMode = uint8
 
 const (
 	CollectFeeModeBothToken CollectFeeMode = 0
-	CollectFeeModeOnlyB     CollectFeeMode = 1
+	CollectFeeModeOnlyA     CollectFeeMode = 1
+	CollectFeeModeOnlyB     CollectFeeMode = 2
 )
 
 type TradeDirection uint8
@@ -38,7 +39,7 @@ const (
 	TradeDirectionBtoA TradeDirection = 1
 )
 
-type ActivationType uint8
+type ActivationType = uint8
 
 const (
 	ActivationTypeSlot      ActivationType = 0

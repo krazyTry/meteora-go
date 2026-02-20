@@ -173,7 +173,7 @@ func (c *CpAmm) PreparePoolCreationParams(params PreparePoolCreationParams) (Pre
 }
 
 // CreatePool builds a transaction to create a permissionless pool.
-func (c *CpAmm) CreatePool(ctx context.Context, params CreatePoolParams) (TxBuilder, error) {
+func (c *CpAmm) CreatePool(ctx context.Context, params CreatePoolParams) (TxBuilder, solanago.PublicKey, solanago.PublicKey, solanago.PublicKey, error) {
 	pool := DerivePoolAddress(params.Config, params.TokenAMint, params.TokenBMint)
 	prepared, err := c.prepareCreatePoolParams(ctx, PrepareCustomizablePoolParams{
 		Pool:          pool,
@@ -187,7 +187,7 @@ func (c *CpAmm) CreatePool(ctx context.Context, params CreatePoolParams) (TxBuil
 		TokenBProgram: params.TokenBProgram,
 	})
 	if err != nil {
-		return nil, err
+		return nil, solanago.PublicKey{}, solanago.PublicKey{}, solanago.PublicKey{}, err
 	}
 
 	initParams := dammv2gen.InitializePoolParameters{
@@ -219,10 +219,10 @@ func (c *CpAmm) CreatePool(ctx context.Context, params CreatePoolParams) (TxBuil
 		dammv2gen.ProgramID,
 	)
 	if err != nil {
-		return nil, err
+		return nil, solanago.PublicKey{}, solanago.PublicKey{}, solanago.PublicKey{}, err
 	}
 	if err := appendRemainingAccounts(initIx, prepared.TokenBadgeAccounts); err != nil {
-		return nil, err
+		return nil, solanago.PublicKey{}, solanago.PublicKey{}, solanago.PublicKey{}, err
 	}
 
 	builder := solanago.NewTransactionBuilder()
@@ -242,15 +242,15 @@ func (c *CpAmm) CreatePool(ctx context.Context, params CreatePoolParams) (TxBuil
 			dammv2gen.ProgramID,
 		)
 		if err != nil {
-			return nil, err
+			return nil, solanago.PublicKey{}, solanago.PublicKey{}, solanago.PublicKey{}, err
 		}
 		builder.AddInstruction(lockIx)
 	}
-	return builder, nil
+	return builder, pool, prepared.Position, prepared.PositionNftAccount, nil
 }
 
 // CreateCustomPool builds a transaction to create a customizable pool.
-func (c *CpAmm) CreateCustomPool(ctx context.Context, params InitializeCustomizeablePoolParams) (TxBuilder, solanago.PublicKey, solanago.PublicKey, error) {
+func (c *CpAmm) CreateCustomPool(ctx context.Context, params InitializeCustomizeablePoolParams) (TxBuilder, solanago.PublicKey, solanago.PublicKey, solanago.PublicKey, error) {
 	pool := DeriveCustomizablePoolAddress(params.TokenAMint, params.TokenBMint)
 	tokenBAmount := params.TokenBAmount
 	if params.TokenBMint.Equals(helpers.NativeMint) && tokenBAmount != nil {
@@ -270,7 +270,7 @@ func (c *CpAmm) CreateCustomPool(ctx context.Context, params InitializeCustomize
 		TokenBProgram: params.TokenBProgram,
 	})
 	if err != nil {
-		return nil, solanago.PublicKey{}, solanago.PublicKey{}, err
+		return nil, solanago.PublicKey{}, solanago.PublicKey{}, solanago.PublicKey{}, err
 	}
 
 	poolFees := dammv2gen.PoolFeeParameters{
@@ -311,10 +311,10 @@ func (c *CpAmm) CreateCustomPool(ctx context.Context, params InitializeCustomize
 		dammv2gen.ProgramID,
 	)
 	if err != nil {
-		return nil, solanago.PublicKey{}, solanago.PublicKey{}, err
+		return nil, solanago.PublicKey{}, solanago.PublicKey{}, solanago.PublicKey{}, err
 	}
 	if err := appendRemainingAccounts(initIx, prepared.TokenBadgeAccounts); err != nil {
-		return nil, solanago.PublicKey{}, solanago.PublicKey{}, err
+		return nil, solanago.PublicKey{}, solanago.PublicKey{}, solanago.PublicKey{}, err
 	}
 
 	builder := solanago.NewTransactionBuilder()
@@ -333,11 +333,11 @@ func (c *CpAmm) CreateCustomPool(ctx context.Context, params InitializeCustomize
 			dammv2gen.ProgramID,
 		)
 		if err != nil {
-			return nil, solanago.PublicKey{}, solanago.PublicKey{}, err
+			return nil, solanago.PublicKey{}, solanago.PublicKey{}, solanago.PublicKey{}, err
 		}
 		builder.AddInstruction(lockIx)
 	}
-	return builder, pool, prepared.Position, nil
+	return builder, pool, prepared.Position, prepared.PositionNftAccount, nil
 }
 
 // CreateCustomPoolWithDynamicConfig builds a transaction to create customizable pool with dynamic config.
@@ -1179,6 +1179,7 @@ func (c *CpAmm) MergePosition(ctx context.Context, params MergePositionParams) (
 		}
 		preIxs = append(preIxs, refreshIx)
 	}
+
 	tokenAWithdraw := math.GetAmountAFromLiquidityDelta(params.PoolState.SqrtPrice.BigInt(), params.PoolState.SqrtMaxPrice.BigInt(), positionBLiquidityDelta, RoundingDown)
 	tokenBWithdraw := math.GetAmountBFromLiquidityDelta(params.PoolState.SqrtMinPrice.BigInt(), params.PoolState.SqrtPrice.BigInt(), positionBLiquidityDelta, RoundingDown)
 	newLiquidityDelta := c.GetLiquidityDelta(LiquidityDeltaParams{
@@ -1188,7 +1189,6 @@ func (c *CpAmm) MergePosition(ctx context.Context, params MergePositionParams) (
 		SqrtMinPrice:    params.PoolState.SqrtMinPrice.BigInt(),
 		SqrtMaxPrice:    params.PoolState.SqrtMaxPrice.BigInt(),
 	})
-
 	builder := solanago.NewTransactionBuilder()
 	for _, ix := range preIxs {
 		builder.AddInstruction(ix)
@@ -1537,10 +1537,6 @@ func (c *CpAmm) ClaimPartnerFee(ctx context.Context, params ClaimPartnerFeeParam
 		builder.AddInstruction(ix)
 	}
 	return builder, nil
-}
-
-func (c *CpAmm) GetUnClaimLpFee(poolState *dammv2gen.Pool, positionState *dammv2gen.Position) (feeTokenA, feeTokenB *big.Int, rewards []*big.Int, err error) {
-	return helpers.GetUnClaimLpFee(poolState, positionState)
 }
 
 // ClaimPositionFee builds a transaction to claim position fees.

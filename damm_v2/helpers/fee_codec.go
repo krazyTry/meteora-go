@@ -8,9 +8,9 @@ import (
 	dammv2gen "github.com/krazyTry/meteora-go/gen/damm_v2"
 )
 
-func EncodeFeeTimeSchedulerParams(cliffFeeNumerator *bigInt, numberOfPeriod uint16, periodFrequency *bigInt, reductionFactor *bigInt, baseFeeMode uint8) ([]byte, error) {
+func EncodeFeeTimeSchedulerParams(maxBaseFeeNumerator *big.Int, numberOfPeriod uint16, periodFrequency *big.Int, reductionFactor *big.Int, baseFeeMode uint8) ([]byte, error) {
 	params := dammv2gen.BorshFeeTimeScheduler{
-		CliffFeeNumerator: toU64(cliffFeeNumerator),
+		CliffFeeNumerator: toU64(maxBaseFeeNumerator),
 		NumberOfPeriod:    numberOfPeriod,
 		PeriodFrequency:   toU64(periodFrequency),
 		ReductionFactor:   toU64(reductionFactor),

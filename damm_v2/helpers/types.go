@@ -8,6 +8,7 @@ import (
 
 // TokenInfo mirrors needed fields for Token2022 fee calculations.
 type TokenInfo struct {
+	Owner           solanago.PublicKey
 	Mint            solanago.PublicKey
 	CurrentEpoch    uint64
 	Decimals        uint8

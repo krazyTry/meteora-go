@@ -145,10 +145,6 @@ func GetTokenInfo(ctx context.Context, client *rpc.Client, mint solanago.PublicK
 		return nil, err
 	}
 
-	if !out.Value.Owner.Equals(solanago.Token2022ProgramID) {
-		return nil, nil
-	}
-
 	mintAcc := &token.Mint{}
 	if err = mintAcc.Decode(out.GetBinary()); err != nil {
 		return nil, err
@@ -159,6 +155,15 @@ func GetTokenInfo(ctx context.Context, client *rpc.Client, mint solanago.PublicK
 		return nil, err
 	}
 
+	if !out.Value.Owner.Equals(solanago.Token2022ProgramID) {
+		return &TokenInfo{
+			Owner:        out.Value.Owner,
+			Mint:         mint,
+			CurrentEpoch: epochInfo.Epoch,
+			Decimals:     mintAcc.Decimals,
+		}, nil
+	}
+
 	ext, err := parseToken2022Extensions(out.GetBinary())
 	if err != nil {
 		return nil, err
@@ -166,6 +171,7 @@ func GetTokenInfo(ctx context.Context, client *rpc.Client, mint solanago.PublicK
 
 	if ext.TransferFeeConfig == nil {
 		return &TokenInfo{
+			Owner:           out.Value.Owner,
 			Mint:            mint,
 			CurrentEpoch:    epochInfo.Epoch,
 			Decimals:        mintAcc.Decimals,
@@ -177,6 +183,7 @@ func GetTokenInfo(ctx context.Context, client *rpc.Client, mint solanago.PublicK
 	fee := ext.TransferFeeConfig.FeeForEpoch(epochInfo.Epoch)
 
 	return &TokenInfo{
+		Owner:           out.Value.Owner,
 		Mint:            mint,
 		CurrentEpoch:    epochInfo.Epoch,
 		Decimals:        mintAcc.Decimals,

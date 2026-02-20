@@ -477,10 +477,7 @@ func getPriceFromSqrtPrice(sqrtPrice *big.Int, tokenADecimal, tokenBDecimal uint
 	price := decSqrt.Mul(decSqrt).
 		Mul(decimal.New(1, int32(tokenADecimal-tokenBDecimal))).
 		Div(decimal.NewFromBigInt(
-			new(big.Int).Lsh(
-				decimal.NewFromInt(1).BigInt(),
-				128,
-			),
+			new(big.Int).Lsh(big.NewInt(1), 128),
 			0,
 		))
 	return price

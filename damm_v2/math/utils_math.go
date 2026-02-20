@@ -25,10 +25,7 @@ func Q64ToDecimal(num *big.Int, decimalPlaces int32) decimal.Decimal {
 		return decimal.Zero
 	}
 	out := decimal.NewFromBigInt(num, 0).Div(decimal.NewFromBigInt(
-		new(big.Int).Lsh(
-			decimal.NewFromInt(1).BigInt(),
-			64,
-		),
+		new(big.Int).Lsh(big.NewInt(1), 64),
 		0,
 	))
 	if decimalPlaces >= 0 {
@@ -39,10 +36,7 @@ func Q64ToDecimal(num *big.Int, decimalPlaces int32) decimal.Decimal {
 
 func DecimalToQ64(num decimal.Decimal) *big.Int {
 	v := num.Mul(decimal.NewFromBigInt(
-		new(big.Int).Lsh(
-			decimal.NewFromInt(1).BigInt(),
-			64,
-		),
+		new(big.Int).Lsh(big.NewInt(1), 64),
 		0,
 	)).Floor()
 	return v.BigInt()

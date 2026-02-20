@@ -35,7 +35,7 @@ func GetUnClaimLpFee(poolState *dammv2gen.Pool, positionState *dammv2gen.Positio
 	return feeTokenA, feeTokenB, rewards, nil
 }
 
-func GetRewardInfo(poolState dammv2gen.Pool, rewardIndex int, periodTime, currentTime *big.Int) (rewardPerPeriod, rewardBalance, totalRewardDistributed *big.Int, err error) {
+func GetRewardInfo(poolState *dammv2gen.Pool, rewardIndex int, periodTime, currentTime *big.Int) (rewardPerPeriod, rewardBalance, totalRewardDistributed *big.Int, err error) {
 	if rewardIndex < 0 || rewardIndex >= len(poolState.RewardInfos) {
 		return nil, nil, nil, errors.New("invalid reward index")
 	}
@@ -64,7 +64,7 @@ func GetRewardInfo(poolState dammv2gen.Pool, rewardIndex int, periodTime, curren
 	return rewardPerPeriod.Rsh(rewardPerPeriod, 64), rewardBalance, totalRewardDistributed, nil
 }
 
-func GetUserRewardPending(poolState dammv2gen.Pool, positionState dammv2gen.Position, rewardIndex int, currentTime, periodTime *big.Int) (userRewardPerPeriod, userPendingReward *big.Int, err error) {
+func GetUserRewardPending(poolState *dammv2gen.Pool, positionState *dammv2gen.Position, rewardIndex int, currentTime, periodTime *big.Int) (userRewardPerPeriod, userPendingReward *big.Int, err error) {
 	poolLiquidity := poolState.Liquidity.BigInt()
 	if poolLiquidity.Sign() == 0 {
 		return big.NewInt(0), big.NewInt(0), nil

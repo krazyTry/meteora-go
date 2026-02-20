@@ -14,17 +14,11 @@ func CalculateInitSqrtPrice(tokenAAmount, tokenBAmount, minSqrtPrice, maxSqrtPri
 	amountA := decimal.NewFromBigInt(tokenAAmount, 0)
 	amountB := decimal.NewFromBigInt(tokenBAmount, 0)
 	minSqrt := decimal.NewFromBigInt(minSqrtPrice, 0).Div(decimal.NewFromBigInt(
-		new(big.Int).Lsh(
-			decimal.NewFromInt(1).BigInt(),
-			64,
-		),
+		new(big.Int).Lsh(big.NewInt(1), 64),
 		0,
 	))
 	maxSqrt := decimal.NewFromBigInt(maxSqrtPrice, 0).Div(decimal.NewFromBigInt(
-		new(big.Int).Lsh(
-			decimal.NewFromInt(1).BigInt(),
-			64,
-		),
+		new(big.Int).Lsh(big.NewInt(1), 64),
 		0,
 	))
 
@@ -47,10 +41,7 @@ func CalculateInitSqrtPrice(tokenAAmount, tokenBAmount, minSqrtPrice, maxSqrtPri
 		return nil, err
 	}
 	result := paMinusXY.Add(sqrtDisc).Div(decimal.NewFromInt(2)).Mul(decimal.NewFromBigInt(
-		new(big.Int).Lsh(
-			decimal.NewFromInt(1).BigInt(),
-			64,
-		),
+		new(big.Int).Lsh(big.NewInt(1), 64),
 		0,
 	))
 	return result.Floor().BigInt(), nil

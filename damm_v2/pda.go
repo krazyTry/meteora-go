@@ -2,6 +2,7 @@ package dammv2
 
 import (
 	"bytes"
+	"encoding/binary"
 	"math/big"
 
 	solanago "github.com/gagliardetto/solana-go"
@@ -37,9 +38,10 @@ func DeriveEventAuthority() solanago.PublicKey {
 	return pub
 }
 
-func DeriveConfigAddress(index *big.Int) solanago.PublicKey {
-	idx := indexBytesLE(index, 8)
-	pub, _, _ := solanago.FindProgramAddress([][]byte{[]byte("config"), idx}, CpAmmProgramID)
+func DeriveConfigAddress(index uint64) solanago.PublicKey {
+	indexBytes := make([]byte, 8)
+	binary.LittleEndian.PutUint64(indexBytes, index)
+	pub, _, _ := solanago.FindProgramAddress([][]byte{[]byte("config"), indexBytes}, CpAmmProgramID)
 	return pub
 }
 

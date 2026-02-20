@@ -208,8 +208,6 @@ type PreparePoolCreationSingleSide struct {
 // TokenInfo mirrors needed fields for Token2022 fee calculations.
 type TokenInfo = helpers.TokenInfo
 
-var GetTokenInfo = helpers.GetTokenInfo
-
 // Pool creation & position params.
 type CreatePoolParams struct {
 	Creator         solanago.PublicKey
