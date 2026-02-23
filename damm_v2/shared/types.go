@@ -36,8 +36,7 @@ type CollectFeeMode = uint8
 
 const (
 	CollectFeeModeBothToken CollectFeeMode = 0
-	CollectFeeModeOnlyA     CollectFeeMode = 1
-	CollectFeeModeOnlyB     CollectFeeMode = 2
+	CollectFeeModeOnlyB     CollectFeeMode = 1
 )
 
 type TradeDirection uint8
