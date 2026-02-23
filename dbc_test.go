@@ -5,1224 +5,768 @@ import (
 	"fmt"
 	"math/big"
 	"testing"
-	"time"
-
-	"github.com/krazyTry/meteora-go/u128"
-
-	dammV2 "github.com/krazyTry/meteora-go/damm.v2"
-	"github.com/krazyTry/meteora-go/dbc"
 
 	"github.com/gagliardetto/solana-go"
-	"github.com/krazyTry/meteora-go/dbc/dynamic_bonding_curve"
+	"github.com/gagliardetto/solana-go/rpc"
+	jsoniter "github.com/json-iterator/go"
+	"github.com/krazyTry/meteora-go/dynamic_bonding_curve"
+	"github.com/krazyTry/meteora-go/dynamic_bonding_curve/helpers"
+	"github.com/krazyTry/meteora-go/dynamic_bonding_curve/shared"
 	"github.com/shopspring/decimal"
 )
 
-func TestDbc(t *testing.T) {
+func TestDBC(t *testing.T) {
 	return
 
-	// init
-	rpcClient, wsClient, pctx, cancel, err := testInit()
+	dbcService := dynamic_bonding_curve.NewDynamicBondingCurve(rpcClient, rpc.CommitmentFinalized)
+	configAddress := solana.MustPublicKeyFromBase58("")
+	configState, err := dbcService.GetPoolConfig(context.Background(), configAddress)
 	if err != nil {
-		t.Fatal("testInit() fail", err)
-	}
-	ctx := *pctx
-	defer (*cancel)()
-
-	// Create a payment account for the token sol > 2
-	payer := &solana.Wallet{PrivateKey: solana.MustPrivateKeyFromBase58("3wXb4MZeb8uueTiEuCN3EF9rQ6Ro6WfUG28AQ7a41kBwLyXjbrfKdWuHup85Ce6rVTwryVW5mJ57e1qnJMUhmxmh")}
-
-	// account for buying and selling sol > 2
-	ownerWallet := &solana.Wallet{PrivateKey: solana.MustPrivateKeyFromBase58("2jYSi3Kpgf2KPhQrAGpUiP3csginxjLp7omVAMhvBpnHbxUDffnZNi4mM5ErH1pHMPzxTUimnnfZaoBgcCiEZ1DR")}
-	owner := ownerWallet.PublicKey()
-
-	{
-		fmt.Println("wallet address:", payer.PublicKey())
-		_, err := testBalance(ctx, rpcClient, payer.PublicKey())
-		if err != nil {
-			t.Fatal("testBalance() fail", err)
-		}
-	}
-
-	{
-		fmt.Println("owner address:", owner)
-		_, err := testBalance(ctx, rpcClient, owner)
-		if err != nil {
-			t.Fatal("testBalance() fail", err)
-		}
-	}
-
-	config := solana.NewWallet()
-	// config = &solana.Wallet{PrivateKey: solana.MustPrivateKeyFromBase58("3nUKWprxN5qtQ1EqboXgaZncHPZTUT8y1EdnhSYfWRYev7BwdmUJhLjYdnkRouivGGYt1gu7jjPv8Qa1x4up9ocL")}
-	fmt.Printf("config address:%s(%s)\n", config.PublicKey(), config.PrivateKey)
-
-	poolCreator := solana.NewWallet()
-	// poolCreator = &solana.Wallet{PrivateKey: solana.MustPrivateKeyFromBase58("2sDd4jKUwcfUVxkhfJY9JrKCJn2tYh9pBDwPQEwF41xN13hzMaL1iJ3QUgiPmMFez44LUUSAgXGZ7yCTd9kPxJY4")}
-	fmt.Printf("poolCreator address:%s(%s)\n", poolCreator.PublicKey(), poolCreator.PrivateKey)
-
-	poolPartner := solana.NewWallet()
-	// poolPartner = &solana.Wallet{PrivateKey: solana.MustPrivateKeyFromBase58("66Sq63JTSnqhECNYciiL3yUv6LErRED3j69ahs2RpTrqjgdbYu9gHgg3bjoKwYYNbq2wrcpN7w5R73ZbdCb7JtMJ")}
-	fmt.Printf("poolPartner address:%s(%s)\n", poolPartner.PublicKey(), poolPartner.PrivateKey)
-
-	leftoverReceiver := solana.NewWallet()
-	// leftoverReceiver = &solana.Wallet{PrivateKey: solana.MustPrivateKeyFromBase58("43twn5bdq43h5QeSaJWRy41HjHm2s1y1pqn4EptD9uMJD6co6mBgkwiF2QB5hNaYETUvZjZweRiL33CvWQrk2UYR")}
-	fmt.Printf("leftoverReceiver address:%s(%s)\n", leftoverReceiver.PublicKey(), leftoverReceiver.PrivateKey)
-
-	{
-		fmt.Println("transfer a little sol to leftoverReceiver")
-		ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
-		defer cancel1()
-		if _, err = testTransferSOL(ctx1, rpcClient, wsClient, payer, leftoverReceiver.PublicKey(), 0.1*1e9); err != nil {
-			t.Fatal("testTransferSOL fail", err)
-		}
-	}
-	fmt.Printf("\n\n")
-
-	meteoraDBC := dbc.NewDBC(rpcClient,
-		dbc.WithConfigPublicKey(config.PublicKey()),
-		dbc.WithCreator(poolCreator),
-		dbc.WithPartner(poolPartner),
-		dbc.WithLeftoverReceiver(leftoverReceiver),
-	)
-
-	// Check if the configuration creation function is ok
-	testDBCBuildCurveCheck(t)
-
-	{
-		// Initialize the configuration, create it if it does not exist, otherwise return
-		ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
-		defer cancel1()
-		fmt.Println("try to initialize config")
-		if _, _, err = meteoraDBC.InitConfig(ctx1, wsClient, payer, solana.WrappedSol, testDBCGenConfig()); err != nil {
-			t.Fatal("dbc.InitConfig() fail", err)
-		}
-		fmt.Println("initialization config completed")
-		// Check if the configuration matches
-		testDBCConfigCheck(t, ctx, meteoraDBC, solana.WrappedSol, config.PublicKey())
+		t.Fatal("GetConfig() fail", err)
 	}
 
 	name := "MeteoraGoTest"
 	symbol := "METAGOTEST"
 	uri := "https://launch.meteora.ag/icons/logo.svg"
 
+	// creator := &solana.Wallet{PrivateKey: solana.MustPrivateKeyFromBase58("")}
+	// fmt.Printf("poolPartner4 address:%s(%s)\n", poolPartner4.PublicKey(), poolPartner4.PrivateKey)
+	ownerWallet := &solana.Wallet{PrivateKey: solana.MustPrivateKeyFromBase58("")}
+	owner := ownerWallet.PublicKey()
+	fmt.Println("owner address:", owner)
+
+	// payer := &solana.Wallet{PrivateKey: solana.MustPrivateKeyFromBase58("")}
+	// fmt.Println("payer address:", payer.PublicKey())
+
+	partner := &solana.Wallet{PrivateKey: solana.MustPrivateKeyFromBase58("")}
+	fmt.Println("partner address:", partner.PublicKey())
+
+	leftover := &solana.Wallet{PrivateKey: solana.MustPrivateKeyFromBase58("")}
+	fmt.Println("leftover address:", leftover.PublicKey())
+
 	{
 		mintWallet := solana.NewWallet()
 		baseMint := mintWallet.PublicKey()
-		fmt.Printf("new token mint address:%s(%s)\n", baseMint, mintWallet.PrivateKey)
 
-		{
-			_, err := testMintBalance(ctx, rpcClient, owner, baseMint)
-			if err != nil {
-				t.Fatal("testMintBalance() fail")
-			}
+		fmt.Println("try to create token mint address:", baseMint, mintWallet)
+		// ctx1, cancel1 := context.WithTimeout(context.Background(), time.Second*30)
+		// defer cancel1()
+		ctx1 := context.Background()
+
+		createParams := dynamic_bonding_curve.CreatePoolParams{
+			Name:        name,
+			Symbol:      symbol,
+			URI:         uri,
+			Payer:       owner,
+			PoolCreator: owner,
+			Config:      configAddress,
+			BaseMint:    baseMint,
 		}
 
-		ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
-		defer cancel1()
-
-		fmt.Println("try to create token mint address:", baseMint)
-		amountIn := new(big.Int).SetUint64(uint64(0.1 * 1e9))
-		sig, err := meteoraDBC.CreatePoolWithFirstBuy(ctx1, wsClient, ownerWallet, mintWallet, name, symbol, uri, amountIn, 250)
-		if err != nil {
-			t.Fatal("dbc.CreatePoolWithFirstBuy fail", err)
-		}
-		fmt.Println("create token and buy 0.1*1e9 Success sig:", sig)
-
-		testDBCPoolCheck(t, ctx, meteoraDBC, baseMint)
-
-		{
-			ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
-			defer cancel1()
-			pools, err := meteoraDBC.GetPoolsByCreator(ctx1)
-			if err != nil {
-				t.Fatal("dbc.GetPoolsByCreator() fail")
-			}
-
-			for _, pool := range pools {
-				if pool.BaseMint != baseMint {
-					t.Fatal("dbc.GetPoolsByCreator() fail")
-				}
-			}
-		}
-
-		{
-			ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
-			defer cancel1()
-			pools, err := meteoraDBC.GetPoolsByConfig(ctx1)
-			if err != nil {
-				t.Fatal("dbc.GetPoolsByCreator() fail")
-			}
-			for _, pool := range pools {
-				if pool.BaseMint != baseMint {
-					t.Fatal("dbc.GetPoolsByCreator() fail")
-				}
-			}
-		}
-
-		var balance uint64
-		{
-			bal, err := testMintBalance(ctx, rpcClient, owner, baseMint)
-			if err != nil {
-				t.Fatal("testMintBalance() fail")
-			}
-			balance = bal
-		}
-
-		{
-			fmt.Println("try to sell token address:", baseMint)
-			ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
-			defer cancel1()
-			amountIn := new(big.Int).SetUint64(balance)
-			quote, poolState, configState, currentPoint, err := meteoraDBC.SellQuote(ctx1, baseMint, amountIn, 250, false)
-			if err != nil {
-				t.Fatal("testMintBalance() fail")
-			}
-			sig, err := meteoraDBC.Sell(ctx1, wsClient, ownerWallet, nil, poolState.Address, poolState.VirtualPool, configState, amountIn, quote.MinimumAmountOut, currentPoint)
-			if err != nil {
-				t.Fatal("dbc.Sell() fail", err)
-			}
-			fmt.Println("sell token completed Success sig:", sig)
-		}
-
-		{
-			_, err := testMintBalance(ctx, rpcClient, owner, baseMint)
-			if err != nil {
-				t.Fatal("testMintBalance() fail")
-			}
-		}
-	}
-
-	// Generate new token information
-	mintWallet := solana.NewWallet()
-	// mintWallet = &solana.Wallet{PrivateKey: solana.MustPrivateKeyFromBase58("5242H5ijH7p754wzbPSqxrS9m9xvRECnW1LvNzaDaqNGX8z61ecyxAo5G8vkM1WidkUE5JyjkKPeih7DutcdSCdG")}
-	baseMint := mintWallet.PublicKey()
-	fmt.Printf("new token mint address:%s(%s)\n", baseMint, mintWallet.PrivateKey)
-
-	{
-		fmt.Println("try to create token mint address:", baseMint)
-		ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
-		defer cancel1()
-		sig, err := meteoraDBC.CreatePool(ctx1, wsClient, payer, mintWallet, name, symbol, uri)
+		createIx, err := dbcService.CreatePool(ctx1, createParams)
 		if err != nil {
 			t.Fatal("dbc.CreatePool() fail", err)
 		}
-		fmt.Println("create token success Success sig:", sig)
 
-		testDBCPoolCheck(t, ctx, meteoraDBC, baseMint)
-	}
-
-	{
-		_, err := testMintBalance(ctx, rpcClient, owner, baseMint)
+		instructions := []solana.Instruction{createIx}
+		sig, err := SendInstruction(ctx1, rpcClient, wsClient, instructions, ownerWallet.PublicKey(), func(key solana.PublicKey) *solana.PrivateKey {
+			switch {
+			case key.Equals(mintWallet.PublicKey()):
+				return &mintWallet.PrivateKey
+			case key.Equals(ownerWallet.PublicKey()):
+				return &ownerWallet.PrivateKey
+			default:
+				return nil
+			}
+		})
 		if err != nil {
-			t.Fatal("testMintBalance() fail")
+			t.Fatal("create SendTransaction() fail", err)
 		}
-	}
+		fmt.Println("创建 token success Success sig:", sig.String())
 
-	{
-		fmt.Println("try to buy token 0.4*1e9 address:", baseMint)
-		ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
-		defer cancel1()
-		amountIn := new(big.Int).SetUint64(uint64(0.4 * 1e9))
-		minOutAmount, poolState, configState, currentPoint, err := meteoraDBC.BuyQuote(ctx1, baseMint, amountIn, 250, false)
+		poolState, err := dbcService.GetPoolByBaseMint(ctx1, baseMint)
 		if err != nil {
-			t.Fatal("dbc.BuyQuote() fail", err)
+			t.Fatal("GetPoolByPoolAddress() fail", err)
 		}
-		fmt.Printf("buy token address:%s expected:%v minimum:%v\n", baseMint, minOutAmount.AmountOut, minOutAmount.MinimumAmountOut)
-		sig, err := meteoraDBC.Buy(ctx1, wsClient, ownerWallet, nil, poolState.Address, poolState.VirtualPool, configState, amountIn, minOutAmount.MinimumAmountOut, currentPoint)
+		fmt.Println("创建 token success Pool:", poolState)
+
+		swapResult, err := dbcService.SwapQuote(dynamic_bonding_curve.SwapQuoteParams{
+			VirtualPool:      poolState.Account,
+			Config:           configState,
+			SwapBaseForQuote: false,
+			AmountIn:         big.NewInt(0.1 * 1e9),
+			SlippageBps:      10000,
+			// HasReferral                    bool
+			// EligibleForFirstSwapWithMinFee bool
+			CurrentPoint: dynamic_bonding_curve.CurrentPointForActivation(ctx1, rpcClient, rpc.CommitmentFinalized, dynamic_bonding_curve.ActivationType(configState.ActivationType)),
+		})
 		if err != nil {
-			t.Fatal("dbc.Buy() fail", err)
+			t.Fatal("SwapQuote() fail", err)
 		}
-		fmt.Println("buy token completed Success sig:", sig)
 
-		testDBCPoolCheck(t, ctx, meteoraDBC, baseMint)
-	}
-
-	var balance uint64
-	{
-		bal, err := testMintBalance(ctx, rpcClient, owner, baseMint)
+		swapParams := dynamic_bonding_curve.SwapParams{
+			Owner:            owner,
+			Pool:             poolState.Pubkey,
+			AmountIn:         big.NewInt(0.1 * 1e9),
+			MinimumAmountOut: swapResult.MinimumAmountOut,
+			SwapBaseForQuote: false,
+			// ReferralTokenAccount *solanago.PublicKey
+			// Payer                *solanago.PublicKey
+		}
+		pre, swapIx, post, err := dbcService.Swap(ctx1, swapParams)
 		if err != nil {
-			t.Fatal("testMintBalance() fail", err)
+			t.Fatal("Swap() fail", err)
 		}
-		balance = bal
-	}
 
-	{
-		fmt.Println("try to sell half of tokens address:", baseMint)
-		ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
-		defer cancel1()
+		instructions = []solana.Instruction{}
+		instructions = append(pre, swapIx)
+		instructions = append(instructions, post...)
 
-		amountIn := new(big.Int).SetUint64(balance / 2) // uint64(100000 * 1e9)
-		quote, poolState, configState, currentPoint, err := meteoraDBC.SellQuote(ctx1, baseMint, amountIn, 250, false)
+		sig, err = SendInstruction(ctx1, rpcClient, wsClient, instructions, ownerWallet.PublicKey(), func(key solana.PublicKey) *solana.PrivateKey {
+			switch {
+			case key.Equals(ownerWallet.PublicKey()):
+				return &ownerWallet.PrivateKey
+			default:
+				return nil
+			}
+		})
 		if err != nil {
-			t.Fatal("dbc.SellQuote() fail", err)
+			t.Fatal("swap SendTransaction() fail", err)
 		}
-		sig, err := meteoraDBC.Sell(ctx1, wsClient, ownerWallet, nil, poolState.Address, poolState.VirtualPool, configState, amountIn, quote.MinimumAmountOut, currentPoint)
+		fmt.Println("swap token success Success sig:", sig.String())
+
+		swapResult2, err := dbcService.SwapQuote2(dynamic_bonding_curve.SwapQuote2Params{
+			VirtualPool:      poolState.Account,
+			Config:           configState,
+			SwapBaseForQuote: false,
+			// HasReferral                    bool
+			// EligibleForFirstSwapWithMinFee bool
+			CurrentPoint: dynamic_bonding_curve.CurrentPointForActivation(ctx1, rpcClient, rpc.CommitmentFinalized, dynamic_bonding_curve.ActivationType(configState.ActivationType)),
+			SlippageBps:  10000,
+			SwapMode:     dynamic_bonding_curve.SwapModeExactIn,
+			AmountIn:     big.NewInt(0.1 * 1e9),
+			// AmountOut                      *big.Int
+		})
 		if err != nil {
-			t.Fatal("dbc.Sell() fail", err)
+			t.Fatal("SwapQuote2() fail", err)
 		}
-		fmt.Println("sell token completed Success sig:", sig)
 
-		testDBCPoolCheck(t, ctx, meteoraDBC, baseMint)
-	}
+		swap2Params := dynamic_bonding_curve.Swap2Params{
+			Owner:            owner,
+			Pool:             poolState.Pubkey,
+			SwapBaseForQuote: false,
+			// ReferralTokenAccount *solanago.PublicKey
+			// Payer                *solanago.PublicKey
+			SwapMode:         dynamic_bonding_curve.SwapModeExactIn,
+			AmountIn:         big.NewInt(0.1 * 1e9),
+			MinimumAmountOut: swapResult2.MinimumAmountOut,
+			// AmountOut            *big.Int
+			// MaximumAmountIn      *big.Int
+		}
 
-	{
-		_, err := testMintBalance(ctx, rpcClient, owner, baseMint)
+		pre2, swapIx2, post2, err := dbcService.Swap2(ctx1, swap2Params)
 		if err != nil {
-			t.Fatal("testMintBalance() fail", err)
+			t.Fatal("Swap2() fail", err)
 		}
-	}
 
-	{
-		fmt.Println("try to buy token 0.2*1e9 address:", baseMint)
-		ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
-		defer cancel1()
-		amountIn := new(big.Int).SetUint64(uint64(0.2 * 1e9))
-		minOutAmount, poolState, configState, currentPoint, err := meteoraDBC.BuyQuote(ctx1, baseMint, amountIn, 250, false)
+		instructions = []solana.Instruction{}
+		instructions = append(pre2, swapIx2)
+		instructions = append(instructions, post2...)
+
+		sig, err = SendInstruction(ctx1, rpcClient, wsClient, instructions, ownerWallet.PublicKey(), func(key solana.PublicKey) *solana.PrivateKey {
+			switch {
+			case key.Equals(ownerWallet.PublicKey()):
+				return &ownerWallet.PrivateKey
+			default:
+				return nil
+			}
+		})
+
 		if err != nil {
-			t.Fatal("dbc.BuyQuote() fail", err)
+			t.Fatal("swap2 SendTransaction() fail", err)
 		}
-		fmt.Printf("buy token address:%s expected:%v minimum:%v\n", baseMint, minOutAmount.AmountOut, minOutAmount.MinimumAmountOut)
-		sig, err := meteoraDBC.Buy(ctx1, wsClient, ownerWallet, nil, poolState.Address, poolState.VirtualPool, configState, amountIn, minOutAmount.MinimumAmountOut, currentPoint)
+		fmt.Println("swap2 token success Success sig:", sig.String())
+
+		poolState, err = dbcService.GetPoolByBaseMint(ctx1, baseMint)
 		if err != nil {
-			t.Fatal("dbc.Buy() fail", err)
+			t.Fatal("GetPoolByPoolAddress() fail", err)
 		}
-		fmt.Println("buy token completed Success sig:", sig)
-	}
+		fmt.Println("token info Pool:", poolState)
 
-	{
-		bal, err := testMintBalance(ctx, rpcClient, owner, baseMint)
+		if poolState.Account.PartnerQuoteFee > 0 {
+			claimParams := dynamic_bonding_curve.ClaimTradingFeeParams{
+				Pool:       poolState.Pubkey,
+				FeeClaimer: partner.PublicKey(),
+				Payer:      partner.PublicKey(),
+				// MaxBaseAmount  *big.Int
+				MaxQuoteAmount: new(big.Int).SetUint64(poolState.Account.PartnerQuoteFee),
+				// Receiver       *solanago.PublicKey
+				// TempWSolAcc    *solanago.PublicKey
+			}
+			pre, claimIx, post, err := dbcService.ClaimPartnerTradingFee(ctx1, claimParams)
+			if err != nil {
+				t.Fatal("ClaimPartnerTradingFee() fail", err)
+			}
+			instructions = []solana.Instruction{}
+			instructions = append(pre, claimIx)
+			instructions = append(instructions, post...)
+
+			sig, err = SendInstruction(ctx1, rpcClient, wsClient, instructions, ownerWallet.PublicKey(), func(key solana.PublicKey) *solana.PrivateKey {
+				switch {
+				case key.Equals(ownerWallet.PublicKey()):
+					return &ownerWallet.PrivateKey
+				case key.Equals(partner.PublicKey()):
+					return &partner.PrivateKey
+				default:
+					return nil
+				}
+			})
+			if err != nil {
+				t.Fatal("claim SendTransaction() fail", err)
+			}
+
+			fmt.Println("claim token success Success sig:", sig.String())
+		}
+
+		migrationQuote := decimal.NewFromUint64(configState.MigrationQuoteThreshold)
+		QuoteReserve := decimal.NewFromUint64(poolState.Account.QuoteReserve)
+		cliffFeeNumerator := configState.PoolFees.BaseFee.CliffFeeNumerator
+		baseFeeBps := decimal.NewFromUint64(cliffFeeNumerator).Div(decimal.NewFromInt(1e5))
+		quoteFeeBps := decimal.NewFromInt(10000).Sub(baseFeeBps)
+
+		{
+			availableQuote := migrationQuote.Sub(QuoteReserve).Div(quoteFeeBps.Div(decimal.NewFromInt(10000))).Ceil().BigInt().Uint64()
+
+			swapParams := dynamic_bonding_curve.SwapParams{
+				Owner:            owner,
+				Pool:             poolState.Pubkey,
+				AmountIn:         new(big.Int).SetUint64(availableQuote),
+				MinimumAmountOut: new(big.Int).SetUint64(1),
+				SwapBaseForQuote: false,
+				// ReferralTokenAccount *solanago.PublicKey
+				// Payer                *solanago.PublicKey
+			}
+			pre, swapIx, post, err := dbcService.Swap(ctx1, swapParams)
+			if err != nil {
+				t.Fatal("Swap() fail", err)
+			}
+
+			instructions = []solana.Instruction{}
+			instructions = append(pre, swapIx)
+			instructions = append(instructions, post...)
+
+			sig, err = SendInstruction(ctx1, rpcClient, wsClient, instructions, ownerWallet.PublicKey(), func(key solana.PublicKey) *solana.PrivateKey {
+				switch {
+				case key.Equals(ownerWallet.PublicKey()):
+					return &ownerWallet.PrivateKey
+				default:
+					return nil
+				}
+			})
+			if err != nil {
+				t.Fatal("swap SendTransaction() fail", err)
+			}
+			fmt.Println("swap full token success Success sig:", sig.String())
+		}
+
+		poolState, err = dbcService.GetPoolByBaseMint(ctx1, baseMint)
 		if err != nil {
-			t.Fatal("testMintBalance() fail")
+			t.Fatal("GetPoolByPoolAddress() fail", err)
 		}
-		balance = bal
-	}
+		fmt.Println("token QuoteReserve:", poolState.Account.QuoteReserve)
+		fmt.Println("token MigrationQuoteThreshold:", configState.MigrationQuoteThreshold)
 
-	{
-		fmt.Println("try to sell all tokens address:", baseMint)
-		ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
-		defer cancel1()
-		amountIn := new(big.Int).SetUint64(balance) // uint64(100000 * 1e9)
-		quote, poolState, configState, currentPoint, err := meteoraDBC.SellQuote(ctx1, baseMint, amountIn, 250, false)
-		if err != nil {
-			t.Fatal("dbc.SellQuote() fail", err)
-		}
-		sig, err := meteoraDBC.Sell(ctx1, wsClient, ownerWallet, nil, poolState.Address, poolState.VirtualPool, configState, amountIn, quote.MinimumAmountOut, currentPoint)
-		if err != nil {
-			t.Fatal("dbc.Sell() fail", err)
-		}
-		fmt.Println("sell token completed Success sig:", sig)
-	}
+		if poolState.Account.QuoteReserve == configState.MigrationQuoteThreshold {
 
-	{
-		_, err := testMintBalance(ctx, rpcClient, owner, baseMint)
-		if err != nil {
-			t.Fatal("testMintBalance() fail")
-		}
-	}
-
-	pool := testDBCPoolCheck(t, ctx, meteoraDBC, baseMint)
-
-	if pool.CreatorQuoteFee > 0 {
-
-		{
-			_, err := testBalance(ctx, rpcClient, poolCreator.PublicKey())
+			params := dynamic_bonding_curve.CreateDammV2MigrationMetadataParams{
+				VirtualPool: poolState.Pubkey,
+				Payer:       ownerWallet.PublicKey(),
+				Config:      configAddress,
+			}
+			ix, err := dbcService.CreateDammV2MigrationMetadata(ctx1, params)
 			if err != nil {
-				t.Fatal("testBalance() fail")
+				t.Fatal("CreateDammV2MigrationMetadata() fail", err)
 			}
-		}
-
-		{
-			fmt.Println("try to claim CreatorQuoteFee")
-			ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
-			defer cancel1()
-			sig, err := meteoraDBC.ClaimCreatorTradingFee(ctx1, wsClient, payer, baseMint, false, pool.CreatorQuoteFee)
+			instructions = []solana.Instruction{ix}
+			sig, err = SendInstruction(ctx1, rpcClient, wsClient, instructions, ownerWallet.PublicKey(), func(key solana.PublicKey) *solana.PrivateKey {
+				switch {
+				case key.Equals(ownerWallet.PublicKey()):
+					return &ownerWallet.PrivateKey
+				default:
+					return nil
+				}
+			})
 			if err != nil {
-				t.Fatal("dbc.ClaimCreatorTradingFee() fail", err)
+				t.Fatal("swap SendTransaction() fail", err)
 			}
-			fmt.Println("claim CreatorQuoteFee completed sig:", sig)
-		}
+			fmt.Println("create migration metadata success Success sig:", sig.String())
 
-		var balance uint64
-		{
-			lamports, err := testBalance(ctx, rpcClient, poolCreator.PublicKey())
-			if err != nil {
-				t.Fatal("testBalance() fail")
-			}
-			balance = lamports
-		}
-
-		{
-			fmt.Println("try to transfer sol to owner")
-			ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
-			defer cancel1()
-			if _, err = testTransferSOL(ctx1, rpcClient, wsClient, poolCreator, owner, balance); err != nil {
-				t.Fatal("testTransferSOL fail")
-			}
-			fmt.Println("transfer sol completed")
-		}
-
-		{
-			_, err := testBalance(ctx, rpcClient, poolCreator.PublicKey())
-			if err != nil {
-				t.Fatal("testBalance() fail")
-			}
-		}
-
-	}
-
-	if pool.PartnerQuoteFee > 0 {
-		{
-			_, err := testBalance(ctx, rpcClient, poolPartner.PublicKey())
-			if err != nil {
-				t.Fatal("testBalance() fail")
-			}
-		}
-
-		{
-			fmt.Println("try to claim PartnerQuoteFee")
-			ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
-			defer cancel1()
-			sig, err := meteoraDBC.ClaimPartnerTradingFee(ctx1, wsClient, payer, baseMint, false, pool.PartnerQuoteFee)
-			if err != nil {
-				t.Fatal("dbc.ClaimPartnerTradingFee() fail", err)
-			}
-			fmt.Println("claim PartnerQuoteFee completed sig:", sig)
-		}
-
-		var balance uint64
-		{
-			lamports, err := testBalance(ctx, rpcClient, poolPartner.PublicKey())
-			if err != nil {
-				t.Fatal("testBalance() fail")
-			}
-			balance = lamports
-		}
-		{
-			fmt.Println("try to transfer sol to owner")
-			ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
-			defer cancel1()
-			if _, err = testTransferSOL(ctx1, rpcClient, wsClient, poolPartner, owner, balance); err != nil {
-				t.Fatal("testTransferSOL fail", err)
-			}
-			fmt.Println("transfer sol completed")
-		}
-		{
-			_, err := testBalance(ctx, rpcClient, poolPartner.PublicKey())
-			if err != nil {
-				t.Fatal("testBalance() fail")
-			}
-		}
-	}
-
-	{
-		fmt.Println("prepare dbc -> dammv2 mint address:", baseMint)
-
-		{
-			fmt.Println("try to buy token 1*1e9 address:", baseMint)
-			ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
-			defer cancel1()
-			amountIn := new(big.Int).SetUint64(uint64(1 * 1e9))
-			minOutAmount, poolState, configState, currentPoint, err := meteoraDBC.BuyQuote(ctx1, baseMint, amountIn, 250, false)
-			if err != nil {
-				t.Fatal("dbc.BuyQuote() fail", err)
-			}
-			fmt.Printf("buy token address:%s expected:%v minimum:%v\n", baseMint, minOutAmount.AmountOut, minOutAmount.MinimumAmountOut)
-			sig, err := meteoraDBC.Buy(ctx1, wsClient, ownerWallet, nil, poolState.Address, poolState.VirtualPool, configState, amountIn, minOutAmount.MinimumAmountOut, currentPoint)
-			if err != nil {
-				t.Fatal("dbc.Buy() fail", err)
-			}
-			fmt.Println("buy token completed Success sig:", sig)
-		}
-
-		testDBCPoolCheck(t, ctx, meteoraDBC, baseMint)
-
-		fmt.Println("try dbc -> dammv2 mint address:", baseMint)
-		{
-			ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
-			defer cancel1()
-
-			sig, err := meteoraDBC.MigrationDammV2CreateMetadata(ctx1, wsClient, payer, baseMint)
-			if err != nil {
-				t.Fatal("dbc.MigrationDammV2CreateMetadata fail", err)
-			}
-			fmt.Println("MigrationDammV2CreateMetadata Success sig:", sig)
-		}
-		testDBCPoolCheck(t, ctx, meteoraDBC, baseMint)
-
-		{
-			ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
-			defer cancel1()
-
-			sig, err := meteoraDBC.CreateLocker(ctx1, wsClient, payer, baseMint)
-			if err != nil {
-				t.Fatal("dbc.CreateLocker fail", err)
-			}
-			fmt.Println("CreateLocker Success sig:", sig)
-		}
-		testDBCPoolCheck(t, ctx, meteoraDBC, baseMint)
-
-		{
-			ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
-			defer cancel1()
-
-			sig, _, _, _, err := meteoraDBC.MigrationDammV2(ctx1, wsClient, payer, baseMint)
-			if err != nil {
-				t.Fatal("dbc.MigrationDammV2 fail", err)
-			}
-			fmt.Println("MigrationDammV2 Success sig:", sig)
-		}
-
-		fmt.Println("dbc -> dammv2 Success")
-	}
-
-	{
-		fmt.Println("dbc closing work")
-
-		{
-			ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
-			defer cancel1()
-			sig, err := meteoraDBC.WithdrawCreatorSurplus(ctx1, wsClient, payer, baseMint)
-			if err != nil {
-				t.Fatal("dbc.WithdrawCreatorSurplus fail", err)
-			}
-			fmt.Println("WithdrawCreatorSurplus completed sig:", sig)
-		}
-
-		{
-			ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
-			defer cancel1()
-			sig, err := meteoraDBC.WithdrawPartnerSurplus(ctx1, wsClient, payer, baseMint)
-			if err != nil {
-				t.Fatal("dbc.WithdrawPartnerSurplus fail", err)
-			}
-			fmt.Println("WithdrawPartnerSurplus completed sig:", sig)
-		}
-
-		{
-			ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
-			defer cancel1()
-			sig, err := meteoraDBC.WithdrawLeftover(ctx1, wsClient, payer, baseMint)
-			if err != nil {
-				t.Fatal("dbc.WithdrawLeftover fail", err)
-			}
-			fmt.Println("WithdrawLeftover completed sig:", sig)
-		}
-
-		pool := testDBCPoolCheck(t, ctx, meteoraDBC, baseMint)
-
-		if pool.CreatorQuoteFee > 0 {
-
-			{
-				_, err := testBalance(ctx, rpcClient, poolCreator.PublicKey())
+			if dynamic_bonding_curve.MigrationProgress(poolState.Account.MigrationProgress) < dynamic_bonding_curve.MigrationProgressPostBondingCurve {
+				lockerParams := dynamic_bonding_curve.CreateLockerParams{
+					VirtualPool: poolState.Pubkey,
+					Payer:       ownerWallet.PublicKey(),
+				}
+				pre, lockerIx, post, err := dbcService.CreateLocker(ctx1, lockerParams)
 				if err != nil {
-					t.Fatal("testBalance() fail")
+					t.Fatal("CreateLocker() fail", err)
 				}
-			}
 
-			{
-				fmt.Println("try to claim CreatorQuoteFee")
-				ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
-				defer cancel1()
-				sig, err := meteoraDBC.ClaimCreatorTradingFee(ctx1, wsClient, payer, baseMint, false, pool.CreatorQuoteFee)
-				if err != nil {
-					t.Fatal("dbc.ClaimCreatorTradingFee() fail", err)
-				}
-				fmt.Println("claim CreatorQuoteFee completed sig:", sig)
-			}
+				if len(pre) > 0 {
+					// 没上锁过
+					instructions = []solana.Instruction{}
+					instructions = append(pre, lockerIx)
+					instructions = append(instructions, post...)
 
-			var balance uint64
-			{
-				lamports, err := testBalance(ctx, rpcClient, poolCreator.PublicKey())
-				if err != nil {
-					t.Fatal("testBalance() fail")
-				}
-				balance = lamports
-			}
-
-			{
-				fmt.Println("try to transfer sol to owner")
-				ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
-				defer cancel1()
-				if _, err = testTransferSOL(ctx1, rpcClient, wsClient, poolCreator, owner, balance); err != nil {
-					t.Fatal("testTransferSOL fail", err)
-				}
-				fmt.Println("transfer sol completed")
-			}
-
-			{
-				_, err := testBalance(ctx, rpcClient, poolCreator.PublicKey())
-				if err != nil {
-					t.Fatal("testBalance() fail")
-				}
-			}
-
-		}
-
-		if pool.PartnerQuoteFee > 0 {
-			{
-				_, err := testBalance(ctx, rpcClient, poolPartner.PublicKey())
-				if err != nil {
-					t.Fatal("testBalance() fail")
-				}
-			}
-
-			{
-				fmt.Println("try to claim PartnerQuoteFee")
-				ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
-				defer cancel1()
-				sig, err := meteoraDBC.ClaimPartnerTradingFee(ctx1, wsClient, payer, baseMint, false, pool.PartnerQuoteFee)
-				if err != nil {
-					t.Fatal("dbc.ClaimPartnerTradingFee() fail", err)
-				}
-				fmt.Println("claim PartnerQuoteFee completed sig:", sig)
-			}
-
-			var balance uint64
-			{
-				lamports, err := testBalance(ctx, rpcClient, poolPartner.PublicKey())
-				if err != nil {
-					t.Fatal("testBalance() fail")
-				}
-				balance = lamports
-			}
-			{
-				fmt.Println("try to transfer sol to owner")
-				ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
-				defer cancel1()
-				if _, err = testTransferSOL(ctx1, rpcClient, wsClient, poolPartner, owner, balance); err != nil {
-					t.Fatal("testTransferSOL fail", err)
-				}
-				fmt.Println("transfer sol completed")
-			}
-			{
-				_, err := testBalance(ctx, rpcClient, poolPartner.PublicKey())
-				if err != nil {
-					t.Fatal("testBalance() fail")
-				}
-			}
-		}
-		fmt.Println("claim fee completed")
-
-		fmt.Println("dbc closing work completed 66%")
-	}
-
-	meteoraDammV2 := dammV2.NewDammV2(rpcClient, dammV2.WithCreator(poolCreator))
-
-	testCpAmmPoolCheck(t, ctx, meteoraDammV2, baseMint)
-
-	{
-		{
-			var balance uint64
-			{
-				bal, err := testMintBalance(ctx, rpcClient, leftoverReceiver.PublicKey(), baseMint)
-				if err != nil {
-					t.Fatal("testMintBalance() fail", err)
-				}
-				balance = bal
-			}
-
-			{
-				fmt.Println("try to sell all surplus address:", baseMint)
-				ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
-				defer cancel1()
-				amountIn := new(big.Int).SetUint64(balance) // uint64(100000 * 1e9)
-
-				quote, poolState, err := meteoraDammV2.SellQuote(ctx1, baseMint, amountIn, 250)
-				if err != nil {
-					t.Fatal("cpAmm.BuyQuote fail", err)
-				}
-				fmt.Println("poolState.Address", poolState.Address)
-
-				fmt.Println("quote.SwapInAmount", quote.SwapInAmount)
-				fmt.Println("quote.SwapOutAmount", quote.SwapOutAmount)
-				fmt.Println("quote.MinSwapOutAmount", quote.MinSwapOutAmount)
-
-				sig, err := meteoraDammV2.Sell(ctx1, wsClient, leftoverReceiver, nil, poolState.Address, poolState.Pool, amountIn, quote.MinSwapOutAmount)
-				if err != nil {
-					t.Fatal("meteoraDammV2.Sell fail", err)
-				}
-				fmt.Println("sell surplus completed Success sig:", sig)
-			}
-
-			{
-				_, err := testMintBalance(ctx, rpcClient, owner, baseMint)
-				if err != nil {
-					t.Fatal("testMintBalance() fail")
-				}
-			}
-		}
-
-		{
-			var balance uint64
-			{
-				lamports, err := testBalance(ctx, rpcClient, leftoverReceiver.PublicKey())
-				if err != nil {
-					t.Fatal("testBalance() fail")
-				}
-				balance = lamports
-			}
-			{
-				fmt.Println("try to transfer sol to owner")
-				ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
-				defer cancel1()
-				if _, err = testTransferSOL(ctx1, rpcClient, wsClient, leftoverReceiver, owner, balance); err != nil {
-					t.Fatal("testTransferSOL fail", err)
-				}
-				fmt.Println("transfer sol completed")
-			}
-			{
-				_, err := testBalance(ctx, rpcClient, leftoverReceiver.PublicKey())
-				if err != nil {
-					t.Fatal("testBalance() fail")
-				}
-			}
-		}
-		fmt.Println("dbc closing work completed 100%")
-	}
-
-	{
-		fmt.Println("try to buy token 0.2*1e9 address:", baseMint)
-		ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
-		defer cancel1()
-		amountIn := new(big.Int).SetUint64(uint64(0.2 * 1e9))
-		minOutAmount, poolState, err := meteoraDammV2.BuyQuote(ctx1, baseMint, amountIn, 250)
-		if err != nil {
-			t.Fatal("cpAmm.BuyQuote() fail", err)
-		}
-		fmt.Println("poolState", poolState.Address)
-		fmt.Printf("buy token address:%s expected:%v minimum:%v\n", baseMint, minOutAmount.SwapOutAmount, minOutAmount.MinSwapOutAmount)
-		sig, err := meteoraDammV2.Buy(ctx1, wsClient, ownerWallet, nil, poolState.Address, poolState.Pool, amountIn, minOutAmount.MinSwapOutAmount)
-		if err != nil {
-			t.Fatal("cpAmm.Buy() fail", err)
-		}
-		fmt.Println("buy token completed Success sig:", sig)
-	}
-
-	{
-		var balance uint64
-		{
-			bal, err := testMintBalance(ctx, rpcClient, owner, baseMint)
-			if err != nil {
-				t.Fatal("testMintBalance() fail")
-			}
-			balance = bal
-		}
-
-		{
-			fmt.Println("try to sell all tokens address:", baseMint)
-			ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
-			defer cancel1()
-			amountIn := new(big.Int).SetUint64(balance) // uint64(100000 * 1e9)
-
-			quote, poolState, err := meteoraDammV2.SellQuote(ctx1, baseMint, amountIn, 250)
-			if err != nil {
-				t.Fatal("cpAmm.BuyQuote fail", err)
-			}
-
-			sig, err := meteoraDammV2.Sell(ctx1, wsClient, ownerWallet, nil, poolState.Address, poolState.Pool, amountIn, quote.MinSwapOutAmount)
-			if err != nil {
-				t.Fatal("cpAmm.Sell fail", err)
-			}
-			fmt.Println("sell token completed Success sig:", sig)
-		}
-
-		{
-			_, err := testMintBalance(ctx, rpcClient, owner, baseMint)
-			if err != nil {
-				t.Fatal("testMintBalance() fail")
-			}
-		}
-	}
-
-	{
-		cpamm := testCpAmmPoolCheck(t, ctx, meteoraDammV2, baseMint)
-
-		{
-			fmt.Println("try to claim fee creator")
-			ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
-			defer cancel1()
-
-			userPositions, err := meteoraDammV2.GetUserPositionByUserAndPoolPDA(ctx1, cpamm.Address, poolCreator.PublicKey())
-			if err != nil {
-				t.Fatal("GetUserPositionByBaseMint() fail", err)
-			}
-
-			if len(userPositions) != 1 {
-				for _, v := range userPositions {
-					fmt.Println("v.PositionNftAccount:", v.PositionNftAccount)
-				}
-			}
-
-			baseFee, quoteFee := meteoraDammV2.GetUnclaimedFee(cpamm.Pool, userPositions[0].PositionState)
-			fmt.Println("baseFee:", baseFee)
-			fmt.Println("quoteFee:", quoteFee)
-
-			if quoteFee > 0 {
-
-				{
-					_, err := testBalance(ctx, rpcClient, poolCreator.PublicKey())
+					sig, err = SendInstruction(ctx1, rpcClient, wsClient, instructions, ownerWallet.PublicKey(), func(key solana.PublicKey) *solana.PrivateKey {
+						switch {
+						case key.Equals(ownerWallet.PublicKey()):
+							return &ownerWallet.PrivateKey
+						default:
+							return nil
+						}
+					})
 					if err != nil {
-						t.Fatal("testBalance() fail")
+						t.Fatal("swap SendTransaction() fail", err)
 					}
+					fmt.Println("create locker success Success sig:", sig.String())
 				}
-
-				{
-					fmt.Println("claim fee creator")
-					ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
-					defer cancel1()
-					sig, err := meteoraDammV2.ClaimPositionFee(ctx1, wsClient, payer, poolCreator, baseMint)
-					if err != nil {
-						t.Fatal("ClaimPositionFee() fail", err)
-					}
-					fmt.Println("claim fee completed sig:", sig)
-				}
-
-				var balance uint64
-				{
-					lamports, err := testBalance(ctx, rpcClient, poolCreator.PublicKey())
-					if err != nil {
-						t.Fatal("testBalance() fail")
-					}
-					balance = lamports
-				}
-				{
-					fmt.Println("try to transfer sol to owner")
-					ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
-					defer cancel1()
-					if _, err = testTransferSOL(ctx1, rpcClient, wsClient, poolCreator, owner, balance); err != nil {
-						t.Fatal("testTransferSOL fail", err)
-					}
-					fmt.Println("transfer sol completed")
-				}
-				{
-					_, err := testBalance(ctx, rpcClient, poolCreator.PublicKey())
-					if err != nil {
-						t.Fatal("testBalance() fail")
-					}
-				}
-
 			}
-		}
 
-		{
-			fmt.Println("try to claim fee partner")
-
-			ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
-			defer cancel1()
-
-			userPositions, err := meteoraDammV2.GetUserPositionByUserAndPoolPDA(ctx1, cpamm.Address, poolPartner.PublicKey())
+			resp, err := dbcService.MigrateToDammV2(ctx1, dynamic_bonding_curve.MigrateToDammV2Params{
+				VirtualPool: poolState.Pubkey,
+				Payer:       ownerWallet.PublicKey(),
+				DammConfig:  helpers.GetDammV2Config(dynamic_bonding_curve.MigrationFeeOption(configState.MigrationFeeOption)),
+			})
 			if err != nil {
-				t.Fatal("GetUserPositionByBaseMint() fail", err)
+				t.Fatal("MigrateToDammV2() fail", err)
 			}
 
-			if len(userPositions) != 1 {
-				for _, v := range userPositions {
-					fmt.Println("v.PositionNftAccount:", v.PositionNftAccount)
+			sig, err = SendTransaction(ctx1, rpcClient, wsClient, resp.Transaction, func(key solana.PublicKey) *solana.PrivateKey {
+				switch {
+				case key.Equals(ownerWallet.PublicKey()):
+					return &ownerWallet.PrivateKey
+				case key.Equals(resp.FirstPositionNFT.PublicKey()):
+					return &resp.FirstPositionNFT
+				case key.Equals(resp.SecondPositionNFT.PublicKey()):
+					return &resp.SecondPositionNFT
+				default:
+					return nil
 				}
+			})
+			if err != nil {
+				t.Fatal("MigrateToDammV2 SendTransaction() fail", err)
 			}
-
-			baseFee, quoteFee := meteoraDammV2.GetUnclaimedFee(cpamm.Pool, userPositions[0].PositionState)
-			fmt.Println("baseFee:", baseFee)
-			fmt.Println("quoteFee:", quoteFee)
-
-			if quoteFee > 0 {
-				{
-					_, err := testBalance(ctx, rpcClient, poolPartner.PublicKey())
-					if err != nil {
-						t.Fatal("testBalance() fail")
-					}
-				}
-				{
-					fmt.Println("claim fee partner")
-					ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
-					defer cancel1()
-					sig, err := meteoraDammV2.ClaimPositionFee(ctx1, wsClient, payer, poolPartner, baseMint)
-					if err != nil {
-						t.Fatal("ClaimPositionFee() fail", err)
-					}
-
-					fmt.Println("claim fee completed sig:", sig)
-				}
-
-				var balance uint64
-				{
-					lamports, err := testBalance(ctx, rpcClient, poolPartner.PublicKey())
-					if err != nil {
-						t.Fatal("testBalance() fail")
-					}
-					balance = lamports
-				}
-
-				{
-					fmt.Println("try to transfer sol to owner")
-					ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
-					defer cancel1()
-					if _, err = testTransferSOL(ctx1, rpcClient, wsClient, poolPartner, owner, balance); err != nil {
-						t.Fatal("testTransferSOL fail", err)
-					}
-					fmt.Println("transfer sol completed")
-				}
-				{
-					_, err := testBalance(ctx, rpcClient, poolPartner.PublicKey())
-					if err != nil {
-						t.Fatal("testBalance() fail")
-					}
-				}
-			}
+			fmt.Println("migrate to damm v2 success Success sig:", sig.String())
 		}
-	}
-}
 
-func testDBCPoolCheck(t *testing.T, ctx context.Context, dbc *dbc.DBC, baseMint solana.PublicKey) *dynamic_bonding_curve.VirtualPool {
-	ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
-	defer cancel1()
+		if poolState.Account.IsWithdrawLeftover == 0 {
+			leftoverParams := dynamic_bonding_curve.WithdrawLeftoverParams{
+				VirtualPool: poolState.Pubkey,
+				Payer:       leftover.PublicKey(),
+			}
+			pre, withdrawIx, post, err := dbcService.WithdrawLeftover(ctx1, leftoverParams)
+			if err != nil {
+				t.Fatal("WithdrawLeftover() fail", err)
+			}
 
-	pool, err := dbc.GetPoolByBaseMint(ctx1, baseMint)
-	if err != nil {
-		t.Fatal("dbc.GetPoolByBaseMint() fail")
-	}
+			instructions = []solana.Instruction{}
+			instructions = append(pre, withdrawIx)
+			instructions = append(instructions, post...)
 
-	if pool == nil {
-		fmt.Println("pool not found:", baseMint)
-		return nil
-	}
-	fmt.Println("===========================")
-	fmt.Println("print pool info")
-	fmt.Println("pool.BaseMint:", pool.BaseMint)
-	fmt.Println("pool.Config:", pool.Config)
-	fmt.Println("pool.MigrationProgress:", pool.MigrationProgress)
-	fmt.Println("pool.IsMigrated:", pool.IsMigrated)
+			sig, err = SendInstruction(ctx1, rpcClient, wsClient, instructions, ownerWallet.PublicKey(), func(key solana.PublicKey) *solana.PrivateKey {
+				switch {
+				case key.Equals(ownerWallet.PublicKey()):
+					return &ownerWallet.PrivateKey
+				case key.Equals(leftover.PublicKey()):
+					return &leftover.PrivateKey
+				default:
+					return nil
+				}
+			})
+			if err != nil {
+				t.Fatal("withdraw SendInstruction() fail", err)
+			}
 
-	fmt.Println("pool.BaseReserve:", pool.BaseReserve)
-	fmt.Println("pool.QuoteReserve:", pool.QuoteReserve)
-	fmt.Println("pool.PartnerBaseFee:", pool.PartnerBaseFee)
-	fmt.Println("pool.PartnerQuoteFee:", pool.PartnerQuoteFee)
-	fmt.Println("pool.CreatorBaseFee:", pool.CreatorBaseFee)
-	fmt.Println("pool.CreatorQuoteFee:", pool.CreatorQuoteFee)
-	fmt.Println("pool.IsWithdrawLeftover:", pool.IsWithdrawLeftover)
-	fmt.Println("pool.MigrationFeeWithdrawStatus:", pool.MigrationFeeWithdrawStatus)
-	fmt.Println("pool.CreatorBaseFee:", pool.CreatorBaseFee)
-	fmt.Println("pool.CreatorQuoteFee:", pool.CreatorQuoteFee)
-	fmt.Println("===========================")
+			fmt.Println("withdraw token success Success sig:", sig.String())
+		}
 
-	return pool.VirtualPool
-}
+		poolState, err = dbcService.GetPoolByBaseMint(ctx1, baseMint)
+		if err != nil {
+			t.Fatal("GetPoolByPoolAddress() fail", err)
+		}
+		fmt.Println("token info Pool:", poolState)
 
-func testDBCConfigCheck(t *testing.T, ctx context.Context, dbc *dbc.DBC, quoteMint, address solana.PublicKey) {
-	ctx1, cancel1 := context.WithTimeout(ctx, time.Second*30)
-	defer cancel1()
+		if poolState.Account.PartnerQuoteFee > 0 {
+			claimParams := dynamic_bonding_curve.ClaimTradingFeeParams{
+				Pool:       poolState.Pubkey,
+				FeeClaimer: partner.PublicKey(),
+				Payer:      partner.PublicKey(),
+				// MaxBaseAmount  *big.Int
+				MaxQuoteAmount: new(big.Int).SetUint64(poolState.Account.PartnerQuoteFee),
+				// Receiver       *solanago.PublicKey
+				// TempWSolAcc    *solanago.PublicKey
+			}
+			pre, claimIx, post, err := dbcService.ClaimPartnerTradingFee(ctx1, claimParams)
+			if err != nil {
+				t.Fatal("ClaimPartnerTradingFee() fail", err)
+			}
+			instructions = []solana.Instruction{}
+			instructions = append(pre, claimIx)
+			instructions = append(instructions, post...)
 
-	cfg, err := dbc.GetConfig(ctx1, address)
-	if err != nil {
-		t.Fatal("dbc.GetConfig() fail")
-	}
+			sig, err = SendInstruction(ctx1, rpcClient, wsClient, instructions, ownerWallet.PublicKey(), func(key solana.PublicKey) *solana.PrivateKey {
+				switch {
+				case key.Equals(ownerWallet.PublicKey()):
+					return &ownerWallet.PrivateKey
+				case key.Equals(partner.PublicKey()):
+					return &partner.PrivateKey
+				default:
+					return nil
+				}
+			})
+			if err != nil {
+				t.Fatal("claim SendTransaction() fail", err)
+			}
 
-	cfg1 := testDBCGenConfig()
+			fmt.Println("claim token success Success sig:", sig.String())
+		}
 
-	if cfg.CollectFeeMode != cfg1.CollectFeeMode {
-		t.Fatal("cfg.CollectFeeMode != cfg1.CollectFeeMode")
-	}
-	if cfg.MigrationOption != cfg1.MigrationOption {
-		t.Fatal("cfg.MigrationOption != cfg1.MigrationOption")
-	}
-	if cfg.TokenDecimal != cfg1.TokenDecimal {
-		t.Fatal("cfg.TokenDecimal != cfg1.TokenDecimal")
-	}
-	if cfg.TokenType != cfg1.TokenType {
-		t.Fatal("cfg.TokenType != cfg1.TokenType")
-	}
-	if cfg.QuoteMint != quoteMint {
-		t.Fatal("cfg.QuoteMint != quoteMint")
-	}
-	fmt.Println("===========================")
-	fmt.Println("print config info")
-	fmt.Println("config.CreatorTradingFeePercentage:", cfg.CreatorTradingFeePercentage)
-	fmt.Println("config.MigrationFeePercentage:", cfg.MigrationFeePercentage)
-	fmt.Println("config.CreatorMigrationFeePercentage:", cfg.CreatorMigrationFeePercentage)
-
-	fmt.Println("config.PartnerLockedLpPercentage:", cfg.PartnerLockedLpPercentage)
-	fmt.Println("config.PartnerLpPercentage:", cfg.PartnerLpPercentage)
-	fmt.Println("config.CreatorLockedLpPercentage:", cfg.CreatorLockedLpPercentage)
-	fmt.Println("config.CreatorLpPercentage:", cfg.CreatorLpPercentage)
-	fmt.Println("===========================")
-}
-
-func testDBCBuildCurveCheck(t *testing.T) {
-	if _, err := testDBCBuildCurve(); err != nil {
-		t.Fatal("testDBCBuildCurve() fail", err)
-	}
-
-	if _, err := testDBCBuildCurveWithMarketCap(); err != nil {
-		t.Fatal("testDBCBuildCurveWithMarketCap() fail", err)
-	}
-
-	if _, err := testDBCBuildCurveWithTwoSegments(); err != nil {
-		t.Fatal("testDBCBuildCurveWithTwoSegments() fail", err)
-	}
-
-	if _, err := testDBCBuildCurveWithLiquidityWeights(); err != nil {
-		t.Fatal("testDBCBuildCurveWithLiquidityWeights() fail", err)
 	}
 
 }
 
-func testDBCGenConfig() *dynamic_bonding_curve.ConfigParameters {
+func TestBuildCurve(t *testing.T) {
+	return
+	migratedPoolBaseFeeMode := shared.DammV2BaseFeeModeFeeTimeSchedulerLinear
 
-	return &dynamic_bonding_curve.ConfigParameters{
-		PoolFees: dynamic_bonding_curve.PoolFeeParameters{
-			BaseFee: dynamic_bonding_curve.BaseFeeParameters{
-				CliffFeeNumerator: 5000 * 100_000, // 50% = 5000*0.01%,
-				FirstFactor:       0,
-				SecondFactor:      0,
-				ThirdFactor:       0,
-				BaseFeeMode:       0,
-			},
-			DynamicFee: &dynamic_bonding_curve.DynamicFeeParameters{
-				BinStep:                  1,
-				BinStepU128:              u128.GenUint128FromString("1844674407370955"),
-				FilterPeriod:             10,
-				DecayPeriod:              120,
-				ReductionFactor:          1_000,
-				MaxVolatilityAccumulator: 100_000,
-				VariableFeeControl:       100_000,
-			},
-		},
-		CollectFeeMode:            dynamic_bonding_curve.CollectFeeModeQuoteToken,
-		MigrationOption:           dynamic_bonding_curve.MigrationOptionMETDAMMV2,
-		ActivationType:            dynamic_bonding_curve.ActivationTypeTimestamp,
-		TokenType:                 dynamic_bonding_curve.TokenTypeSPL,
-		TokenDecimal:              dynamic_bonding_curve.TokenDecimalNine,
-		PartnerLpPercentage:       80,
-		PartnerLockedLpPercentage: 0,
-		CreatorLpPercentage:       20,
-		CreatorLockedLpPercentage: 0,
-		MigrationQuoteThreshold:   0.5 * 1e9, // 85 * 1e9, >= 750 USD
-		SqrtStartPrice:            u128.GenUint128FromString("58333726687135158"),
-		LockedVesting: dynamic_bonding_curve.LockedVesting{
-			AmountPerPeriod:                0,
-			CliffDurationFromMigrationTime: 0,
-			Frequency:                      0,
-			NumberOfPeriod:                 0,
+	buildCurveBaseParams := shared.BuildCurveBaseParams{
+		TotalTokenSupply:  1000000000,
+		MigrationOption:   shared.MigrationOptionMetDammV2,
+		TokenBaseDecimal:  shared.TokenDecimalSix,
+		TokenQuoteDecimal: shared.TokenDecimalNine,
+		LockedVestingParams: shared.LockedVestingParams{
+			TotalLockedVestingAmount:       0,
+			NumberOfVestingPeriod:          0,
 			CliffUnlockAmount:              0,
+			TotalVestingDuration:           0,
+			CliffDurationFromMigrationTime: 0,
 		},
-		MigrationFeeOption: dynamic_bonding_curve.MigrationFeeFixedBps200, // 0: Fixed 25bps, 1: Fixed 30bps, 2: Fixed 100bps, 3: Fixed 200bps, 4: Fixed 400bps, 5: Fixed 600bps
-		TokenSupply: &dynamic_bonding_curve.TokenSupplyParams{
-			PreMigrationTokenSupply:  1_000_000_000_000_000_000, // 1_000_000_000_000_000_000
-			PostMigrationTokenSupply: 1_000_000_000_000_000_000, // 1_000_000_000_000_000_000
+		BaseFeeParams: shared.BaseFeeParams{
+			BaseFeeMode: shared.BaseFeeModeFeeSchedulerLinear,
+			FeeSchedulerParam: &shared.FeeSchedulerParams{
+				StartingFeeBps: 100,
+				EndingFeeBps:   100,
+				NumberOfPeriod: 0,
+				TotalDuration:  0,
+			},
 		},
-		CreatorTradingFeePercentage: 0,
-		TokenUpdateAuthority:        dynamic_bonding_curve.TokenUpdateAuthorityImmutable,
-		MigrationFee: dynamic_bonding_curve.MigrationFee{
-			FeePercentage:        2,
+		DynamicFeeEnabled:                         true,
+		ActivationType:                            shared.ActivationTypeSlot,
+		CollectFeeMode:                            shared.CollectFeeModeQuoteToken,
+		MigrationFeeOption:                        shared.MigrationFeeOptionFixedBps100,
+		TokenType:                                 shared.TokenTypeSPL,
+		PartnerLiquidityPercentage:                0,
+		CreatorLiquidityPercentage:                0,
+		PartnerPermanentLockedLiquidityPercentage: 100,
+		CreatorPermanentLockedLiquidityPercentage: 0,
+		CreatorTradingFeePercentage:               0,
+		Leftover:                                  0,
+		TokenUpdateAuthority:                      0,
+		MigrationFee: struct {
+			FeePercentage        uint8
+			CreatorFeePercentage uint8
+		}{
+			FeePercentage:        0,
 			CreatorFeePercentage: 0,
 		},
-		// MigratedPoolFee: &dbc.MigratedPoolFee{},
-		Padding: [7]uint64{},
-		// use case
-		Curve: []dynamic_bonding_curve.LiquidityDistributionParameters{
-			{
-				SqrtPrice: u128.GenUint128FromString("233334906748540631"),
-				Liquidity: u128.GenUint128FromString("622226417996106429201027821619672729"),
-			},
-			{
-				SqrtPrice: u128.GenUint128FromString("79226673521066979257578248091"),
-				Liquidity: u128.GenUint128FromString("1"),
-			},
-		},
+		PoolCreationFee:           1,
+		MigratedPoolBaseFeeMode:   &migratedPoolBaseFeeMode,
+		EnableFirstSwapWithMinFee: false,
 	}
-}
-
-func testDBCBuildCurve() (*dynamic_bonding_curve.ConfigParameters, error) {
-	return dbc.BuildCurve(dynamic_bonding_curve.BuildCurveParam{
-		BuildCurveBaseParam: dynamic_bonding_curve.BuildCurveBaseParam{
-			TotalTokenSupply:  1000000000,
-			MigrationOption:   dynamic_bonding_curve.MigrationOptionMETDAMMV2,
-			TokenBaseDecimal:  dynamic_bonding_curve.TokenDecimalSix,
-			TokenQuoteDecimal: dynamic_bonding_curve.TokenDecimalNine,
-			LockedVestingParam: dynamic_bonding_curve.LockedVestingParams{
-				TotalLockedVestingAmount:       0,
-				NumberOfVestingPeriod:          0,
-				CliffUnlockAmount:              0,
-				TotalVestingDuration:           0,
-				CliffDurationFromMigrationTime: 0,
-			},
-			BaseFeeParams: dynamic_bonding_curve.BaseFeeParams{
-				BaseFeeMode: dynamic_bonding_curve.BaseFeeModeFeeSchedulerExponential,
-				FeeSchedulerParam: &dynamic_bonding_curve.FeeSchedulerParams{
-					StartingFeeBps: 100,
-					EndingFeeBps:   100,
-					NumberOfPeriod: 0,
-					TotalDuration:  0,
-				},
-			},
-			DynamicFeeEnabled:           true,
-			ActivationType:              dynamic_bonding_curve.ActivationTypeSlot,
-			CollectFeeMode:              dynamic_bonding_curve.CollectFeeModeQuoteToken,
-			MigrationFeeOption:          dynamic_bonding_curve.MigrationFeeFixedBps100,
-			TokenType:                   dynamic_bonding_curve.TokenTypeSPL,
-			PartnerLpPercentage:         0,
-			CreatorLpPercentage:         0,
-			PartnerLockedLpPercentage:   100,
-			CreatorLockedLpPercentage:   0,
-			CreatorTradingFeePercentage: 0,
-			Leftover:                    10000,
-			TokenUpdateAuthority:        dynamic_bonding_curve.TokenUpdateAuthorityCreatorUpdateAuthority,
-			MigrationFee: dynamic_bonding_curve.MigrationFee{
-				FeePercentage:        0,
-				CreatorFeePercentage: 0,
-			},
-		},
+	params := shared.BuildCurveParams{
+		BuildCurveBaseParams:        buildCurveBaseParams,
 		PercentageSupplyOnMigration: 2.983257229832572,
 		MigrationQuoteThreshold:     95.07640791476408,
-		// PercentageSupplyOnMigration: 10,
-		// MigrationQuoteThreshold:     300,
-	})
+	}
 
+	cfg, err := helpers.BuildCurve(params)
+	if err != nil {
+		t.Fatal("BuildCurve() fail", err)
+	}
+	fmt.Println(jsoniter.MarshalToString(cfg))
 }
 
-func testDBCBuildCurveWithMarketCap() (*dynamic_bonding_curve.ConfigParameters, error) {
-	return dbc.BuildCurveWithMarketCap(dynamic_bonding_curve.BuildCurveWithMarketCapParam{
-		BuildCurveBaseParam: dynamic_bonding_curve.BuildCurveBaseParam{
-			TotalTokenSupply:  1000000000,
-			MigrationOption:   dynamic_bonding_curve.MigrationOptionMETDAMMV2,
-			TokenBaseDecimal:  dynamic_bonding_curve.TokenDecimalSix,
-			TokenQuoteDecimal: dynamic_bonding_curve.TokenDecimalNine,
-			LockedVestingParam: dynamic_bonding_curve.LockedVestingParams{
-				TotalLockedVestingAmount:       0,
-				NumberOfVestingPeriod:          0,
-				CliffUnlockAmount:              0,
-				TotalVestingDuration:           0,
-				CliffDurationFromMigrationTime: 0,
-			},
-			BaseFeeParams: dynamic_bonding_curve.BaseFeeParams{
-				BaseFeeMode: dynamic_bonding_curve.BaseFeeModeFeeSchedulerLinear,
-				FeeSchedulerParam: &dynamic_bonding_curve.FeeSchedulerParams{
-					StartingFeeBps: 100,
-					EndingFeeBps:   100,
-					NumberOfPeriod: 0,
-					TotalDuration:  0,
-				},
-			},
-			DynamicFeeEnabled:           true,
-			ActivationType:              dynamic_bonding_curve.ActivationTypeSlot,
-			CollectFeeMode:              dynamic_bonding_curve.CollectFeeModeQuoteToken,
-			MigrationFeeOption:          dynamic_bonding_curve.MigrationFeeFixedBps100,
-			TokenType:                   dynamic_bonding_curve.TokenTypeSPL,
-			PartnerLpPercentage:         0,
-			CreatorLpPercentage:         0,
-			PartnerLockedLpPercentage:   100,
-			CreatorLockedLpPercentage:   0,
-			CreatorTradingFeePercentage: 0,
-			Leftover:                    10000,
-			TokenUpdateAuthority:        dynamic_bonding_curve.TokenUpdateAuthorityImmutable,
-			MigrationFee: dynamic_bonding_curve.MigrationFee{
-				FeePercentage:        10,
-				CreatorFeePercentage: 50,
+func TestBuildCurveWithCustomSqrtPrices(t *testing.T) {
+	return
+	migratedPoolBaseFeeMode := shared.DammV2BaseFeeModeFeeTimeSchedulerLinear
+
+	buildCurveBaseParams := shared.BuildCurveBaseParams{
+		TotalTokenSupply:  1000000000,
+		MigrationOption:   shared.MigrationOptionMetDammV2,
+		TokenBaseDecimal:  shared.TokenDecimalSix,
+		TokenQuoteDecimal: shared.TokenDecimalNine,
+		LockedVestingParams: shared.LockedVestingParams{
+			TotalLockedVestingAmount:       0,
+			NumberOfVestingPeriod:          0,
+			CliffUnlockAmount:              0,
+			TotalVestingDuration:           0,
+			CliffDurationFromMigrationTime: 0,
+		},
+		BaseFeeParams: shared.BaseFeeParams{
+			BaseFeeMode: shared.BaseFeeModeFeeSchedulerLinear,
+			FeeSchedulerParam: &shared.FeeSchedulerParams{
+				StartingFeeBps: 100,
+				EndingFeeBps:   100,
+				NumberOfPeriod: 0,
+				TotalDuration:  0,
 			},
 		},
-		// InitialMarketCap:   100,
-		// MigrationMarketCap: 3000,
-		InitialMarketCap:   23.5,
-		MigrationMarketCap: 405.882352941,
-	})
+		DynamicFeeEnabled:                         true,
+		ActivationType:                            shared.ActivationTypeSlot,
+		CollectFeeMode:                            shared.CollectFeeModeQuoteToken,
+		MigrationFeeOption:                        shared.MigrationFeeOptionFixedBps100,
+		TokenType:                                 shared.TokenTypeSPL,
+		PartnerLiquidityPercentage:                0,
+		CreatorLiquidityPercentage:                0,
+		PartnerPermanentLockedLiquidityPercentage: 100,
+		CreatorPermanentLockedLiquidityPercentage: 0,
+		CreatorTradingFeePercentage:               0,
+		Leftover:                                  1000,
+		TokenUpdateAuthority:                      0,
+		MigrationFee: struct {
+			FeePercentage        uint8
+			CreatorFeePercentage uint8
+		}{
+			FeePercentage:        0,
+			CreatorFeePercentage: 0,
+		},
+		PoolCreationFee:           1,
+		MigratedPoolBaseFeeMode:   &migratedPoolBaseFeeMode,
+		EnableFirstSwapWithMinFee: false,
+	}
+
+	// prices := []string{"0.001", "0.005", "0.01"}
+	prices := []string{"0.0001", "0.0005", "0.001", "0.002", "0.004", "0.006", "0.008", "0.01"}
+
+	sqrtPrices, _ := helpers.CreateSqrtPrices(
+		prices,
+		shared.TokenDecimalNine,
+		shared.TokenDecimalNine,
+	)
+
+	params := shared.BuildCurveWithCustomSqrtPricesParams{
+		BuildCurveBaseParams: buildCurveBaseParams,
+		SqrtPrices:           sqrtPrices,
+	}
+
+	cfg, err := helpers.BuildCurveWithCustomSqrtPrices(params)
+	if err != nil {
+		t.Fatal("BuildCurveWithCustomSqrtPrices() fail", err)
+	}
+	fmt.Println(jsoniter.MarshalToString(cfg))
 }
 
-func testDBCBuildCurveWithTwoSegments() (*dynamic_bonding_curve.ConfigParameters, error) {
-	return dbc.BuildCurveWithTwoSegments(dynamic_bonding_curve.BuildCurveWithTwoSegmentsParam{
-		BuildCurveBaseParam: dynamic_bonding_curve.BuildCurveBaseParam{
-			TotalTokenSupply:  1000000000,
-			MigrationOption:   dynamic_bonding_curve.MigrationOptionMETDAMMV2,
-			TokenBaseDecimal:  dynamic_bonding_curve.TokenDecimalNine,
-			TokenQuoteDecimal: dynamic_bonding_curve.TokenDecimalNine,
-			LockedVestingParam: dynamic_bonding_curve.LockedVestingParams{
-				TotalLockedVestingAmount:       0,
-				NumberOfVestingPeriod:          0,
-				CliffUnlockAmount:              0,
-				TotalVestingDuration:           0,
-				CliffDurationFromMigrationTime: 0,
-			},
-			BaseFeeParams: dynamic_bonding_curve.BaseFeeParams{
-				BaseFeeMode: dynamic_bonding_curve.BaseFeeModeFeeSchedulerExponential,
-				FeeSchedulerParam: &dynamic_bonding_curve.FeeSchedulerParams{
-					StartingFeeBps: 5000,
-					EndingFeeBps:   100,
-					NumberOfPeriod: 120,
-					TotalDuration:  120,
-				},
-			},
-			DynamicFeeEnabled:           true,
-			ActivationType:              dynamic_bonding_curve.ActivationTypeSlot,
-			CollectFeeMode:              dynamic_bonding_curve.CollectFeeModeQuoteToken,
-			MigrationFeeOption:          dynamic_bonding_curve.MigrationFeeFixedBps100,
-			TokenType:                   dynamic_bonding_curve.TokenTypeSPL,
-			PartnerLpPercentage:         0,
-			CreatorLpPercentage:         0,
-			PartnerLockedLpPercentage:   100,
-			CreatorLockedLpPercentage:   0,
-			CreatorTradingFeePercentage: 0,
-			Leftover:                    350000000,
-			TokenUpdateAuthority:        dynamic_bonding_curve.TokenUpdateAuthorityCreatorUpdateAuthority,
-			MigrationFee: dynamic_bonding_curve.MigrationFee{
-				FeePercentage:        10,
-				CreatorFeePercentage: 50,
+func TestBuildCurveWithLiquidityWeights(t *testing.T) {
+	return
+	migratedPoolBaseFeeMode := shared.DammV2BaseFeeModeFeeTimeSchedulerLinear
+
+	buildCurveBaseParams := shared.BuildCurveBaseParams{
+		TotalTokenSupply:  1000000000,
+		MigrationOption:   shared.MigrationOptionMetDammV2,
+		TokenBaseDecimal:  shared.TokenDecimalSix,
+		TokenQuoteDecimal: shared.TokenDecimalNine,
+		LockedVestingParams: shared.LockedVestingParams{
+			TotalLockedVestingAmount:       0,
+			NumberOfVestingPeriod:          0,
+			CliffUnlockAmount:              0,
+			TotalVestingDuration:           0,
+			CliffDurationFromMigrationTime: 0,
+		},
+		BaseFeeParams: shared.BaseFeeParams{
+			BaseFeeMode: shared.BaseFeeModeFeeSchedulerLinear,
+			FeeSchedulerParam: &shared.FeeSchedulerParams{
+				StartingFeeBps: 100,
+				EndingFeeBps:   100,
+				NumberOfPeriod: 0,
+				TotalDuration:  0,
 			},
 		},
+		DynamicFeeEnabled:                         true,
+		ActivationType:                            shared.ActivationTypeSlot,
+		CollectFeeMode:                            shared.CollectFeeModeQuoteToken,
+		MigrationFeeOption:                        shared.MigrationFeeOptionFixedBps100,
+		TokenType:                                 shared.TokenTypeSPL,
+		PartnerLiquidityPercentage:                0,
+		CreatorLiquidityPercentage:                0,
+		PartnerPermanentLockedLiquidityPercentage: 100,
+		CreatorPermanentLockedLiquidityPercentage: 0,
+		CreatorTradingFeePercentage:               0,
+		Leftover:                                  1000,
+		TokenUpdateAuthority:                      0,
+		MigrationFee: struct {
+			FeePercentage        uint8
+			CreatorFeePercentage uint8
+		}{
+			FeePercentage:        0,
+			CreatorFeePercentage: 0,
+		},
+		PoolCreationFee:           1,
+		MigratedPoolBaseFeeMode:   &migratedPoolBaseFeeMode,
+		EnableFirstSwapWithMinFee: false,
+	}
 
+	liquidityWeights := make([]float64, 16)
+
+	for i := 0; i < 16; i++ {
+		liquidityWeights[i] = decimal.NewFromFloat(1.2).Pow(decimal.NewFromInt(int64(i))).InexactFloat64()
+	}
+
+	params := shared.BuildCurveWithLiquidityWeightsParams{
+		BuildCurveBaseParams: buildCurveBaseParams,
+		InitialMarketCap:     30,
+		MigrationMarketCap:   300,
+		LiquidityWeights:     liquidityWeights,
+	}
+
+	cfg, err := helpers.BuildCurveWithLiquidityWeights(params)
+	if err != nil {
+		t.Fatal("BuildCurveWithCustomSqrtPrices() fail", err)
+	}
+	fmt.Println(jsoniter.MarshalToString(cfg))
+}
+
+func TestBuildCurveWithMarketCap(t *testing.T) {
+	return
+	migratedPoolBaseFeeMode := shared.DammV2BaseFeeModeFeeTimeSchedulerLinear
+
+	buildCurveBaseParams := shared.BuildCurveBaseParams{
+		TotalTokenSupply:  1000000000,
+		MigrationOption:   shared.MigrationOptionMetDammV2,
+		TokenBaseDecimal:  shared.TokenDecimalSix,
+		TokenQuoteDecimal: shared.TokenDecimalNine,
+		LockedVestingParams: shared.LockedVestingParams{
+			TotalLockedVestingAmount:       0,
+			NumberOfVestingPeriod:          0,
+			CliffUnlockAmount:              0,
+			TotalVestingDuration:           0,
+			CliffDurationFromMigrationTime: 0,
+		},
+		BaseFeeParams: shared.BaseFeeParams{
+			BaseFeeMode: shared.BaseFeeModeFeeSchedulerLinear,
+			FeeSchedulerParam: &shared.FeeSchedulerParams{
+				StartingFeeBps: 100,
+				EndingFeeBps:   100,
+				NumberOfPeriod: 0,
+				TotalDuration:  0,
+			},
+		},
+		DynamicFeeEnabled:                         true,
+		ActivationType:                            shared.ActivationTypeSlot,
+		CollectFeeMode:                            shared.CollectFeeModeQuoteToken,
+		MigrationFeeOption:                        shared.MigrationFeeOptionFixedBps100,
+		TokenType:                                 shared.TokenTypeSPL,
+		PartnerLiquidityPercentage:                0,
+		CreatorLiquidityPercentage:                0,
+		PartnerPermanentLockedLiquidityPercentage: 100,
+		CreatorPermanentLockedLiquidityPercentage: 0,
+		CreatorTradingFeePercentage:               0,
+		Leftover:                                  10000,
+		TokenUpdateAuthority:                      0,
+		MigrationFee: struct {
+			FeePercentage        uint8
+			CreatorFeePercentage uint8
+		}{
+			FeePercentage:        0,
+			CreatorFeePercentage: 0,
+		},
+		PoolCreationFee:           1,
+		MigratedPoolBaseFeeMode:   &migratedPoolBaseFeeMode,
+		EnableFirstSwapWithMinFee: false,
+	}
+
+	params := shared.BuildCurveWithMarketCapParams{
+		BuildCurveBaseParams: buildCurveBaseParams,
+		InitialMarketCap:     23.5,
+		MigrationMarketCap:   405.882352941,
+	}
+
+	cfg, err := helpers.BuildCurveWithMarketCap(params)
+	if err != nil {
+		t.Fatal("BuildCurveWithMarketCap() fail", err)
+	}
+	fmt.Println(jsoniter.MarshalToString(cfg))
+}
+
+func TestBuildCurveWithTwoSegments(t *testing.T) {
+	return
+	migratedPoolBaseFeeMode := shared.DammV2BaseFeeModeFeeTimeSchedulerLinear
+
+	buildCurveBaseParams := shared.BuildCurveBaseParams{
+		TotalTokenSupply:  1000000000,
+		MigrationOption:   shared.MigrationOptionMetDammV2,
+		TokenBaseDecimal:  shared.TokenDecimalSix,
+		TokenQuoteDecimal: shared.TokenDecimalNine,
+		LockedVestingParams: shared.LockedVestingParams{
+			TotalLockedVestingAmount:       0,
+			NumberOfVestingPeriod:          0,
+			CliffUnlockAmount:              0,
+			TotalVestingDuration:           0,
+			CliffDurationFromMigrationTime: 0,
+		},
+		BaseFeeParams: shared.BaseFeeParams{
+			BaseFeeMode: shared.BaseFeeModeFeeSchedulerLinear,
+			FeeSchedulerParam: &shared.FeeSchedulerParams{
+				StartingFeeBps: 100,
+				EndingFeeBps:   100,
+				NumberOfPeriod: 0,
+				TotalDuration:  0,
+			},
+		},
+		DynamicFeeEnabled:                         true,
+		ActivationType:                            shared.ActivationTypeSlot,
+		CollectFeeMode:                            shared.CollectFeeModeQuoteToken,
+		MigrationFeeOption:                        shared.MigrationFeeOptionFixedBps100,
+		TokenType:                                 shared.TokenTypeSPL,
+		PartnerLiquidityPercentage:                0,
+		CreatorLiquidityPercentage:                0,
+		PartnerPermanentLockedLiquidityPercentage: 100,
+		CreatorPermanentLockedLiquidityPercentage: 0,
+		CreatorTradingFeePercentage:               0,
+		Leftover:                                  10000,
+		TokenUpdateAuthority:                      0,
+		MigrationFee: struct {
+			FeePercentage        uint8
+			CreatorFeePercentage uint8
+		}{
+			FeePercentage:        0,
+			CreatorFeePercentage: 0,
+		},
+		PoolCreationFee:           1,
+		MigratedPoolBaseFeeMode:   &migratedPoolBaseFeeMode,
+		EnableFirstSwapWithMinFee: false,
+	}
+
+	params := shared.BuildCurveWithTwoSegmentsParams{
+		BuildCurveBaseParams:        buildCurveBaseParams,
 		InitialMarketCap:            20000,
 		MigrationMarketCap:          1000000,
 		PercentageSupplyOnMigration: 20,
-	})
-}
-
-func testDBCBuildCurveWithLiquidityWeights() (*dynamic_bonding_curve.ConfigParameters, error) {
-	liquidityWeights := make([]float64, 16)
-
-	base := decimal.NewFromFloat(1.2)
-	for i := 0; i < 16; i++ {
-		liquidityWeights[i] = base.Pow(decimal.NewFromInt(int64(i))).InexactFloat64()
 	}
 
-	return dbc.BuildCurveWithLiquidityWeights(dynamic_bonding_curve.BuildCurveWithLiquidityWeightsParam{
-		BuildCurveBaseParam: dynamic_bonding_curve.BuildCurveBaseParam{
-			TotalTokenSupply:  1000000000,
-			MigrationOption:   dynamic_bonding_curve.MigrationOptionMETDAMMV2,
-			TokenBaseDecimal:  dynamic_bonding_curve.TokenDecimalSix,
-			TokenQuoteDecimal: dynamic_bonding_curve.TokenDecimalNine,
-			LockedVestingParam: dynamic_bonding_curve.LockedVestingParams{
-				TotalLockedVestingAmount:       0,
-				NumberOfVestingPeriod:          0,
-				CliffUnlockAmount:              0,
-				TotalVestingDuration:           0,
-				CliffDurationFromMigrationTime: 0,
-			},
-			BaseFeeParams: dynamic_bonding_curve.BaseFeeParams{
-				BaseFeeMode: dynamic_bonding_curve.BaseFeeModeFeeSchedulerLinear,
-				FeeSchedulerParam: &dynamic_bonding_curve.FeeSchedulerParams{
-					StartingFeeBps: 100,
-					EndingFeeBps:   100,
-					NumberOfPeriod: 0,
-					TotalDuration:  0,
-				},
-			},
-			DynamicFeeEnabled:           true,
-			ActivationType:              dynamic_bonding_curve.ActivationTypeSlot,
-			CollectFeeMode:              dynamic_bonding_curve.CollectFeeModeQuoteToken,
-			MigrationFeeOption:          dynamic_bonding_curve.MigrationFeeFixedBps100,
-			TokenType:                   dynamic_bonding_curve.TokenTypeSPL,
-			PartnerLpPercentage:         0,
-			CreatorLpPercentage:         0,
-			PartnerLockedLpPercentage:   100,
-			CreatorLockedLpPercentage:   0,
-			CreatorTradingFeePercentage: 0,
-			Leftover:                    10000,
-			TokenUpdateAuthority:        dynamic_bonding_curve.TokenUpdateAuthorityImmutable,
-			MigrationFee: dynamic_bonding_curve.MigrationFee{
-				FeePercentage:        10,
-				CreatorFeePercentage: 50,
-			},
-		},
+	cfg, err := helpers.BuildCurveWithTwoSegments(params)
+	if err != nil {
+		t.Fatal("BuildCurveWithTwoSegments() fail", err)
+	}
+	fmt.Println(jsoniter.MarshalToString(cfg))
+}
 
-		InitialMarketCap:   30,
-		MigrationMarketCap: 300,
-		LiquidityWeights:   liquidityWeights,
-	})
+func TestWallet(t *testing.T) {
+	wallet := solana.NewWallet()
+	fmt.Println(wallet.PublicKey(), wallet.PrivateKey)
+
+	wallet1 := solana.NewWallet()
+	fmt.Println(wallet1.PublicKey(), wallet1.PrivateKey)
+
+	wallet2 := solana.NewWallet()
+	fmt.Println(wallet2.PublicKey(), wallet2.PrivateKey)
 }

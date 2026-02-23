@@ -1,11 +1,11 @@
 module github.com/krazyTry/meteora-go
 
-go 1.24.3
+go 1.25.1
 
 require (
 	github.com/gagliardetto/anchor-go v1.0.0
 	github.com/gagliardetto/binary v0.8.0
-	github.com/gagliardetto/solana-go v1.13.0
+	github.com/gagliardetto/solana-go v1.14.0
 	github.com/json-iterator/go v1.1.12
 	github.com/shopspring/decimal v1.4.0
 	github.com/tidwall/gjson v1.18.0
