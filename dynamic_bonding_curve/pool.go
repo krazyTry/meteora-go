@@ -376,7 +376,7 @@ func (s *DynamicBondingCurve) SwapBuyIx(ctx context.Context, firstBuyParam First
 		firstBuyParam.Buyer,
 		outputProgram,
 		inputProgram,
-		optionalPubkey(firstBuyParam.ReferralTokenAccount),
+		optionalAccount(firstBuyParam.ReferralTokenAccount),
 		helpers.DeriveDbcEventAuthority(),
 		helpers.DynamicBondingCurveProgramID,
 	)
@@ -463,7 +463,7 @@ func (s *DynamicBondingCurve) Swap(ctx context.Context, params SwapParams) ([]so
 			}
 			return inputProgram
 		}(),
-		optionalPubkey(params.ReferralTokenAccount),
+		optionalAccount(params.ReferralTokenAccount),
 		helpers.DeriveDbcEventAuthority(),
 		helpers.DynamicBondingCurveProgramID,
 	)
@@ -576,10 +576,11 @@ func (s *DynamicBondingCurve) Swap2(ctx context.Context, params Swap2Params) ([]
 			}
 			return inputProgram
 		}(),
-		optionalPubkey(params.ReferralTokenAccount),
+		optionalAccount(params.ReferralTokenAccount),
 		helpers.DeriveDbcEventAuthority(),
 		helpers.DynamicBondingCurveProgramID,
 	)
+
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -639,7 +640,8 @@ func CurrentPointForActivation(ctx context.Context, client *rpc.Client, commitme
 	return big.NewInt(0)
 }
 
-func optionalPubkey(pk *solanago.PublicKey) solanago.PublicKey {
+func optionalAccount(pk *solanago.PublicKey) solanago.PublicKey {
+	// https://github.com/solana-foundation/anchor/blob/master/ts/packages/anchor/src/program/accounts-resolver.ts#L196
 	if pk == nil {
 		return dbcidl.ProgramID
 	}
