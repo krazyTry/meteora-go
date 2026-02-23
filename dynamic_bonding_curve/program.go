@@ -23,7 +23,7 @@ func NewDynamicBondingCurve(rpcClient *rpc.Client, commitment rpc.CommitmentType
 }
 
 func (p *DynamicBondingCurve) PrepareTokenAccounts(ctx context.Context, owner, payer, tokenAMint, tokenBMint, tokenAProgram, tokenBProgram solanago.PublicKey) (ataTokenA, ataTokenB solanago.PublicKey, instructions []solanago.Instruction, err error) {
-	instructions = make([]solanago.Instruction, 0, 2)
+	instructions = make([]solanago.Instruction, 0)
 	ataTokenA, ixA, err := helpers.GetOrCreateATAInstruction(ctx, p.RPC, tokenAMint, owner, payer, tokenAProgram)
 	if err != nil {
 		return
