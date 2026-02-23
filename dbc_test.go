@@ -18,14 +18,12 @@ import (
 func TestDBC(t *testing.T) {
 	return
 
-	stateService := dynamic_bonding_curve.NewStateService(rpcClient, rpc.CommitmentFinalized)
+	dbcService := dynamic_bonding_curve.NewDynamicBondingCurve(rpcClient, rpc.CommitmentFinalized)
 	configAddress := solana.MustPublicKeyFromBase58("")
-	configState, err := stateService.GetPoolConfig(context.Background(), configAddress)
+	configState, err := dbcService.GetPoolConfig(context.Background(), configAddress)
 	if err != nil {
 		t.Fatal("GetConfig() fail", err)
 	}
-
-	poolService := dynamic_bonding_curve.NewPoolService(rpcClient, rpc.CommitmentFinalized)
 
 	name := "MeteoraGoTest"
 	symbol := "METAGOTEST"
@@ -65,7 +63,7 @@ func TestDBC(t *testing.T) {
 			BaseMint:    baseMint,
 		}
 
-		createIx, err := poolService.CreatePool(ctx1, createParams)
+		createIx, err := dbcService.CreatePool(ctx1, createParams)
 		if err != nil {
 			t.Fatal("dbc.CreatePool() fail", err)
 		}
@@ -86,13 +84,13 @@ func TestDBC(t *testing.T) {
 		}
 		fmt.Println("创建 token success Success sig:", sig.String())
 
-		poolState, err := stateService.GetPoolByBaseMint(ctx1, baseMint)
+		poolState, err := dbcService.GetPoolByBaseMint(ctx1, baseMint)
 		if err != nil {
 			t.Fatal("GetPoolByPoolAddress() fail", err)
 		}
 		fmt.Println("创建 token success Pool:", poolState)
 
-		swapResult, err := poolService.SwapQuote(dynamic_bonding_curve.SwapQuoteParams{
+		swapResult, err := dbcService.SwapQuote(dynamic_bonding_curve.SwapQuoteParams{
 			VirtualPool:      poolState.Account,
 			Config:           configState,
 			SwapBaseForQuote: false,
@@ -115,7 +113,7 @@ func TestDBC(t *testing.T) {
 			// ReferralTokenAccount *solanago.PublicKey
 			// Payer                *solanago.PublicKey
 		}
-		pre, swapIx, post, err := poolService.Swap(ctx1, swapParams)
+		pre, swapIx, post, err := dbcService.Swap(ctx1, swapParams)
 		if err != nil {
 			t.Fatal("Swap() fail", err)
 		}
@@ -137,7 +135,7 @@ func TestDBC(t *testing.T) {
 		}
 		fmt.Println("swap token success Success sig:", sig.String())
 
-		swapResult2, err := poolService.SwapQuote2(dynamic_bonding_curve.SwapQuote2Params{
+		swapResult2, err := dbcService.SwapQuote2(dynamic_bonding_curve.SwapQuote2Params{
 			VirtualPool:      poolState.Account,
 			Config:           configState,
 			SwapBaseForQuote: false,
@@ -166,7 +164,7 @@ func TestDBC(t *testing.T) {
 			// MaximumAmountIn      *big.Int
 		}
 
-		pre2, swapIx2, post2, err := poolService.Swap2(ctx1, swap2Params)
+		pre2, swapIx2, post2, err := dbcService.Swap2(ctx1, swap2Params)
 		if err != nil {
 			t.Fatal("Swap2() fail", err)
 		}
@@ -189,11 +187,7 @@ func TestDBC(t *testing.T) {
 		}
 		fmt.Println("swap2 token success Success sig:", sig.String())
 
-		partnerService := dynamic_bonding_curve.NewPartnerService(rpcClient, rpc.CommitmentFinalized)
-
-		migrationService := dynamic_bonding_curve.NewMigrationService(rpcClient, rpc.CommitmentFinalized)
-
-		poolState, err = stateService.GetPoolByBaseMint(ctx1, baseMint)
+		poolState, err = dbcService.GetPoolByBaseMint(ctx1, baseMint)
 		if err != nil {
 			t.Fatal("GetPoolByPoolAddress() fail", err)
 		}
@@ -209,7 +203,7 @@ func TestDBC(t *testing.T) {
 				// Receiver       *solanago.PublicKey
 				// TempWSolAcc    *solanago.PublicKey
 			}
-			pre, claimIx, post, err := partnerService.ClaimPartnerTradingFee(ctx1, claimParams)
+			pre, claimIx, post, err := dbcService.ClaimPartnerTradingFee(ctx1, claimParams)
 			if err != nil {
 				t.Fatal("ClaimPartnerTradingFee() fail", err)
 			}
@@ -252,7 +246,7 @@ func TestDBC(t *testing.T) {
 				// ReferralTokenAccount *solanago.PublicKey
 				// Payer                *solanago.PublicKey
 			}
-			pre, swapIx, post, err := poolService.Swap(ctx1, swapParams)
+			pre, swapIx, post, err := dbcService.Swap(ctx1, swapParams)
 			if err != nil {
 				t.Fatal("Swap() fail", err)
 			}
@@ -275,7 +269,7 @@ func TestDBC(t *testing.T) {
 			fmt.Println("swap full token success Success sig:", sig.String())
 		}
 
-		poolState, err = stateService.GetPoolByBaseMint(ctx1, baseMint)
+		poolState, err = dbcService.GetPoolByBaseMint(ctx1, baseMint)
 		if err != nil {
 			t.Fatal("GetPoolByPoolAddress() fail", err)
 		}
@@ -289,7 +283,7 @@ func TestDBC(t *testing.T) {
 				Payer:       ownerWallet.PublicKey(),
 				Config:      configAddress,
 			}
-			ix, err := migrationService.CreateDammV2MigrationMetadata(ctx1, params)
+			ix, err := dbcService.CreateDammV2MigrationMetadata(ctx1, params)
 			if err != nil {
 				t.Fatal("CreateDammV2MigrationMetadata() fail", err)
 			}
@@ -312,7 +306,7 @@ func TestDBC(t *testing.T) {
 					VirtualPool: poolState.Pubkey,
 					Payer:       ownerWallet.PublicKey(),
 				}
-				pre, lockerIx, post, err := migrationService.CreateLocker(ctx1, lockerParams)
+				pre, lockerIx, post, err := dbcService.CreateLocker(ctx1, lockerParams)
 				if err != nil {
 					t.Fatal("CreateLocker() fail", err)
 				}
@@ -338,7 +332,7 @@ func TestDBC(t *testing.T) {
 				}
 			}
 
-			resp, err := migrationService.MigrateToDammV2(ctx1, dynamic_bonding_curve.MigrateToDammV2Params{
+			resp, err := dbcService.MigrateToDammV2(ctx1, dynamic_bonding_curve.MigrateToDammV2Params{
 				VirtualPool: poolState.Pubkey,
 				Payer:       ownerWallet.PublicKey(),
 				DammConfig:  helpers.GetDammV2Config(dynamic_bonding_curve.MigrationFeeOption(configState.MigrationFeeOption)),
@@ -370,7 +364,7 @@ func TestDBC(t *testing.T) {
 				VirtualPool: poolState.Pubkey,
 				Payer:       leftover.PublicKey(),
 			}
-			pre, withdrawIx, post, err := migrationService.WithdrawLeftover(ctx1, leftoverParams)
+			pre, withdrawIx, post, err := dbcService.WithdrawLeftover(ctx1, leftoverParams)
 			if err != nil {
 				t.Fatal("WithdrawLeftover() fail", err)
 			}
@@ -396,7 +390,7 @@ func TestDBC(t *testing.T) {
 			fmt.Println("withdraw token success Success sig:", sig.String())
 		}
 
-		poolState, err = stateService.GetPoolByBaseMint(ctx1, baseMint)
+		poolState, err = dbcService.GetPoolByBaseMint(ctx1, baseMint)
 		if err != nil {
 			t.Fatal("GetPoolByPoolAddress() fail", err)
 		}
@@ -412,7 +406,7 @@ func TestDBC(t *testing.T) {
 				// Receiver       *solanago.PublicKey
 				// TempWSolAcc    *solanago.PublicKey
 			}
-			pre, claimIx, post, err := partnerService.ClaimPartnerTradingFee(ctx1, claimParams)
+			pre, claimIx, post, err := dbcService.ClaimPartnerTradingFee(ctx1, claimParams)
 			if err != nil {
 				t.Fatal("ClaimPartnerTradingFee() fail", err)
 			}

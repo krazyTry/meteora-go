@@ -8,21 +8,21 @@ import (
 	"github.com/krazyTry/meteora-go/dynamic_bonding_curve/helpers"
 )
 
-type DynamicBondingCurveProgram struct {
+type DynamicBondingCurve struct {
 	RPC           *rpc.Client
 	PoolAuthority solanago.PublicKey
 	Commitment    rpc.CommitmentType
 }
 
-func NewDynamicBondingCurveProgram(rpcClient *rpc.Client, commitment rpc.CommitmentType) *DynamicBondingCurveProgram {
-	return &DynamicBondingCurveProgram{
+func NewDynamicBondingCurve(rpcClient *rpc.Client, commitment rpc.CommitmentType) *DynamicBondingCurve {
+	return &DynamicBondingCurve{
 		RPC:           rpcClient,
 		PoolAuthority: helpers.DeriveDbcPoolAuthority(),
 		Commitment:    commitment,
 	}
 }
 
-func (p *DynamicBondingCurveProgram) PrepareTokenAccounts(ctx context.Context, owner, payer, tokenAMint, tokenBMint, tokenAProgram, tokenBProgram solanago.PublicKey) (ataTokenA, ataTokenB solanago.PublicKey, instructions []solanago.Instruction, err error) {
+func (p *DynamicBondingCurve) PrepareTokenAccounts(ctx context.Context, owner, payer, tokenAMint, tokenBMint, tokenAProgram, tokenBProgram solanago.PublicKey) (ataTokenA, ataTokenB solanago.PublicKey, instructions []solanago.Instruction, err error) {
 	instructions = make([]solanago.Instruction, 0, 2)
 	ataTokenA, ixA, err := helpers.GetOrCreateATAInstruction(ctx, p.RPC, tokenAMint, owner, payer, tokenAProgram)
 	if err != nil {

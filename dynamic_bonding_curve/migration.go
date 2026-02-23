@@ -11,29 +11,16 @@ import (
 	computebudget "github.com/gagliardetto/solana-go/programs/compute-budget"
 	"github.com/gagliardetto/solana-go/programs/system"
 	"github.com/gagliardetto/solana-go/programs/token"
-	"github.com/gagliardetto/solana-go/rpc"
 )
 
-type MigrationService struct {
-	*DynamicBondingCurveProgram
-	State *StateService
-}
-
-func NewMigrationService(rpcClient *rpc.Client, commitment rpc.CommitmentType) *MigrationService {
-	return &MigrationService{
-		DynamicBondingCurveProgram: NewDynamicBondingCurveProgram(rpcClient, commitment),
-		State:                      NewStateService(rpcClient, commitment),
-	}
-}
-
 // CreateLocker creates locker accounts if needed.
-func (s *MigrationService) CreateLocker(ctx context.Context, params CreateLockerParams) (pre []solanago.Instruction, ix solanago.Instruction, post []solanago.Instruction, err error) {
-	virtualPoolState, err := s.State.GetPool(ctx, params.VirtualPool)
+func (s *DynamicBondingCurve) CreateLocker(ctx context.Context, params CreateLockerParams) (pre []solanago.Instruction, ix solanago.Instruction, post []solanago.Instruction, err error) {
+	virtualPoolState, err := s.GetPool(ctx, params.VirtualPool)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	poolConfigState, err := s.State.GetPoolConfig(ctx, virtualPoolState.Config)
+	poolConfigState, err := s.GetPoolConfig(ctx, virtualPoolState.Config)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -75,13 +62,13 @@ func (s *MigrationService) CreateLocker(ctx context.Context, params CreateLocker
 }
 
 // WithdrawLeftover withdraws leftover base token to leftover receiver.
-func (s *MigrationService) WithdrawLeftover(ctx context.Context, params WithdrawLeftoverParams) (pre []solanago.Instruction, ix solanago.Instruction, post []solanago.Instruction, err error) {
-	poolState, err := s.State.GetPool(ctx, params.VirtualPool)
+func (s *DynamicBondingCurve) WithdrawLeftover(ctx context.Context, params WithdrawLeftoverParams) (pre []solanago.Instruction, ix solanago.Instruction, post []solanago.Instruction, err error) {
+	poolState, err := s.GetPool(ctx, params.VirtualPool)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	poolConfigState, err := s.State.GetPoolConfig(ctx, poolState.Config)
+	poolConfigState, err := s.GetPoolConfig(ctx, poolState.Config)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -115,7 +102,7 @@ func (s *MigrationService) WithdrawLeftover(ctx context.Context, params Withdraw
 }
 
 // CreateDammV1MigrationMetadata creates migration metadata for DAMM V1.
-func (s *MigrationService) CreateDammV1MigrationMetadata(ctx context.Context, params CreateDammV1MigrationMetadataParams) (solanago.Instruction, error) {
+func (s *DynamicBondingCurve) CreateDammV1MigrationMetadata(ctx context.Context, params CreateDammV1MigrationMetadataParams) (solanago.Instruction, error) {
 	migrationMetadata := helpers.DeriveDammV1MigrationMetadataAddress(params.VirtualPool)
 	return dbcidl.NewMigrationMeteoraDammCreateMetadataInstruction(
 		params.VirtualPool,
@@ -129,13 +116,13 @@ func (s *MigrationService) CreateDammV1MigrationMetadata(ctx context.Context, pa
 }
 
 // MigrateToDammV1 builds migration instruction and optional vault init pre-instructions.
-func (s *MigrationService) MigrateToDammV1(ctx context.Context, params MigrateToDammV1Params) (pre []solanago.Instruction, ix solanago.Instruction, post []solanago.Instruction, err error) {
-	poolState, err := s.State.GetPool(ctx, params.VirtualPool)
+func (s *DynamicBondingCurve) MigrateToDammV1(ctx context.Context, params MigrateToDammV1Params) (pre []solanago.Instruction, ix solanago.Instruction, post []solanago.Instruction, err error) {
+	poolState, err := s.GetPool(ctx, params.VirtualPool)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	poolConfigState, err := s.State.GetPoolConfig(ctx, poolState.Config)
+	poolConfigState, err := s.GetPoolConfig(ctx, poolState.Config)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -244,13 +231,13 @@ func (s *MigrationService) MigrateToDammV1(ctx context.Context, params MigrateTo
 }
 
 // LockDammV1LpToken locks DAMM V1 LP tokens for creator or partner.
-func (s *MigrationService) LockDammV1LpToken(ctx context.Context, params DammLpTokenParams) (pre []solanago.Instruction, ix solanago.Instruction, post []solanago.Instruction, err error) {
-	poolState, err := s.State.GetPool(ctx, params.VirtualPool)
+func (s *DynamicBondingCurve) LockDammV1LpToken(ctx context.Context, params DammLpTokenParams) (pre []solanago.Instruction, ix solanago.Instruction, post []solanago.Instruction, err error) {
+	poolState, err := s.GetPool(ctx, params.VirtualPool)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	poolConfigState, err := s.State.GetPoolConfig(ctx, poolState.Config)
+	poolConfigState, err := s.GetPoolConfig(ctx, poolState.Config)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -369,13 +356,13 @@ func (s *MigrationService) LockDammV1LpToken(ctx context.Context, params DammLpT
 }
 
 // ClaimDammV1LpToken claims DAMM V1 LP tokens for creator or partner.
-func (s *MigrationService) ClaimDammV1LpToken(ctx context.Context, params DammLpTokenParams) (pre []solanago.Instruction, ix solanago.Instruction, post []solanago.Instruction, err error) {
-	virtualPoolState, err := s.State.GetPool(ctx, params.VirtualPool)
+func (s *DynamicBondingCurve) ClaimDammV1LpToken(ctx context.Context, params DammLpTokenParams) (pre []solanago.Instruction, ix solanago.Instruction, post []solanago.Instruction, err error) {
+	virtualPoolState, err := s.GetPool(ctx, params.VirtualPool)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	poolConfigState, err := s.State.GetPoolConfig(ctx, virtualPoolState.Config)
+	poolConfigState, err := s.GetPoolConfig(ctx, virtualPoolState.Config)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -420,7 +407,7 @@ func (s *MigrationService) ClaimDammV1LpToken(ctx context.Context, params DammLp
 }
 
 // CreateDammV2MigrationMetadata creates migration metadata for DAMM V2.
-func (s *MigrationService) CreateDammV2MigrationMetadata(ctx context.Context, params CreateDammV2MigrationMetadataParams) (solanago.Instruction, error) {
+func (s *DynamicBondingCurve) CreateDammV2MigrationMetadata(ctx context.Context, params CreateDammV2MigrationMetadataParams) (solanago.Instruction, error) {
 	migrationMetadata := helpers.DeriveDammV2MigrationMetadataAddress(params.VirtualPool)
 	return dbcidl.NewMigrationDammV2CreateMetadataInstruction(
 		params.VirtualPool,
@@ -434,13 +421,13 @@ func (s *MigrationService) CreateDammV2MigrationMetadata(ctx context.Context, pa
 }
 
 // MigrateToDammV2 builds DAMM V2 migration transaction and returns position NFT keypairs.
-func (s *MigrationService) MigrateToDammV2(ctx context.Context, params MigrateToDammV2Params) (MigrateToDammV2Response, error) {
-	virtualPoolState, err := s.State.GetPool(ctx, params.VirtualPool)
+func (s *DynamicBondingCurve) MigrateToDammV2(ctx context.Context, params MigrateToDammV2Params) (MigrateToDammV2Response, error) {
+	virtualPoolState, err := s.GetPool(ctx, params.VirtualPool)
 	if err != nil {
 		return MigrateToDammV2Response{}, err
 	}
 
-	poolConfigState, err := s.State.GetPoolConfig(ctx, virtualPoolState.Config)
+	poolConfigState, err := s.GetPoolConfig(ctx, virtualPoolState.Config)
 	if err != nil {
 		return MigrateToDammV2Response{}, err
 	}

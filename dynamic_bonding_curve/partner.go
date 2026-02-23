@@ -9,13 +9,7 @@ import (
 
 	solanago "github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/programs/system"
-	"github.com/gagliardetto/solana-go/rpc"
 )
-
-type PartnerService struct {
-	*DynamicBondingCurveProgram
-	State *StateService
-}
 
 type claimPartnerTradingFeeAccounts struct {
 	PoolAuthority     solanago.PublicKey
@@ -34,14 +28,7 @@ type claimPartnerTradingFeeAccounts struct {
 	Program           solanago.PublicKey
 }
 
-func NewPartnerService(rpcClient *rpc.Client, commitment rpc.CommitmentType) *PartnerService {
-	return &PartnerService{
-		DynamicBondingCurveProgram: NewDynamicBondingCurveProgram(rpcClient, commitment),
-		State:                      NewStateService(rpcClient, commitment),
-	}
-}
-
-func (s *PartnerService) CreateConfig(ctx context.Context, params CreateConfigParams) (solanago.Instruction, error) {
+func (s *DynamicBondingCurve) CreateConfig(ctx context.Context, params CreateConfigParams) (solanago.Instruction, error) {
 	if err := helpers.ValidateConfigParameters(params); err != nil {
 		return nil, err
 	}
@@ -58,7 +45,7 @@ func (s *PartnerService) CreateConfig(ctx context.Context, params CreateConfigPa
 	)
 }
 
-func (s *PartnerService) CreatePartnerMetadata(ctx context.Context, params CreatePartnerMetadataParams) (solanago.Instruction, error) {
+func (s *DynamicBondingCurve) CreatePartnerMetadata(ctx context.Context, params CreatePartnerMetadataParams) (solanago.Instruction, error) {
 	partnerMetadata := helpers.DerivePartnerMetadata(params.FeeClaimer)
 	meta := CreatePartnerMetadataParameters{
 		Padding: [96]uint8{},
@@ -78,7 +65,7 @@ func (s *PartnerService) CreatePartnerMetadata(ctx context.Context, params Creat
 }
 
 // claimWithQuoteMintSol prepares accounts and instructions for SOL-quote claim.
-func (s *PartnerService) claimWithQuoteMintSol(ctx context.Context, params ClaimPartnerTradingFeeWithQuoteMintSolParams) (accounts *claimPartnerTradingFeeAccounts, pre []solanago.Instruction, post []solanago.Instruction, err error) {
+func (s *DynamicBondingCurve) claimPartnerWithQuoteMintSol(ctx context.Context, params ClaimPartnerTradingFeeWithQuoteMintSolParams) (accounts *claimPartnerTradingFeeAccounts, pre []solanago.Instruction, post []solanago.Instruction, err error) {
 	pre = []solanago.Instruction{}
 	post = []solanago.Instruction{}
 
@@ -124,7 +111,7 @@ func (s *PartnerService) claimWithQuoteMintSol(ctx context.Context, params Claim
 }
 
 // claimWithQuoteMintNotSol prepares accounts and pre-instructions for non-SOL quote mint.
-func (s *PartnerService) claimWithQuoteMintNotSol(ctx context.Context, params ClaimPartnerTradingFeeWithQuoteMintNotSolParams) (accounts *claimPartnerTradingFeeAccounts, pre []solanago.Instruction, err error) {
+func (s *DynamicBondingCurve) claimPartnerWithQuoteMintNotSol(ctx context.Context, params ClaimPartnerTradingFeeWithQuoteMintNotSolParams) (accounts *claimPartnerTradingFeeAccounts, pre []solanago.Instruction, err error) {
 	tokenBaseAccount, tokenQuoteAccount, pre, err := s.PrepareTokenAccounts(ctx, params.FeeReceiver, params.Payer, params.PoolState.BaseMint, params.PoolConfigState.QuoteMint, params.TokenBaseProgram, params.TokenQuoteProgram)
 	if err != nil {
 		return nil, nil, err
@@ -149,13 +136,13 @@ func (s *PartnerService) claimWithQuoteMintNotSol(ctx context.Context, params Cl
 }
 
 // ClaimPartnerTradingFee builds claim partner trading fee instructions.
-func (s *PartnerService) ClaimPartnerTradingFee(ctx context.Context, params ClaimTradingFeeParams) (pre []solanago.Instruction, ix solanago.Instruction, post []solanago.Instruction, err error) {
-	poolState, err := s.State.GetPool(ctx, params.Pool)
+func (s *DynamicBondingCurve) ClaimPartnerTradingFee(ctx context.Context, params ClaimTradingFeeParams) (pre []solanago.Instruction, ix solanago.Instruction, post []solanago.Instruction, err error) {
+	poolState, err := s.GetPool(ctx, params.Pool)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	poolConfigState, err := s.State.GetPoolConfig(ctx, poolState.Config)
+	poolConfigState, err := s.GetPoolConfig(ctx, poolState.Config)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -185,7 +172,7 @@ func (s *PartnerService) ClaimPartnerTradingFee(ctx context.Context, params Clai
 			feeReceiver = *params.Receiver
 		}
 
-		accs, preIx, postIx, err := s.claimWithQuoteMintSol(ctx, ClaimPartnerTradingFeeWithQuoteMintSolParams{
+		accs, preIx, postIx, err := s.claimPartnerWithQuoteMintSol(ctx, ClaimPartnerTradingFeeWithQuoteMintSolParams{
 			ClaimPartnerTradingFeeWithQuoteMintNotSolParams: ClaimPartnerTradingFeeWithQuoteMintNotSolParams{
 				FeeClaimer:        params.FeeClaimer,
 				Payer:             params.Payer,
@@ -232,7 +219,7 @@ func (s *PartnerService) ClaimPartnerTradingFee(ctx context.Context, params Clai
 		feeReceiver = *params.Receiver
 	}
 
-	accs, preIx, err := s.claimWithQuoteMintNotSol(ctx, ClaimPartnerTradingFeeWithQuoteMintNotSolParams{
+	accs, preIx, err := s.claimPartnerWithQuoteMintNotSol(ctx, ClaimPartnerTradingFeeWithQuoteMintNotSolParams{
 		FeeClaimer:        params.FeeClaimer,
 		Payer:             params.Payer,
 		FeeReceiver:       feeReceiver,
@@ -271,13 +258,13 @@ func (s *PartnerService) ClaimPartnerTradingFee(ctx context.Context, params Clai
 }
 
 // ClaimPartnerTradingFee2 builds claim partner trading fee instructions for explicit receiver.
-func (s *PartnerService) ClaimPartnerTradingFee2(ctx context.Context, params ClaimTradingFee2Params) (pre []solanago.Instruction, ix solanago.Instruction, post []solanago.Instruction, err error) {
-	poolState, err := s.State.GetPool(ctx, params.Pool)
+func (s *DynamicBondingCurve) ClaimPartnerTradingFee2(ctx context.Context, params ClaimTradingFee2Params) (pre []solanago.Instruction, ix solanago.Instruction, post []solanago.Instruction, err error) {
+	poolState, err := s.GetPool(ctx, params.Pool)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	poolConfigState, err := s.State.GetPoolConfig(ctx, poolState.Config)
+	poolConfigState, err := s.GetPoolConfig(ctx, poolState.Config)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -344,7 +331,7 @@ func (s *PartnerService) ClaimPartnerTradingFee2(ctx context.Context, params Cla
 		return pre, ix, post, nil
 	}
 
-	accs, preIx, err := s.claimWithQuoteMintNotSol(ctx, ClaimPartnerTradingFeeWithQuoteMintNotSolParams{
+	accs, preIx, err := s.claimPartnerWithQuoteMintNotSol(ctx, ClaimPartnerTradingFeeWithQuoteMintNotSolParams{
 		FeeClaimer:        params.FeeClaimer,
 		Payer:             params.Payer,
 		FeeReceiver:       params.Receiver,
@@ -383,13 +370,13 @@ func (s *PartnerService) ClaimPartnerTradingFee2(ctx context.Context, params Cla
 }
 
 // PartnerWithdrawSurplus builds partner withdraw surplus instructions.
-func (s *PartnerService) PartnerWithdrawSurplus(ctx context.Context, params PartnerWithdrawSurplusParams) ([]solanago.Instruction, error) {
-	poolState, err := s.State.GetPool(ctx, params.VirtualPool)
+func (s *DynamicBondingCurve) PartnerWithdrawSurplus(ctx context.Context, params PartnerWithdrawSurplusParams) ([]solanago.Instruction, error) {
+	poolState, err := s.GetPool(ctx, params.VirtualPool)
 	if err != nil {
 		return nil, err
 	}
 
-	poolConfigState, err := s.State.GetPoolConfig(ctx, poolState.Config)
+	poolConfigState, err := s.GetPoolConfig(ctx, poolState.Config)
 	if err != nil {
 		return nil, err
 	}
@@ -436,13 +423,13 @@ func (s *PartnerService) PartnerWithdrawSurplus(ctx context.Context, params Part
 }
 
 // PartnerWithdrawMigrationFee builds partner withdraw migration fee instructions.
-func (s *PartnerService) PartnerWithdrawMigrationFee(ctx context.Context, params WithdrawMigrationFeeParams) ([]solanago.Instruction, error) {
-	virtualPoolState, err := s.State.GetPool(ctx, params.VirtualPool)
+func (s *DynamicBondingCurve) PartnerWithdrawMigrationFee(ctx context.Context, params WithdrawMigrationFeeParams) ([]solanago.Instruction, error) {
+	virtualPoolState, err := s.GetPool(ctx, params.VirtualPool)
 	if err != nil {
 		return nil, err
 	}
 
-	configState, err := s.State.GetPoolConfig(ctx, virtualPoolState.Config)
+	configState, err := s.GetPoolConfig(ctx, virtualPoolState.Config)
 	if err != nil {
 		return nil, err
 	}
@@ -489,13 +476,13 @@ func (s *PartnerService) PartnerWithdrawMigrationFee(ctx context.Context, params
 }
 
 // ClaimPartnerPoolCreationFee builds claim partner pool creation fee instruction.
-func (s *PartnerService) ClaimPartnerPoolCreationFee(ctx context.Context, params ClaimPartnerPoolCreationFeeParams) (solanago.Instruction, error) {
-	virtualPoolState, err := s.State.GetPool(ctx, params.VirtualPool)
+func (s *DynamicBondingCurve) ClaimPartnerPoolCreationFee(ctx context.Context, params ClaimPartnerPoolCreationFeeParams) (solanago.Instruction, error) {
+	virtualPoolState, err := s.GetPool(ctx, params.VirtualPool)
 	if err != nil {
 		return nil, err
 	}
 
-	configState, err := s.State.GetPoolConfig(ctx, virtualPoolState.Config)
+	configState, err := s.GetPoolConfig(ctx, virtualPoolState.Config)
 	if err != nil {
 		return nil, err
 	}

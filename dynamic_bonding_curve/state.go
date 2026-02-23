@@ -14,15 +14,7 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-type StateService struct {
-	*DynamicBondingCurveProgram
-}
-
-func NewStateService(rpcClient *rpc.Client, commitment rpc.CommitmentType) *StateService {
-	return &StateService{DynamicBondingCurveProgram: NewDynamicBondingCurveProgram(rpcClient, commitment)}
-}
-
-func (s *StateService) GetPoolConfig(ctx context.Context, configAddress solanago.PublicKey) (*PoolConfig, error) {
+func (s *DynamicBondingCurve) GetPoolConfig(ctx context.Context, configAddress solanago.PublicKey) (*PoolConfig, error) {
 	acc, err := s.RPC.GetAccountInfoWithOpts(ctx, configAddress, &rpc.GetAccountInfoOpts{Commitment: s.Commitment})
 	if err != nil {
 		return nil, err
@@ -37,7 +29,7 @@ func (s *StateService) GetPoolConfig(ctx context.Context, configAddress solanago
 	return parsed, nil
 }
 
-func (s *StateService) GetPoolConfigs(ctx context.Context) ([]ProgramAccount[PoolConfig], error) {
+func (s *DynamicBondingCurve) GetPoolConfigs(ctx context.Context) ([]ProgramAccount[PoolConfig], error) {
 	filters := helpers.CreateProgramAccountFilter(helpers.AccountKeyPoolConfig, nil)
 	accounts, err := s.RPC.GetProgramAccountsWithOpts(ctx, helpers.DynamicBondingCurveProgramID, &rpc.GetProgramAccountsOpts{Commitment: s.Commitment, Filters: filters})
 	if err != nil {
@@ -54,7 +46,7 @@ func (s *StateService) GetPoolConfigs(ctx context.Context) ([]ProgramAccount[Poo
 	return out, nil
 }
 
-func (s *StateService) GetPoolConfigsByOwner(ctx context.Context, owner solanago.PublicKey) ([]ProgramAccount[PoolConfig], error) {
+func (s *DynamicBondingCurve) GetPoolConfigsByOwner(ctx context.Context, owner solanago.PublicKey) ([]ProgramAccount[PoolConfig], error) {
 	// filters := helpers.CreateProgramAccountFilter(owner, 72)
 	filters := helpers.CreateProgramAccountFilter(helpers.AccountKeyPoolConfig, nil)
 	accounts, err := s.RPC.GetProgramAccountsWithOpts(ctx, helpers.DynamicBondingCurveProgramID, &rpc.GetProgramAccountsOpts{Commitment: s.Commitment, Filters: filters})
@@ -75,7 +67,7 @@ func (s *StateService) GetPoolConfigsByOwner(ctx context.Context, owner solanago
 	return out, nil
 }
 
-func (s *StateService) GetPool(ctx context.Context, poolAddress solanago.PublicKey) (*VirtualPool, error) {
+func (s *DynamicBondingCurve) GetPool(ctx context.Context, poolAddress solanago.PublicKey) (*VirtualPool, error) {
 	acc, err := s.RPC.GetAccountInfoWithOpts(ctx, poolAddress, &rpc.GetAccountInfoOpts{Commitment: s.Commitment})
 	if err != nil {
 		return nil, err
@@ -90,7 +82,7 @@ func (s *StateService) GetPool(ctx context.Context, poolAddress solanago.PublicK
 	return parsed, nil
 }
 
-func (s *StateService) GetPools(ctx context.Context) ([]ProgramAccount[VirtualPool], error) {
+func (s *DynamicBondingCurve) GetPools(ctx context.Context) ([]ProgramAccount[VirtualPool], error) {
 	filters := helpers.CreateProgramAccountFilter(helpers.AccountKeyVirtualPool, nil)
 	accounts, err := s.RPC.GetProgramAccountsWithOpts(ctx, helpers.DynamicBondingCurveProgramID, &rpc.GetProgramAccountsOpts{Commitment: s.Commitment, Filters: filters})
 	if err != nil {
@@ -107,7 +99,7 @@ func (s *StateService) GetPools(ctx context.Context) ([]ProgramAccount[VirtualPo
 	return out, nil
 }
 
-func (s *StateService) GetPoolsByConfig(ctx context.Context, configAddress solanago.PublicKey) ([]ProgramAccount[VirtualPool], error) {
+func (s *DynamicBondingCurve) GetPoolsByConfig(ctx context.Context, configAddress solanago.PublicKey) ([]ProgramAccount[VirtualPool], error) {
 	// filters := helpers.CreateProgramAccountFilter(configAddress, 72)
 	filters := helpers.CreateProgramAccountFilter(helpers.AccountKeyVirtualPool, &helpers.Filter{
 		Owner:  configAddress,
@@ -128,7 +120,7 @@ func (s *StateService) GetPoolsByConfig(ctx context.Context, configAddress solan
 	return out, nil
 }
 
-func (s *StateService) GetPoolsByCreator(ctx context.Context, creatorAddress solanago.PublicKey) ([]ProgramAccount[VirtualPool], error) {
+func (s *DynamicBondingCurve) GetPoolsByCreator(ctx context.Context, creatorAddress solanago.PublicKey) ([]ProgramAccount[VirtualPool], error) {
 	// filters := helpers.CreateProgramAccountFilter(creatorAddress, 104)
 	filters := helpers.CreateProgramAccountFilter(helpers.AccountKeyVirtualPool, &helpers.Filter{
 		Owner:  creatorAddress,
@@ -149,7 +141,7 @@ func (s *StateService) GetPoolsByCreator(ctx context.Context, creatorAddress sol
 	return out, nil
 }
 
-func (s *StateService) GetPoolByBaseMint(ctx context.Context, baseMint solanago.PublicKey) (*ProgramAccount[VirtualPool], error) {
+func (s *DynamicBondingCurve) GetPoolByBaseMint(ctx context.Context, baseMint solanago.PublicKey) (*ProgramAccount[VirtualPool], error) {
 	// filters := helpers.CreateProgramAccountFilter(baseMint, 136)
 
 	filters := helpers.CreateProgramAccountFilter(helpers.AccountKeyVirtualPool, &helpers.Filter{
@@ -171,7 +163,7 @@ func (s *StateService) GetPoolByBaseMint(ctx context.Context, baseMint solanago.
 	return nil, nil
 }
 
-func (s *StateService) GetPoolMigrationQuoteThreshold(ctx context.Context, poolAddress solanago.PublicKey) (*big.Int, error) {
+func (s *DynamicBondingCurve) GetPoolMigrationQuoteThreshold(ctx context.Context, poolAddress solanago.PublicKey) (*big.Int, error) {
 	pool, err := s.GetPool(ctx, poolAddress)
 	if err != nil {
 		return nil, err
@@ -183,7 +175,7 @@ func (s *StateService) GetPoolMigrationQuoteThreshold(ctx context.Context, poolA
 	return new(big.Int).SetUint64(config.MigrationQuoteThreshold), nil
 }
 
-func (s *StateService) GetPoolCurveProgress(ctx context.Context, poolAddress solanago.PublicKey) (float64, error) {
+func (s *DynamicBondingCurve) GetPoolCurveProgress(ctx context.Context, poolAddress solanago.PublicKey) (float64, error) {
 	pool, err := s.GetPool(ctx, poolAddress)
 	if err != nil {
 		return 0, err
@@ -207,7 +199,7 @@ func (s *StateService) GetPoolCurveProgress(ctx context.Context, poolAddress sol
 	return progress, nil
 }
 
-func (s *StateService) GetPoolMetadata(ctx context.Context, poolAddress solanago.PublicKey) ([]VirtualPoolMetadata, error) {
+func (s *DynamicBondingCurve) GetPoolMetadata(ctx context.Context, poolAddress solanago.PublicKey) ([]VirtualPoolMetadata, error) {
 	// filters := helpers.CreateProgramAccountFilter(poolAddress, 8)
 	filters := helpers.CreateProgramAccountFilter(helpers.AccountKeyVirtualPoolMetadata, &helpers.Filter{
 		Owner:  poolAddress,
@@ -228,7 +220,7 @@ func (s *StateService) GetPoolMetadata(ctx context.Context, poolAddress solanago
 	return out, nil
 }
 
-func (s *StateService) GetPartnerMetadata(ctx context.Context, partnerAddress solanago.PublicKey) ([]PartnerMetadata, error) {
+func (s *DynamicBondingCurve) GetPartnerMetadata(ctx context.Context, partnerAddress solanago.PublicKey) ([]PartnerMetadata, error) {
 	// filters := helpers.CreateProgramAccountFilter(partnerAddress, 8)
 	filters := helpers.CreateProgramAccountFilter(helpers.AccountKeyPartnerMetadata, &helpers.Filter{
 		Owner:  partnerAddress,
@@ -249,7 +241,7 @@ func (s *StateService) GetPartnerMetadata(ctx context.Context, partnerAddress so
 	return out, nil
 }
 
-func (s *StateService) GetDammV1LockEscrow(ctx context.Context, lockEscrowAddress solanago.PublicKey) (*LockEscrow, error) {
+func (s *DynamicBondingCurve) GetDammV1LockEscrow(ctx context.Context, lockEscrowAddress solanago.PublicKey) (*LockEscrow, error) {
 	acc, err := s.RPC.GetAccountInfoWithOpts(ctx, lockEscrowAddress, &rpc.GetAccountInfoOpts{Commitment: s.Commitment})
 	if err != nil {
 		return nil, err

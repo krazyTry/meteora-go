@@ -582,7 +582,7 @@ func (c *CpAmm) GetAllPositionsByPool(ctx context.Context, pool solanago.PublicK
 		Owner:  pool,
 		Offset: helpers.ComputeStructOffset(new(dammv2gen.Position), "Pool"),
 	})
-	accs, err := c.Client.GetProgramAccountsWithOpts(ctx, dammv2gen.ProgramID, &rpc.GetProgramAccountsOpts{Filters: filters, Commitment: c.Commitment})
+	accs, err := c.Client.GetProgramAccountsWithOpts(ctx, dammv2gen.ProgramID, &rpc.GetProgramAccountsOpts{Commitment: c.Commitment, Filters: filters})
 	if err != nil {
 		return nil, err
 	}
@@ -647,7 +647,7 @@ func (c *CpAmm) GetAllVestingsByPosition(ctx context.Context, position solanago.
 		Owner:  position,
 		Offset: helpers.ComputeStructOffset(new(dammv2gen.Vesting), "Position"),
 	})
-	accs, err := c.Client.GetProgramAccountsWithOpts(ctx, dammv2gen.ProgramID, &rpc.GetProgramAccountsOpts{Filters: filters, Commitment: c.Commitment})
+	accs, err := c.Client.GetProgramAccountsWithOpts(ctx, dammv2gen.ProgramID, &rpc.GetProgramAccountsOpts{Commitment: c.Commitment, Filters: filters})
 	if err != nil {
 		return nil, err
 	}

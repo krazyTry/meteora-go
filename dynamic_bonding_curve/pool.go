@@ -16,11 +16,6 @@ import (
 	"github.com/gagliardetto/solana-go/rpc"
 )
 
-type PoolService struct {
-	*DynamicBondingCurveProgram
-	State *StateService
-}
-
 type baseFeeLike struct {
 	BaseFeeMode  uint8
 	FirstFactor  uint16
@@ -36,14 +31,7 @@ func baseFeeFromConfig(p BaseFeeConfig) baseFeeLike {
 	return baseFeeLike{BaseFeeMode: p.BaseFeeMode, FirstFactor: p.FirstFactor, SecondFactor: p.SecondFactor, ThirdFactor: p.ThirdFactor}
 }
 
-func NewPoolService(rpcClient *rpc.Client, commitment rpc.CommitmentType) *PoolService {
-	return &PoolService{
-		DynamicBondingCurveProgram: NewDynamicBondingCurveProgram(rpcClient, commitment),
-		State:                      NewStateService(rpcClient, commitment),
-	}
-}
-
-func (s *PoolService) initializeSplPool(params InitializePoolBaseParams) (solanago.Instruction, error) {
+func (s *DynamicBondingCurve) initializeSplPool(params InitializePoolBaseParams) (solanago.Instruction, error) {
 	p := InitializePoolParameters{Name: params.Name, Symbol: params.Symbol, Uri: params.URI}
 	mintMetadata := params.MintMetadata
 	if mintMetadata == nil {
@@ -70,7 +58,7 @@ func (s *PoolService) initializeSplPool(params InitializePoolBaseParams) (solana
 	)
 }
 
-func (s *PoolService) initializeToken2022Pool(params InitializePoolBaseParams) (solanago.Instruction, error) {
+func (s *DynamicBondingCurve) initializeToken2022Pool(params InitializePoolBaseParams) (solanago.Instruction, error) {
 	p := InitializePoolParameters{Name: params.Name, Symbol: params.Symbol, Uri: params.URI}
 	return dbcidl.NewInitializeVirtualPoolWithToken2022Instruction(
 		p,
@@ -91,7 +79,7 @@ func (s *PoolService) initializeToken2022Pool(params InitializePoolBaseParams) (
 	)
 }
 
-func (s *PoolService) CreateConfigIx(params CreateConfigParams) (solanago.Instruction, error) {
+func (s *DynamicBondingCurve) CreateConfigIx(params CreateConfigParams) (solanago.Instruction, error) {
 	if err := helpers.ValidateConfigParameters(params); err != nil {
 		return nil, err
 	}
@@ -108,7 +96,7 @@ func (s *PoolService) CreateConfigIx(params CreateConfigParams) (solanago.Instru
 	)
 }
 
-func (s *PoolService) CreatePoolIx(createPoolParam CreatePoolParams, tokenType TokenType, quoteMint solanago.PublicKey) (solanago.Instruction, error) {
+func (s *DynamicBondingCurve) CreatePoolIx(createPoolParam CreatePoolParams, tokenType TokenType, quoteMint solanago.PublicKey) (solanago.Instruction, error) {
 	pool := helpers.DeriveDbcPoolAddress(quoteMint, createPoolParam.BaseMint, createPoolParam.Config)
 	baseVault := helpers.DeriveDbcTokenVaultAddress(pool, createPoolParam.BaseMint)
 	quoteVault := helpers.DeriveDbcTokenVaultAddress(pool, quoteMint)
@@ -134,15 +122,15 @@ func (s *PoolService) CreatePoolIx(createPoolParam CreatePoolParams, tokenType T
 	return s.initializeToken2022Pool(baseParams)
 }
 
-func (s *PoolService) CreatePool(ctx context.Context, params CreatePoolParams) (solanago.Instruction, error) {
-	poolConfigState, err := s.State.GetPoolConfig(ctx, params.Config)
+func (s *DynamicBondingCurve) CreatePool(ctx context.Context, params CreatePoolParams) (solanago.Instruction, error) {
+	poolConfigState, err := s.GetPoolConfig(ctx, params.Config)
 	if err != nil {
 		return nil, err
 	}
 	return s.CreatePoolIx(params, TokenType(poolConfigState.TokenType), poolConfigState.QuoteMint)
 }
 
-func (s *PoolService) CreateConfigAndPool(ctx context.Context, params CreateConfigAndPoolParams) ([]solanago.Instruction, error) {
+func (s *DynamicBondingCurve) CreateConfigAndPool(ctx context.Context, params CreateConfigAndPoolParams) ([]solanago.Instruction, error) {
 	configIx, err := s.CreateConfigIx(CreateConfigParams{
 		ConfigParameters: params.ConfigParameters,
 		Config:           params.Config,
@@ -177,7 +165,7 @@ type CreateConfigAndPoolWithFirstBuyResult struct {
 	SwapPost       []solanago.Instruction
 }
 
-func (s *PoolService) CreateConfigAndPoolWithFirstBuy(ctx context.Context, params CreateConfigAndPoolWithFirstBuyParams) (CreateConfigAndPoolWithFirstBuyResult, error) {
+func (s *DynamicBondingCurve) CreateConfigAndPoolWithFirstBuy(ctx context.Context, params CreateConfigAndPoolWithFirstBuyParams) (CreateConfigAndPoolWithFirstBuyResult, error) {
 	configIx, err := s.CreateConfigIx(CreateConfigParams{
 		ConfigParameters: params.ConfigParameters,
 		Config:           params.Config,
@@ -226,8 +214,8 @@ type CreatePoolWithFirstBuyResult struct {
 	SwapPost     []solanago.Instruction
 }
 
-func (s *PoolService) CreatePoolWithFirstBuy(ctx context.Context, params CreatePoolWithFirstBuyParams) (CreatePoolWithFirstBuyResult, error) {
-	poolConfigState, err := s.State.GetPoolConfig(ctx, params.CreatePoolParam.Config)
+func (s *DynamicBondingCurve) CreatePoolWithFirstBuy(ctx context.Context, params CreatePoolWithFirstBuyParams) (CreatePoolWithFirstBuyResult, error) {
+	poolConfigState, err := s.GetPoolConfig(ctx, params.CreatePoolParam.Config)
 	if err != nil {
 		return CreatePoolWithFirstBuyResult{}, err
 	}
@@ -257,8 +245,8 @@ type CreatePoolWithPartnerAndCreatorFirstBuyResult struct {
 	CreatorSwapPost []solanago.Instruction
 }
 
-func (s *PoolService) CreatePoolWithPartnerAndCreatorFirstBuy(ctx context.Context, params CreatePoolWithPartnerAndCreatorFirstBuyParams) (CreatePoolWithPartnerAndCreatorFirstBuyResult, error) {
-	poolConfigState, err := s.State.GetPoolConfig(ctx, params.CreatePoolParam.Config)
+func (s *DynamicBondingCurve) CreatePoolWithPartnerAndCreatorFirstBuy(ctx context.Context, params CreatePoolWithPartnerAndCreatorFirstBuyParams) (CreatePoolWithPartnerAndCreatorFirstBuyResult, error) {
+	poolConfigState, err := s.GetPoolConfig(ctx, params.CreatePoolParam.Config)
 	if err != nil {
 		return CreatePoolWithPartnerAndCreatorFirstBuyResult{}, err
 	}
@@ -296,7 +284,7 @@ func (s *PoolService) CreatePoolWithPartnerAndCreatorFirstBuy(ctx context.Contex
 	return res, nil
 }
 
-func (s *PoolService) SwapBuyIx(ctx context.Context, firstBuyParam FirstBuyParams, baseMint solanago.PublicKey, config solanago.PublicKey, baseFee baseFeeLike, swapBaseForQuote bool, activationType ActivationType, tokenType TokenType, quoteMint solanago.PublicKey, enableFirstSwapWithMinFee bool) (pre []solanago.Instruction, ix solanago.Instruction, post []solanago.Instruction, err error) {
+func (s *DynamicBondingCurve) SwapBuyIx(ctx context.Context, firstBuyParam FirstBuyParams, baseMint solanago.PublicKey, config solanago.PublicKey, baseFee baseFeeLike, swapBaseForQuote bool, activationType ActivationType, tokenType TokenType, quoteMint solanago.PublicKey, enableFirstSwapWithMinFee bool) (pre []solanago.Instruction, ix solanago.Instruction, post []solanago.Instruction, err error) {
 	if err = helpers.ValidateSwapAmount(firstBuyParam.BuyAmount); err != nil {
 		return
 	}
@@ -403,15 +391,15 @@ func (s *PoolService) SwapBuyIx(ctx context.Context, firstBuyParam FirstBuyParam
 	return
 }
 
-func (s *PoolService) Swap(ctx context.Context, params SwapParams) ([]solanago.Instruction, solanago.Instruction, []solanago.Instruction, error) {
+func (s *DynamicBondingCurve) Swap(ctx context.Context, params SwapParams) ([]solanago.Instruction, solanago.Instruction, []solanago.Instruction, error) {
 	if err := helpers.ValidateSwapAmount(params.AmountIn); err != nil {
 		return nil, nil, nil, err
 	}
-	poolState, err := s.State.GetPool(ctx, params.Pool)
+	poolState, err := s.GetPool(ctx, params.Pool)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	poolConfigState, err := s.State.GetPoolConfig(ctx, poolState.Config)
+	poolConfigState, err := s.GetPoolConfig(ctx, poolState.Config)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -502,12 +490,12 @@ func (s *PoolService) Swap(ctx context.Context, params SwapParams) ([]solanago.I
 	return pre, swapIx, post, nil
 }
 
-func (s *PoolService) Swap2(ctx context.Context, params Swap2Params) ([]solanago.Instruction, solanago.Instruction, []solanago.Instruction, error) {
-	poolState, err := s.State.GetPool(ctx, params.Pool)
+func (s *DynamicBondingCurve) Swap2(ctx context.Context, params Swap2Params) ([]solanago.Instruction, solanago.Instruction, []solanago.Instruction, error) {
+	poolState, err := s.GetPool(ctx, params.Pool)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	poolConfigState, err := s.State.GetPoolConfig(ctx, poolState.Config)
+	poolConfigState, err := s.GetPoolConfig(ctx, poolState.Config)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -614,11 +602,11 @@ func (s *PoolService) Swap2(ctx context.Context, params Swap2Params) ([]solanago
 }
 
 // SwapQuote helpers
-func (s *PoolService) SwapQuote(params SwapQuoteParams) (SwapQuoteResult, error) {
+func (s *DynamicBondingCurve) SwapQuote(params SwapQuoteParams) (SwapQuoteResult, error) {
 	return math.SwapQuote(params.VirtualPool, params.Config, params.SwapBaseForQuote, params.AmountIn, params.SlippageBps, params.HasReferral, params.CurrentPoint, params.EligibleForFirstSwapWithMinFee)
 }
 
-func (s *PoolService) SwapQuote2(params SwapQuote2Params) (SwapQuote2Result, error) {
+func (s *DynamicBondingCurve) SwapQuote2(params SwapQuote2Params) (SwapQuote2Result, error) {
 	if params.SwapMode == SwapModeExactIn {
 		return math.SwapQuoteExactIn(params.VirtualPool, params.Config, params.SwapBaseForQuote, params.AmountIn, params.SlippageBps, params.HasReferral, params.CurrentPoint, params.EligibleForFirstSwapWithMinFee)
 	}

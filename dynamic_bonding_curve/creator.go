@@ -9,13 +9,7 @@ import (
 
 	solanago "github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/programs/system"
-	"github.com/gagliardetto/solana-go/rpc"
 )
-
-type CreatorService struct {
-	*DynamicBondingCurveProgram
-	State *StateService
-}
 
 type claimCreatorTradingFeeAccounts struct {
 	PoolAuthority     solanago.PublicKey
@@ -33,14 +27,7 @@ type claimCreatorTradingFeeAccounts struct {
 	Program           solanago.PublicKey
 }
 
-func NewCreatorService(rpcClient *rpc.Client, commitment rpc.CommitmentType) *CreatorService {
-	return &CreatorService{
-		DynamicBondingCurveProgram: NewDynamicBondingCurveProgram(rpcClient, commitment),
-		State:                      NewStateService(rpcClient, commitment),
-	}
-}
-
-func (s *CreatorService) CreatePoolMetadata(ctx context.Context, params CreateVirtualPoolMetadataParams) (solanago.Instruction, error) {
+func (s *DynamicBondingCurve) CreatePoolMetadata(ctx context.Context, params CreateVirtualPoolMetadataParams) (solanago.Instruction, error) {
 	meta := CreateVirtualPoolMetadataParameters{
 		Padding: [96]uint8{},
 		Name:    params.Name,
@@ -60,8 +47,8 @@ func (s *CreatorService) CreatePoolMetadata(ctx context.Context, params CreateVi
 	)
 }
 
-func (s *CreatorService) TransferPoolCreator(ctx context.Context, params TransferPoolCreatorParams) (solanago.Instruction, error) {
-	virtualPoolState, err := s.State.GetPool(ctx, params.VirtualPool)
+func (s *DynamicBondingCurve) TransferPoolCreator(ctx context.Context, params TransferPoolCreatorParams) (solanago.Instruction, error) {
+	virtualPoolState, err := s.GetPool(ctx, params.VirtualPool)
 	if err != nil {
 		return nil, err
 	}
@@ -84,13 +71,13 @@ func (s *CreatorService) TransferPoolCreator(ctx context.Context, params Transfe
 	return ix, nil
 }
 
-func (s *CreatorService) CreatorWithdrawSurplus(ctx context.Context, params CreatorWithdrawSurplusParams) ([]solanago.Instruction, error) {
-	poolState, err := s.State.GetPool(ctx, params.VirtualPool)
+func (s *DynamicBondingCurve) CreatorWithdrawSurplus(ctx context.Context, params CreatorWithdrawSurplusParams) ([]solanago.Instruction, error) {
+	poolState, err := s.GetPool(ctx, params.VirtualPool)
 	if err != nil {
 		return nil, err
 	}
 
-	poolConfigState, err := s.State.GetPoolConfig(ctx, poolState.Config)
+	poolConfigState, err := s.GetPoolConfig(ctx, poolState.Config)
 	if err != nil {
 		return nil, err
 	}
@@ -136,13 +123,13 @@ func (s *CreatorService) CreatorWithdrawSurplus(ctx context.Context, params Crea
 	return out, nil
 }
 
-func (s *CreatorService) WithdrawMigrationFee(ctx context.Context, params WithdrawMigrationFeeParams) ([]solanago.Instruction, error) {
-	virtualPoolState, err := s.State.GetPool(ctx, params.VirtualPool)
+func (s *DynamicBondingCurve) WithdrawMigrationFee(ctx context.Context, params WithdrawMigrationFeeParams) ([]solanago.Instruction, error) {
+	virtualPoolState, err := s.GetPool(ctx, params.VirtualPool)
 	if err != nil {
 		return nil, err
 	}
 
-	configState, err := s.State.GetPoolConfig(ctx, virtualPoolState.Config)
+	configState, err := s.GetPoolConfig(ctx, virtualPoolState.Config)
 	if err != nil {
 		return nil, err
 	}
@@ -190,7 +177,7 @@ func (s *CreatorService) WithdrawMigrationFee(ctx context.Context, params Withdr
 }
 
 // claimWithQuoteMintSol prepares accounts and instructions for SOL-quote claim.
-func (s *CreatorService) claimWithQuoteMintSol(ctx context.Context, params ClaimCreatorTradingFeeWithQuoteMintSolParams) (accounts *claimCreatorTradingFeeAccounts, pre []solanago.Instruction, post []solanago.Instruction, err error) {
+func (s *DynamicBondingCurve) claimCreatorWithQuoteMintSol(ctx context.Context, params ClaimCreatorTradingFeeWithQuoteMintSolParams) (accounts *claimCreatorTradingFeeAccounts, pre []solanago.Instruction, post []solanago.Instruction, err error) {
 	pre = []solanago.Instruction{}
 	post = []solanago.Instruction{}
 
@@ -235,7 +222,7 @@ func (s *CreatorService) claimWithQuoteMintSol(ctx context.Context, params Claim
 }
 
 // claimWithQuoteMintNotSol prepares accounts and pre-instructions for non-SOL quote mint.
-func (s *CreatorService) claimWithQuoteMintNotSol(ctx context.Context, params ClaimCreatorTradingFeeWithQuoteMintNotSolParams) (accounts *claimCreatorTradingFeeAccounts, pre []solanago.Instruction, err error) {
+func (s *DynamicBondingCurve) claimCreatorWithQuoteMintNotSol(ctx context.Context, params ClaimCreatorTradingFeeWithQuoteMintNotSolParams) (accounts *claimCreatorTradingFeeAccounts, pre []solanago.Instruction, err error) {
 	tokenBaseAccount, tokenQuoteAccount, pre, err := s.PrepareTokenAccounts(ctx, params.FeeReceiver, params.Payer, params.PoolState.BaseMint, params.PoolConfigState.QuoteMint, params.TokenBaseProgram, params.TokenQuoteProgram)
 	if err != nil {
 		return nil, nil, err
@@ -259,13 +246,13 @@ func (s *CreatorService) claimWithQuoteMintNotSol(ctx context.Context, params Cl
 }
 
 // ClaimCreatorTradingFee builds claim creator trading fee instructions.
-func (s *CreatorService) ClaimCreatorTradingFee(ctx context.Context, params ClaimCreatorTradingFeeParams) (pre []solanago.Instruction, ix solanago.Instruction, post []solanago.Instruction, err error) {
-	poolState, err := s.State.GetPool(ctx, params.Pool)
+func (s *DynamicBondingCurve) ClaimCreatorTradingFee(ctx context.Context, params ClaimCreatorTradingFeeParams) (pre []solanago.Instruction, ix solanago.Instruction, post []solanago.Instruction, err error) {
+	poolState, err := s.GetPool(ctx, params.Pool)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	poolConfigState, err := s.State.GetPoolConfig(ctx, poolState.Config)
+	poolConfigState, err := s.GetPoolConfig(ctx, poolState.Config)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -295,7 +282,7 @@ func (s *CreatorService) ClaimCreatorTradingFee(ctx context.Context, params Clai
 			feeReceiver = *params.Receiver
 		}
 
-		accs, preIx, postIx, err := s.claimWithQuoteMintSol(ctx, ClaimCreatorTradingFeeWithQuoteMintSolParams{
+		accs, preIx, postIx, err := s.claimCreatorWithQuoteMintSol(ctx, ClaimCreatorTradingFeeWithQuoteMintSolParams{
 			ClaimCreatorTradingFeeWithQuoteMintNotSolParams: ClaimCreatorTradingFeeWithQuoteMintNotSolParams{
 				Creator:           params.Creator,
 				Payer:             params.Payer,
@@ -339,7 +326,7 @@ func (s *CreatorService) ClaimCreatorTradingFee(ctx context.Context, params Clai
 	if params.Receiver != nil {
 		feeReceiver = *params.Receiver
 	}
-	accs, preIx, err := s.claimWithQuoteMintNotSol(ctx, ClaimCreatorTradingFeeWithQuoteMintNotSolParams{
+	accs, preIx, err := s.claimCreatorWithQuoteMintNotSol(ctx, ClaimCreatorTradingFeeWithQuoteMintNotSolParams{
 		Creator:           params.Creator,
 		Payer:             params.Payer,
 		FeeReceiver:       feeReceiver,
@@ -376,13 +363,13 @@ func (s *CreatorService) ClaimCreatorTradingFee(ctx context.Context, params Clai
 }
 
 // ClaimCreatorTradingFee2 builds claim creator trading fee instructions for explicit receiver.
-func (s *CreatorService) ClaimCreatorTradingFee2(ctx context.Context, params ClaimCreatorTradingFee2Params) (pre []solanago.Instruction, ix solanago.Instruction, post []solanago.Instruction, err error) {
-	poolState, err := s.State.GetPool(ctx, params.Pool)
+func (s *DynamicBondingCurve) ClaimCreatorTradingFee2(ctx context.Context, params ClaimCreatorTradingFee2Params) (pre []solanago.Instruction, ix solanago.Instruction, post []solanago.Instruction, err error) {
+	poolState, err := s.GetPool(ctx, params.Pool)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	poolConfigState, err := s.State.GetPoolConfig(ctx, poolState.Config)
+	poolConfigState, err := s.GetPoolConfig(ctx, poolState.Config)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -448,7 +435,7 @@ func (s *CreatorService) ClaimCreatorTradingFee2(ctx context.Context, params Cla
 		return pre, ix, post, nil
 	}
 
-	accs, preIx, err := s.claimWithQuoteMintNotSol(ctx, ClaimCreatorTradingFeeWithQuoteMintNotSolParams{
+	accs, preIx, err := s.claimCreatorWithQuoteMintNotSol(ctx, ClaimCreatorTradingFeeWithQuoteMintNotSolParams{
 		Creator:           params.Creator,
 		Payer:             params.Payer,
 		FeeReceiver:       params.Receiver,
