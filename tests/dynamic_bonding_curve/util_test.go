@@ -1,4 +1,4 @@
-package meteora
+package dynamic_bonding_curve
 
 import (
 	"context"

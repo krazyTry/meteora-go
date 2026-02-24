@@ -62,64 +62,13 @@ https://pkg.go.dev/github.com/krazyTry/meteora-go
 
 ### Dynamic Bonding Curve (DBC) Example
 
-```go
-package main
+Read tests in `tests/dynamic_bonding_curve`
 
-import (
-	"context"
-	"math/big"
-	
-	"github.com/gagliardetto/solana-go"
-	"github.com/gagliardetto/solana-go/rpc"
-	"github.com/gagliardetto/solana-go/rpc/ws"
-	"github.com/krazyTry/meteora-go/dbc"
-)
 
-func main() {
-	// Initialize RPC client
-	rpcClient := rpc.New("https://api.mainnet-beta.solana.com")
-	wsClient, _ := ws.Connect(context.Background(), "wss://api.mainnet-beta.solana.com")
-	
-	// Create DBC instance
-	config := solana.NewWallet()
-	poolCreator := solana.NewWallet()
-	poolPartner := solana.NewWallet()
-	leftoverReceiver := solana.NewWallet()
-	
-	meteoraDBC, _ := dbc.NewDBC(rpcClient, config, poolCreator, poolPartner, leftoverReceiver)
-	
-	// Get swap quote
-	baseMint := solana.MustPublicKeyFromBase58("")
-	amountIn := big.NewInt(1000000) // 1 token with 6 decimals
-	slippageBps := uint64(250)      // 2.5% slippage
-	
-	result, poolState, configState, currentPoint, _ := meteoraDBC.SwapQuote(
-		context.Background(),
-		baseMint,
-		false,        // buy (quote => base)
-		amountIn,
-		slippageBps,
-		false,        // no referral
-	)
-	
-	// Execute the swap
-	buyer := solana.NewWallet()
-	sig, _ := meteoraDBC.Buy(
-		context.Background(),
-		wsClient,
-		buyer,
-		nil, // no referral
-		poolState.Address,
-		poolState.VirtualPool,
-		configState,
-		amountIn,
-		result.MinimumAmountOut,
-		currentPoint,
-	)
-	
-	fmt.Printf("Swap executed with signature: %s\n", sig)
-}
-```
+### Dynamic AMM (DAMM V2) Example
+
+Read tests in `tests/damm_v2`
+
 
 ## Related Projects
 
@@ -158,37 +107,30 @@ Migration can either be handled automatically by the Meteora platform, or manual
 #### How can I quickly find my DAMM V2?
 
 ```go
-func GetPoolDammV2(baseMint solana.PublicKey) (*dammV2.Pool, error) {
-	ctx1, cancel1 := context.WithTimeout(ctx, ttl30s)
-	defer cancel1()
+func GetPoolDammV2(baseMint solana.PublicKey) (dammv2.AccountWithPool, error) {
+	pools, err := cpAmm.FetchPoolStatesByTokenAMint(ctx, baseMint)
+	if err != nil {
+		t.Fatal("cpAmm.FetchPoolStatesByTokenAMint() fail", err)
+	}
 
-	// Get pools – since DAMM V2 allows anyone to create a pool, this returns an array
-	pools, _ := dammV2.GetPoolsByBaseMint(
-		ctx1,
-		rpcClient,
-		baseMint,
-	)
-	// Get all userPositions for our creator
-	userPositions, _ := dammV2.GetUserPositionsByUser(
-		ctx1,
-		rpcClient,
-		poolCreator,
-	)
+	positions, err := cpAmm.GetPositionsByUser(ctx, poolCreator)
+	if err != nil {
+		t.Fatal("cpAmm.GetPositionsByUser() fail", err)
+	}
 
-	// Match and retrieve the DAMM V2 pool that belongs to us
-	var pool *dammV2.Pool
-loop:
-	for _, v := range pools {
-		for _, vv := range userPositions {
-			if v.Address != vv.PositionState.Pool {
+	var p dammv2.AccountWithPool
+
+	for _,pool :=range pools {
+		for _, position := range positions {
+			if !position.PositionState.Pool.Equals(pool.PublicKey) {
 				continue
 			}
-			pool = v
-			break loop
+			p = pool
+			break
 		}
 	}
 
-	return pool, nil
+	return p, nil
 }
 ```
 
