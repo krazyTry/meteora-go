@@ -508,6 +508,7 @@ func (s *DynamicBondingCurve) MigrateToDammV2(ctx context.Context, params Migrat
 
 	return MigrateToDammV2Response{
 		Transaction:       tx,
+		DammV2Pool:        dammPool,
 		FirstPositionNFT:  firstKP,
 		SecondPositionNFT: secondKP,
 	}, nil

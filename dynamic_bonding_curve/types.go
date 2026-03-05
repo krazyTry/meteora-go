@@ -350,6 +350,7 @@ type MigrateToDammV2Params = MigrateToDammV1Params
 
 type MigrateToDammV2Response struct {
 	Transaction       *solanago.Transaction
+	DammV2Pool        solanago.PublicKey
 	FirstPositionNFT  solanago.PrivateKey
 	SecondPositionNFT solanago.PrivateKey
 }
