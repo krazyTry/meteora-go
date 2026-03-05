@@ -39,7 +39,7 @@ func TestClaimFee(t *testing.T) {
 		t.Fatal("cpAmm.GetPositionsByUser() fail", err)
 	}
 
-	var partnerPosition dammv2.UserPosition
+	var partnerPosition *dammv2.UserPosition
 	for _, v := range positions {
 		if !v.PositionState.Pool.Equals(pool.PublicKey) {
 			continue

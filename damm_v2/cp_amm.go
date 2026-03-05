@@ -391,7 +391,7 @@ func (c *CpAmm) FetchPoolState(ctx context.Context, pool solanago.PublicKey) (*P
 	return pl, nil
 }
 
-func (c *CpAmm) FetchPoolStatesByTokenAMint(ctx context.Context, tokenAMint solanago.PublicKey) ([]AccountWithPool, error) {
+func (c *CpAmm) FetchPoolStatesByTokenAMint(ctx context.Context, tokenAMint solanago.PublicKey) ([]*AccountWithPool, error) {
 	filters := helpers.CreateProgramAccountFilter(helpers.AccountKeyPool, &helpers.Filter{
 		Owner:  tokenAMint,
 		Offset: helpers.ComputeStructOffset(new(dammv2gen.Pool), "TokenAMint"),
@@ -402,14 +402,14 @@ func (c *CpAmm) FetchPoolStatesByTokenAMint(ctx context.Context, tokenAMint sola
 	if err != nil {
 		return nil, err
 	}
-	out := []AccountWithPool{}
+	out := []*AccountWithPool{}
 	for _, acc := range accs {
 		parsed, err := dammv2gen.ParseAnyAccount(acc.Account.Data.GetBinary())
 		if err != nil {
 			continue
 		}
 		if pl, ok := parsed.(*dammv2gen.Pool); ok {
-			out = append(out, AccountWithPool{PublicKey: acc.Pubkey, Account: pl})
+			out = append(out, &AccountWithPool{PublicKey: acc.Pubkey, Account: pl})
 		}
 	}
 	return out, nil
@@ -520,64 +520,64 @@ func (c *CpAmm) GetMultiplePositions(ctx context.Context, positions []solanago.P
 	return out, nil
 }
 
-func (c *CpAmm) GetAllConfigs(ctx context.Context) ([]AccountWithConfig, error) {
+func (c *CpAmm) GetAllConfigs(ctx context.Context) ([]*AccountWithConfig, error) {
 	filters := helpers.CreateProgramAccountFilter(helpers.AccountKeyConfig, nil)
 	accs, err := c.Client.GetProgramAccountsWithOpts(ctx, dammv2gen.ProgramID, &rpc.GetProgramAccountsOpts{Commitment: c.Commitment, Filters: filters})
 	if err != nil {
 		return nil, err
 	}
-	out := []AccountWithConfig{}
+	out := []*AccountWithConfig{}
 	for _, acc := range accs {
 		parsed, err := dammv2gen.ParseAnyAccount(acc.Account.Data.GetBinary())
 		if err != nil {
 			continue
 		}
 		if cfg, ok := parsed.(*dammv2gen.Config); ok {
-			out = append(out, AccountWithConfig{PublicKey: acc.Pubkey, Account: cfg})
+			out = append(out, &AccountWithConfig{PublicKey: acc.Pubkey, Account: cfg})
 		}
 	}
 	return out, nil
 }
 
-func (c *CpAmm) GetAllPools(ctx context.Context) ([]AccountWithPool, error) {
+func (c *CpAmm) GetAllPools(ctx context.Context) ([]*AccountWithPool, error) {
 	filters := helpers.CreateProgramAccountFilter(helpers.AccountKeyPool, nil)
 	accs, err := c.Client.GetProgramAccountsWithOpts(ctx, dammv2gen.ProgramID, &rpc.GetProgramAccountsOpts{Commitment: c.Commitment, Filters: filters})
 	if err != nil {
 		return nil, err
 	}
-	out := []AccountWithPool{}
+	out := []*AccountWithPool{}
 	for _, acc := range accs {
 		parsed, err := dammv2gen.ParseAnyAccount(acc.Account.Data.GetBinary())
 		if err != nil {
 			continue
 		}
 		if pl, ok := parsed.(*dammv2gen.Pool); ok {
-			out = append(out, AccountWithPool{PublicKey: acc.Pubkey, Account: pl})
+			out = append(out, &AccountWithPool{PublicKey: acc.Pubkey, Account: pl})
 		}
 	}
 	return out, nil
 }
 
-func (c *CpAmm) GetAllPositions(ctx context.Context) ([]AccountWithPosition, error) {
+func (c *CpAmm) GetAllPositions(ctx context.Context) ([]*AccountWithPosition, error) {
 	filters := helpers.CreateProgramAccountFilter(helpers.AccountKeyPosition, nil)
 	accs, err := c.Client.GetProgramAccountsWithOpts(ctx, dammv2gen.ProgramID, &rpc.GetProgramAccountsOpts{Commitment: c.Commitment, Filters: filters})
 	if err != nil {
 		return nil, err
 	}
-	out := []AccountWithPosition{}
+	out := []*AccountWithPosition{}
 	for _, acc := range accs {
 		parsed, err := dammv2gen.ParseAnyAccount(acc.Account.Data.GetBinary())
 		if err != nil {
 			continue
 		}
 		if pos, ok := parsed.(*dammv2gen.Position); ok {
-			out = append(out, AccountWithPosition{PublicKey: acc.Pubkey, Account: pos})
+			out = append(out, &AccountWithPosition{PublicKey: acc.Pubkey, Account: pos})
 		}
 	}
 	return out, nil
 }
 
-func (c *CpAmm) GetAllPositionsByPool(ctx context.Context, pool solanago.PublicKey) ([]AccountWithPosition, error) {
+func (c *CpAmm) GetAllPositionsByPool(ctx context.Context, pool solanago.PublicKey) ([]*AccountWithPosition, error) {
 	filters := helpers.CreateProgramAccountFilter(helpers.AccountKeyPosition, &helpers.Filter{
 		Owner:  pool,
 		Offset: helpers.ComputeStructOffset(new(dammv2gen.Position), "Pool"),
@@ -586,25 +586,25 @@ func (c *CpAmm) GetAllPositionsByPool(ctx context.Context, pool solanago.PublicK
 	if err != nil {
 		return nil, err
 	}
-	out := []AccountWithPosition{}
+	out := []*AccountWithPosition{}
 	for _, acc := range accs {
 		parsed, err := dammv2gen.ParseAnyAccount(acc.Account.Data.GetBinary())
 		if err != nil {
 			continue
 		}
 		if pos, ok := parsed.(*dammv2gen.Position); ok {
-			out = append(out, AccountWithPosition{PublicKey: acc.Pubkey, Account: pos})
+			out = append(out, &AccountWithPosition{PublicKey: acc.Pubkey, Account: pos})
 		}
 	}
 	return out, nil
 }
 
-func (c *CpAmm) GetUserPositionByPool(ctx context.Context, pool, user solanago.PublicKey) ([]UserPosition, error) {
+func (c *CpAmm) GetUserPositionByPool(ctx context.Context, pool, user solanago.PublicKey) ([]*UserPosition, error) {
 	positions, err := c.GetPositionsByUser(ctx, user)
 	if err != nil {
 		return nil, err
 	}
-	out := []UserPosition{}
+	out := []*UserPosition{}
 	for _, pos := range positions {
 		if pos.PositionState.Pool.Equals(pool) {
 			out = append(out, pos)
@@ -613,13 +613,13 @@ func (c *CpAmm) GetUserPositionByPool(ctx context.Context, pool, user solanago.P
 	return out, nil
 }
 
-func (c *CpAmm) GetPositionsByUser(ctx context.Context, user solanago.PublicKey) ([]UserPosition, error) {
+func (c *CpAmm) GetPositionsByUser(ctx context.Context, user solanago.PublicKey) ([]*UserPosition, error) {
 	userPositionAccounts, err := helpers.GetAllPositionNftAccountByOwner(ctx, c.Client, user)
 	if err != nil {
 		return nil, err
 	}
 	if len(userPositionAccounts) == 0 {
-		return []UserPosition{}, nil
+		return nil, nil
 	}
 	positionAddresses := make([]solanago.PublicKey, len(userPositionAccounts))
 	for i, account := range userPositionAccounts {
@@ -629,10 +629,10 @@ func (c *CpAmm) GetPositionsByUser(ctx context.Context, user solanago.PublicKey)
 	if err != nil {
 		return nil, err
 	}
-	positions := make([]UserPosition, 0, len(positionAddresses))
+	positions := make([]*UserPosition, 0, len(positionAddresses))
 	for i, account := range userPositionAccounts {
 		posState := positionStates[i]
-		positions = append(positions, UserPosition{PositionNftAccount: account.PositionNftAccount, Position: positionAddresses[i], PositionState: posState})
+		positions = append(positions, &UserPosition{PositionNftAccount: account.PositionNftAccount, Position: positionAddresses[i], PositionState: posState})
 	}
 	sort.Slice(positions, func(i, j int) bool {
 		a := totalPositionLiquidity(positions[i].PositionState)
@@ -642,7 +642,7 @@ func (c *CpAmm) GetPositionsByUser(ctx context.Context, user solanago.PublicKey)
 	return positions, nil
 }
 
-func (c *CpAmm) GetAllVestingsByPosition(ctx context.Context, position solanago.PublicKey) ([]VestingWithAccount, error) {
+func (c *CpAmm) GetAllVestingsByPosition(ctx context.Context, position solanago.PublicKey) ([]*VestingWithAccount, error) {
 	filters := helpers.CreateProgramAccountFilter(helpers.AccountKeyVesting, &helpers.Filter{
 		Owner:  position,
 		Offset: helpers.ComputeStructOffset(new(dammv2gen.Vesting), "Position"),
@@ -651,14 +651,14 @@ func (c *CpAmm) GetAllVestingsByPosition(ctx context.Context, position solanago.
 	if err != nil {
 		return nil, err
 	}
-	out := []VestingWithAccount{}
+	out := []*VestingWithAccount{}
 	for _, acc := range accs {
 		parsed, err := dammv2gen.ParseAnyAccount(acc.Account.Data.GetBinary())
 		if err != nil {
 			continue
 		}
 		if v, ok := parsed.(*dammv2gen.Vesting); ok {
-			out = append(out, VestingWithAccount{Account: acc.Pubkey, VestingState: v})
+			out = append(out, &VestingWithAccount{Account: acc.Pubkey, VestingState: v})
 		}
 	}
 	return out, nil
@@ -673,7 +673,7 @@ func (c *CpAmm) isPermanentLockedPosition(position *PositionState) bool {
 	return position.PermanentLockedLiquidity.BigInt().Sign() > 0
 }
 
-func (c *CpAmm) canUnlockPosition(position *PositionState, vestings []VestingWithAccount, currentPoint *big.Int) (bool, string) {
+func (c *CpAmm) canUnlockPosition(position *PositionState, vestings []*VestingWithAccount, currentPoint *big.Int) (bool, string) {
 	if len(vestings) > 0 {
 		if c.isPermanentLockedPosition(position) {
 			return false, "Position is permanently locked"

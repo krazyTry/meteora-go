@@ -358,7 +358,7 @@ type RemoveAllLiquidityAndClosePositionParams struct {
 	PositionState         *PositionState
 	TokenAAmountThreshold *big.Int
 	TokenBAmountThreshold *big.Int
-	Vestings              []VestingWithAccount
+	Vestings              []*VestingWithAccount
 	CurrentPoint          *big.Int
 }
 
@@ -374,7 +374,7 @@ type MergePositionParams struct {
 	TokenBAmountAddLiquidityThreshold    *big.Int
 	TokenAAmountRemoveLiquidityThreshold *big.Int
 	TokenBAmountRemoveLiquidityThreshold *big.Int
-	PositionBVestings                    []VestingWithAccount
+	PositionBVestings                    []*VestingWithAccount
 	CurrentPoint                         *big.Int
 }
 
