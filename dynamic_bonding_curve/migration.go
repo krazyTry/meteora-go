@@ -92,7 +92,7 @@ func (s *DynamicBondingCurve) WithdrawLeftover(ctx context.Context, params Withd
 		poolState.BaseMint,
 		poolConfigState.LeftoverReceiver,
 		tokenBaseProgram,
-		helpers.DeriveDbcEventAuthority(),
+		s.EventAuthority,
 		helpers.DynamicBondingCurveProgramID,
 	)
 	if err != nil {
@@ -110,7 +110,7 @@ func (s *DynamicBondingCurve) CreateDammV1MigrationMetadata(ctx context.Context,
 		migrationMetadata,
 		params.Payer,
 		system.ProgramID,
-		helpers.DeriveDbcEventAuthority(),
+		s.EventAuthority,
 		helpers.DynamicBondingCurveProgramID,
 	)
 }
@@ -415,7 +415,7 @@ func (s *DynamicBondingCurve) CreateDammV2MigrationMetadata(ctx context.Context,
 		migrationMetadata,
 		params.Payer,
 		system.ProgramID,
-		helpers.DeriveDbcEventAuthority(),
+		s.EventAuthority,
 		helpers.DynamicBondingCurveProgramID,
 	)
 }

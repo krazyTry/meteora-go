@@ -53,7 +53,7 @@ func (s *DynamicBondingCurve) initializeSplPool(params InitializePoolBaseParams)
 		token.ProgramID,
 		token.ProgramID,
 		system.ProgramID,
-		helpers.DeriveDbcEventAuthority(),
+		s.EventAuthority,
 		helpers.DynamicBondingCurveProgramID,
 	)
 }
@@ -74,7 +74,7 @@ func (s *DynamicBondingCurve) initializeToken2022Pool(params InitializePoolBaseP
 		token.ProgramID,
 		solanago.Token2022ProgramID,
 		system.ProgramID,
-		helpers.DeriveDbcEventAuthority(),
+		s.EventAuthority,
 		helpers.DynamicBondingCurveProgramID,
 	)
 }
@@ -91,7 +91,7 @@ func (s *DynamicBondingCurve) CreateConfigIx(params CreateConfigParams) (solanag
 		params.QuoteMint,
 		params.Payer,
 		system.ProgramID,
-		helpers.DeriveDbcEventAuthority(),
+		s.EventAuthority,
 		helpers.DynamicBondingCurveProgramID,
 	)
 }
@@ -377,7 +377,7 @@ func (s *DynamicBondingCurve) SwapBuyIx(ctx context.Context, firstBuyParam First
 		outputProgram,
 		inputProgram,
 		optionalAccount(firstBuyParam.ReferralTokenAccount),
-		helpers.DeriveDbcEventAuthority(),
+		s.EventAuthority,
 		helpers.DynamicBondingCurveProgramID,
 	)
 	if err != nil {
@@ -464,7 +464,7 @@ func (s *DynamicBondingCurve) Swap(ctx context.Context, params SwapParams) ([]so
 			return inputProgram
 		}(),
 		optionalAccount(params.ReferralTokenAccount),
-		helpers.DeriveDbcEventAuthority(),
+		s.EventAuthority,
 		helpers.DynamicBondingCurveProgramID,
 	)
 	if err != nil {
@@ -577,7 +577,7 @@ func (s *DynamicBondingCurve) Swap2(ctx context.Context, params Swap2Params) ([]
 			return inputProgram
 		}(),
 		optionalAccount(params.ReferralTokenAccount),
-		helpers.DeriveDbcEventAuthority(),
+		s.EventAuthority,
 		helpers.DynamicBondingCurveProgramID,
 	)
 

@@ -9,16 +9,18 @@ import (
 )
 
 type DynamicBondingCurve struct {
-	RPC           *rpc.Client
-	PoolAuthority solanago.PublicKey
-	Commitment    rpc.CommitmentType
+	RPC            *rpc.Client
+	PoolAuthority  solanago.PublicKey
+	EventAuthority solanago.PublicKey
+	Commitment     rpc.CommitmentType
 }
 
 func NewDynamicBondingCurve(rpcClient *rpc.Client, commitment rpc.CommitmentType) *DynamicBondingCurve {
 	return &DynamicBondingCurve{
-		RPC:           rpcClient,
-		PoolAuthority: helpers.DeriveDbcPoolAuthority(),
-		Commitment:    commitment,
+		RPC:            rpcClient,
+		PoolAuthority:  helpers.DeriveDbcPoolAuthority(),
+		EventAuthority: helpers.DeriveDbcEventAuthority(),
+		Commitment:     commitment,
 	}
 }
 

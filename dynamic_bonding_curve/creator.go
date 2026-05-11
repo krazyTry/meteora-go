@@ -42,7 +42,7 @@ func (s *DynamicBondingCurve) CreatePoolMetadata(ctx context.Context, params Cre
 		params.Creator,
 		params.Payer,
 		system.ProgramID,
-		helpers.DeriveDbcEventAuthority(),
+		s.EventAuthority,
 		helpers.DynamicBondingCurveProgramID,
 	)
 }
@@ -59,7 +59,7 @@ func (s *DynamicBondingCurve) TransferPoolCreator(ctx context.Context, params Tr
 		virtualPoolState.Config,
 		params.Creator,
 		params.NewCreator,
-		helpers.DeriveDbcEventAuthority(),
+		s.EventAuthority,
 		helpers.DynamicBondingCurveProgramID,
 	)
 	if err != nil {
@@ -112,7 +112,7 @@ func (s *DynamicBondingCurve) CreatorWithdrawSurplus(ctx context.Context, params
 		poolConfigState.QuoteMint,
 		params.Creator,
 		tokenQuoteProgram,
-		helpers.DeriveDbcEventAuthority(),
+		s.EventAuthority,
 		helpers.DynamicBondingCurveProgramID,
 	)
 	if err != nil {
@@ -165,7 +165,7 @@ func (s *DynamicBondingCurve) WithdrawMigrationFee(ctx context.Context, params W
 		configState.QuoteMint,
 		params.Sender,
 		tokenQuoteProgram,
-		helpers.DeriveDbcEventAuthority(),
+		s.EventAuthority,
 		helpers.DynamicBondingCurveProgramID,
 	)
 	if err != nil {
@@ -215,7 +215,7 @@ func (s *DynamicBondingCurve) claimCreatorWithQuoteMintSol(ctx context.Context, 
 		Creator:           params.Creator,
 		TokenBaseProgram:  params.TokenBaseProgram,
 		TokenQuoteProgram: params.TokenQuoteProgram,
-		EventAuthority:    helpers.DeriveDbcEventAuthority(),
+		EventAuthority:    s.EventAuthority,
 		Program:           helpers.DynamicBondingCurveProgramID,
 	}
 	return accounts, pre, post, nil
@@ -239,7 +239,7 @@ func (s *DynamicBondingCurve) claimCreatorWithQuoteMintNotSol(ctx context.Contex
 		Creator:           params.Creator,
 		TokenBaseProgram:  params.TokenBaseProgram,
 		TokenQuoteProgram: params.TokenQuoteProgram,
-		EventAuthority:    helpers.DeriveDbcEventAuthority(),
+		EventAuthority:    s.EventAuthority,
 		Program:           helpers.DynamicBondingCurveProgramID,
 	}
 	return accounts, pre, nil
@@ -426,7 +426,7 @@ func (s *DynamicBondingCurve) ClaimCreatorTradingFee2(ctx context.Context, param
 			params.Creator,
 			tokenBaseProgram,
 			tokenQuoteProgram,
-			helpers.DeriveDbcEventAuthority(),
+			s.EventAuthority,
 			helpers.DynamicBondingCurveProgramID,
 		)
 		if err != nil {
