@@ -3,6 +3,7 @@ module github.com/krazyTry/meteora-go
 go 1.25.1
 
 require (
+	github.com/928799934/metaplex-go v0.0.0-20251101212552-b846cd4863be
 	github.com/gagliardetto/anchor-go v1.0.0
 	github.com/gagliardetto/binary v0.8.0
 	github.com/gagliardetto/solana-go v1.14.0

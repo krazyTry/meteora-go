@@ -3,6 +3,7 @@ package helpers
 import (
 	"math/big"
 
+	"github.com/gagliardetto/solana-go"
 	solanago "github.com/gagliardetto/solana-go"
 	"github.com/krazyTry/meteora-go/dynamic_bonding_curve/shared"
 	dammv1gen "github.com/krazyTry/meteora-go/gen/damm_v1"
@@ -25,7 +26,7 @@ const (
 
 var (
 	DynamicBondingCurveProgramID = dbcgen.ProgramID
-	MetaplexProgramID            = solanago.MustPublicKeyFromBase58("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s")
+	MetaplexProgramID            = solana.TokenMetadataProgramID
 	DammV1ProgramID              = dammv1gen.ProgramID
 	DammV2ProgramID              = dammv2gen.ProgramID
 	VaultProgramID               = vaultgen.ProgramID

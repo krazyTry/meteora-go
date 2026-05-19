@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"testing"
 
+	token_metadata "github.com/928799934/metaplex-go/clients/token-metadata"
 	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/rpc"
 	jsoniter "github.com/json-iterator/go"
@@ -25,11 +26,52 @@ func TestCreateCustomPool(t *testing.T) {
 	fmt.Println("partner address:", partner.PublicKey())
 
 	mintWallet := &solana.Wallet{PrivateKey: solana.MustPrivateKeyFromBase58("")}
+	baseMint := mintWallet.PublicKey()
 	fmt.Println("mint address:", mintWallet.PublicKey())
 
 	ctx := context.Background()
 	TokenMintto(t, ctx, rpcClient, wsClient, mintWallet, ownerWallet, partner)
 	fmt.Println("mintto success")
+
+	name := "MeteoraGoTest"
+	symbol := "METAGOTEST"
+	uri := "https://launch.meteora.ag/icons/logo.svg"
+	{
+		metadataPDA, _, _ := solana.FindProgramAddress([][]byte{[]byte("metadata"), solana.TokenMetadataProgramID.Bytes(), baseMint.Bytes()}, solana.TokenMetadataProgramID)
+		createMetadataIx := token_metadata.NewCreateMetadataAccountV3Instruction(
+			token_metadata.CreateMetadataAccountArgsV3{
+				Data: token_metadata.DataV2{
+					Name:                 name,
+					Symbol:               symbol,
+					Uri:                  uri,
+					SellerFeeBasisPoints: 0,
+				},
+				IsMutable: true,
+			},
+			metadataPDA,
+			baseMint,
+			ownerWallet.PublicKey(),
+			ownerWallet.PublicKey(),
+			ownerWallet.PublicKey(),
+			solana.SystemProgramID,
+			solana.SysVarRentPubkey,
+		).Build()
+
+		sig, err := SendInstruction(context.Background(), rpcClient, wsClient, []solana.Instruction{createMetadataIx}, ownerWallet.PublicKey(), func(key solana.PublicKey) *solana.PrivateKey {
+			switch {
+			case key.Equals(ownerWallet.PublicKey()):
+				return &ownerWallet.PrivateKey
+			default:
+				return nil
+			}
+		})
+
+		if err != nil {
+			t.Fatal("create metadata SendTransaction() fail", err)
+		}
+
+		fmt.Println("create metadata success Success sig:", sig.String())
+	}
 
 	cpAmm := dammv2.NewCpAmm(rpcClient, rpc.CommitmentFinalized)
 
