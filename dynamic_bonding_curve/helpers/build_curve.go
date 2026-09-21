@@ -318,7 +318,7 @@ func BuildCurveWithTwoSegments(params shared.BuildCurveWithTwoSegmentsParams) (s
 		MigratedPoolMarketCapFeeSchedulerParams: marketCapFeeScheduler,
 		EnableFirstSwapWithMinFee:               params.EnableFirstSwapWithMinFee,
 		Curve:                                   curve,
-		TokenUpdateAuthority:                    params.TokenUpdateAuthority,
+		TokenUpdateAuthority:                    uint8(params.TokenUpdateAuthority),
 		MigrationFee: shared.MigrationFee{
 			FeePercentage:        params.MigrationFee.FeePercentage,
 			CreatorFeePercentage: params.MigrationFee.CreatorFeePercentage,
@@ -548,7 +548,7 @@ func BuildCurveWithMidPrice(params shared.BuildCurveWithMidPriceParams) (shared.
 		MigratedPoolMarketCapFeeSchedulerParams: marketCapFeeScheduler,
 		EnableFirstSwapWithMinFee:               params.EnableFirstSwapWithMinFee,
 		Curve:                                   result.Curve,
-		TokenUpdateAuthority:                    params.TokenUpdateAuthority,
+		TokenUpdateAuthority:                    uint8(params.TokenUpdateAuthority),
 		MigrationFee: shared.MigrationFee{
 			FeePercentage:        params.MigrationFee.FeePercentage,
 			CreatorFeePercentage: params.MigrationFee.CreatorFeePercentage,
@@ -811,7 +811,7 @@ func BuildCurveWithLiquidityWeights(params shared.BuildCurveWithLiquidityWeights
 			FeePercentage:        params.MigrationFee.FeePercentage,
 			CreatorFeePercentage: params.MigrationFee.CreatorFeePercentage,
 		},
-		TokenUpdateAuthority: params.TokenUpdateAuthority,
+		TokenUpdateAuthority: uint8(params.TokenUpdateAuthority),
 	}
 
 	if params.DynamicFeeEnabled {
@@ -1058,7 +1058,7 @@ func BuildCurveWithCustomSqrtPrices(params shared.BuildCurveWithCustomSqrtPrices
 			FeePercentage:        params.MigrationFee.FeePercentage,
 			CreatorFeePercentage: params.MigrationFee.CreatorFeePercentage,
 		},
-		TokenUpdateAuthority: params.TokenUpdateAuthority,
+		TokenUpdateAuthority: uint8(params.TokenUpdateAuthority),
 	}
 
 	if params.DynamicFeeEnabled {
@@ -1789,7 +1789,7 @@ func buildCurveInternal(
 			PostMigrationTokenSupply: totalSupplyU64,
 		},
 		CreatorTradingFeePercentage: params.CreatorTradingFeePercentage,
-		TokenUpdateAuthority:        params.TokenUpdateAuthority,
+		TokenUpdateAuthority:        uint8(params.TokenUpdateAuthority),
 		MigrationFee: shared.MigrationFee{
 			FeePercentage:        params.MigrationFee.FeePercentage,
 			CreatorFeePercentage: params.MigrationFee.CreatorFeePercentage,

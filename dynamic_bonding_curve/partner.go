@@ -28,6 +28,7 @@ type claimPartnerTradingFeeAccounts struct {
 	Program           solanago.PublicKey
 }
 
+// CreateConfig Doc https://github.com/MeteoraAg/meteora-invent/blob/main/studio/config/dbc_config.jsonc
 func (s *DynamicBondingCurve) CreateConfig(ctx context.Context, params CreateConfigParams) (solanago.Instruction, error) {
 	if err := helpers.ValidateConfigParameters(params); err != nil {
 		return nil, err

@@ -293,7 +293,7 @@ type BuildCurveBaseParams struct {
 	TokenType                   TokenType
 	TokenBaseDecimal            TokenDecimal
 	TokenQuoteDecimal           TokenDecimal
-	TokenUpdateAuthority        uint8
+	TokenUpdateAuthority        TokenUpdateAuthorityOption
 	LockedVestingParams         LockedVestingParams
 	Leftover                    uint64
 	BaseFeeParams               BaseFeeParams
