@@ -3,7 +3,7 @@ package shared
 import (
 	"math/big"
 
-	"github.com/gagliardetto/solana-go"
+	"github.com/solana-foundation/solana-go/v2"
 	dbcidl "github.com/krazyTry/meteora-go/gen/dynamic_bonding_curve"
 )
 

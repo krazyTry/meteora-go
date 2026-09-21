@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 
-	solanago "github.com/gagliardetto/solana-go"
+	solanago "github.com/solana-foundation/solana-go/v2"
 )
 
 // getFirstKey returns the lexicographically larger key bytes.

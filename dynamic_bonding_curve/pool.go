@@ -10,10 +10,10 @@ import (
 	"github.com/krazyTry/meteora-go/dynamic_bonding_curve/math/pool_fees"
 	dbcidl "github.com/krazyTry/meteora-go/gen/dynamic_bonding_curve"
 
-	solanago "github.com/gagliardetto/solana-go"
-	"github.com/gagliardetto/solana-go/programs/system"
-	"github.com/gagliardetto/solana-go/programs/token"
-	"github.com/gagliardetto/solana-go/rpc"
+	solanago "github.com/solana-foundation/solana-go/v2"
+	"github.com/solana-foundation/solana-go/v2/programs/system"
+	"github.com/solana-foundation/solana-go/v2/programs/token"
+	"github.com/solana-foundation/solana-go/v2/rpc"
 )
 
 type baseFeeLike struct {

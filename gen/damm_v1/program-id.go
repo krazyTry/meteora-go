@@ -3,6 +3,6 @@
 
 package dammv1
 
-import solanago "github.com/gagliardetto/solana-go"
+import solanago "github.com/solana-foundation/solana-go/v2"
 
 var ProgramID = solanago.MustPublicKeyFromBase58("Eo7WjKq67rjJQSZxS6z3YkapzY3eMj6Xy8X5EQVn5UaB")

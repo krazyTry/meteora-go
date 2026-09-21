@@ -6,10 +6,10 @@ import (
 	"math/big"
 
 	bin "github.com/gagliardetto/binary"
-	solanago "github.com/gagliardetto/solana-go"
-	"github.com/gagliardetto/solana-go/programs/system"
-	"github.com/gagliardetto/solana-go/programs/token"
-	"github.com/gagliardetto/solana-go/rpc"
+	solanago "github.com/solana-foundation/solana-go/v2"
+	"github.com/solana-foundation/solana-go/v2/programs/system"
+	"github.com/solana-foundation/solana-go/v2/programs/token"
+	"github.com/solana-foundation/solana-go/v2/rpc"
 )
 
 // NativeMint is the wrapped SOL mint.

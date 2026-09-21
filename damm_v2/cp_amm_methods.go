@@ -5,7 +5,7 @@ import (
 	"errors"
 	"math/big"
 
-	solanago "github.com/gagliardetto/solana-go"
+	solanago "github.com/solana-foundation/solana-go/v2"
 
 	"github.com/krazyTry/meteora-go/damm_v2/helpers"
 	"github.com/krazyTry/meteora-go/damm_v2/math"

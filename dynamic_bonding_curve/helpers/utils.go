@@ -8,9 +8,9 @@ import (
 	"reflect"
 
 	binary "github.com/gagliardetto/binary"
-	"github.com/gagliardetto/solana-go"
-	solanago "github.com/gagliardetto/solana-go"
-	"github.com/gagliardetto/solana-go/rpc"
+	"github.com/solana-foundation/solana-go/v2"
+	solanago "github.com/solana-foundation/solana-go/v2"
+	"github.com/solana-foundation/solana-go/v2/rpc"
 	"github.com/krazyTry/meteora-go/dynamic_bonding_curve/shared"
 	"github.com/shopspring/decimal"
 )

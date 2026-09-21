@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"math/big"
 
-	solanago "github.com/gagliardetto/solana-go"
+	solanago "github.com/solana-foundation/solana-go/v2"
 )
 
 const maxFeeBasisPoints = 10_000

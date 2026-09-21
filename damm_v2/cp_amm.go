@@ -7,9 +7,9 @@ import (
 	"math/big"
 	"sort"
 
-	solanago "github.com/gagliardetto/solana-go"
-	"github.com/gagliardetto/solana-go/programs/system"
-	"github.com/gagliardetto/solana-go/rpc"
+	solanago "github.com/solana-foundation/solana-go/v2"
+	"github.com/solana-foundation/solana-go/v2/programs/system"
+	"github.com/solana-foundation/solana-go/v2/rpc"
 
 	"github.com/krazyTry/meteora-go/damm_v2/helpers"
 	dammv2gen "github.com/krazyTry/meteora-go/gen/damm_v2"

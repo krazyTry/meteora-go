@@ -3,8 +3,8 @@ package dynamic_bonding_curve
 import (
 	"context"
 
-	solanago "github.com/gagliardetto/solana-go"
-	"github.com/gagliardetto/solana-go/rpc"
+	solanago "github.com/solana-foundation/solana-go/v2"
+	"github.com/solana-foundation/solana-go/v2/rpc"
 	"github.com/krazyTry/meteora-go/dynamic_bonding_curve/helpers"
 )
 

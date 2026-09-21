@@ -3,6 +3,6 @@
 
 package dynamicbondingcurve
 
-import solanago "github.com/gagliardetto/solana-go"
+import solanago "github.com/solana-foundation/solana-go/v2"
 
 var ProgramID = solanago.MustPublicKeyFromBase58("dbcij3LWUppWqq96dh6gJWwBifmcGfLSB5D4DuSMaqN")

@@ -3,7 +3,7 @@ package dynamic_bonding_curve
 import (
 	"math/big"
 
-	solanago "github.com/gagliardetto/solana-go"
+	solanago "github.com/solana-foundation/solana-go/v2"
 	"github.com/krazyTry/meteora-go/dynamic_bonding_curve/shared"
 )
 

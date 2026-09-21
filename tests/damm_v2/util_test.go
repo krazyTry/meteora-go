@@ -6,13 +6,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gagliardetto/solana-go"
-	associatedtokenaccount "github.com/gagliardetto/solana-go/programs/associated-token-account"
-	"github.com/gagliardetto/solana-go/programs/system"
-	"github.com/gagliardetto/solana-go/programs/token"
-	"github.com/gagliardetto/solana-go/rpc"
-	sendandconfirmtransaction "github.com/gagliardetto/solana-go/rpc/sendAndConfirmTransaction"
-	"github.com/gagliardetto/solana-go/rpc/ws"
+	"github.com/solana-foundation/solana-go/v2"
+	associatedtokenaccount "github.com/solana-foundation/solana-go/v2/programs/associated-token-account"
+	"github.com/solana-foundation/solana-go/v2/programs/system"
+	"github.com/solana-foundation/solana-go/v2/programs/token"
+	"github.com/solana-foundation/solana-go/v2/rpc"
+	sendandconfirmtransaction "github.com/solana-foundation/solana-go/v2/rpc/sendAndConfirmTransaction"
+	"github.com/solana-foundation/solana-go/v2/rpc/ws"
 	"github.com/tidwall/gjson"
 )
 

@@ -9,7 +9,7 @@ import (
 
 	errors "github.com/gagliardetto/anchor-go/errors"
 	binary "github.com/gagliardetto/binary"
-	solanago "github.com/gagliardetto/solana-go"
+	solanago "github.com/solana-foundation/solana-go/v2"
 )
 
 // Builds a "add_liquidity" instruction.

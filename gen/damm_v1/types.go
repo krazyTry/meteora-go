@@ -8,7 +8,7 @@ import (
 	"fmt"
 	errors "github.com/gagliardetto/anchor-go/errors"
 	binary "github.com/gagliardetto/binary"
-	solanago "github.com/gagliardetto/solana-go"
+	solanago "github.com/solana-foundation/solana-go/v2"
 )
 
 // Multiplier for the pool token. Used to normalized token with different decimal into the same precision.

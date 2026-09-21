@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	token_metadata "github.com/928799934/metaplex-go/clients/token-metadata"
-	"github.com/gagliardetto/solana-go"
-	"github.com/gagliardetto/solana-go/rpc"
+	"github.com/solana-foundation/solana-go/v2"
+	"github.com/solana-foundation/solana-go/v2/rpc"
 	jsoniter "github.com/json-iterator/go"
 	dammv2 "github.com/krazyTry/meteora-go/damm_v2"
 	"github.com/krazyTry/meteora-go/damm_v2/helpers"

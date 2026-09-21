@@ -7,10 +7,10 @@ import (
 	dbcidl "github.com/krazyTry/meteora-go/gen/dynamic_bonding_curve"
 	dynamicvault "github.com/krazyTry/meteora-go/gen/dynamic_vault"
 
-	solanago "github.com/gagliardetto/solana-go"
-	computebudget "github.com/gagliardetto/solana-go/programs/compute-budget"
-	"github.com/gagliardetto/solana-go/programs/system"
-	"github.com/gagliardetto/solana-go/programs/token"
+	solanago "github.com/solana-foundation/solana-go/v2"
+	computebudget "github.com/solana-foundation/solana-go/v2/programs/compute-budget"
+	"github.com/solana-foundation/solana-go/v2/programs/system"
+	"github.com/solana-foundation/solana-go/v2/programs/token"
 )
 
 // CreateLocker creates locker accounts if needed.

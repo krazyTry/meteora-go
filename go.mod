@@ -3,12 +3,12 @@ module github.com/krazyTry/meteora-go
 go 1.25.1
 
 require (
-	github.com/928799934/metaplex-go v0.0.0-20251101212552-b846cd4863be
+	github.com/928799934/metaplex-go v0.0.0-20260921084358-77e4aff64394
 	github.com/gagliardetto/anchor-go v1.0.0
 	github.com/gagliardetto/binary v0.8.0
-	github.com/gagliardetto/solana-go v1.24.0
 	github.com/json-iterator/go v1.1.12
 	github.com/shopspring/decimal v1.4.0
+	github.com/solana-foundation/solana-go/v2 v2.1.0
 	github.com/tidwall/gjson v1.18.0
 )
 
@@ -16,7 +16,7 @@ require (
 	github.com/benbjohnson/clock v1.3.5 // indirect
 	github.com/blendle/zapdriver v1.3.1 // indirect
 	github.com/buger/jsonparser v1.1.2 // indirect
-	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/gagliardetto/treeout v0.1.4 // indirect
 	github.com/goccy/go-json v0.10.6 // indirect

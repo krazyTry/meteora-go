@@ -6,8 +6,8 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/gagliardetto/solana-go"
-	"github.com/gagliardetto/solana-go/rpc"
+	"github.com/solana-foundation/solana-go/v2"
+	"github.com/solana-foundation/solana-go/v2/rpc"
 	dammv2 "github.com/krazyTry/meteora-go/damm_v2"
 	"github.com/krazyTry/meteora-go/damm_v2/helpers"
 	"github.com/krazyTry/meteora-go/damm_v2/shared"

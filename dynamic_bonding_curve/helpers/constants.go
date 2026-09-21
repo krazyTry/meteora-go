@@ -3,8 +3,8 @@ package helpers
 import (
 	"math/big"
 
-	"github.com/gagliardetto/solana-go"
-	solanago "github.com/gagliardetto/solana-go"
+	"github.com/solana-foundation/solana-go/v2"
+	solanago "github.com/solana-foundation/solana-go/v2"
 	"github.com/krazyTry/meteora-go/dynamic_bonding_curve/shared"
 	dammv1gen "github.com/krazyTry/meteora-go/gen/damm_v1"
 	dammv2gen "github.com/krazyTry/meteora-go/gen/damm_v2"

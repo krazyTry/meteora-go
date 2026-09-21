@@ -7,8 +7,8 @@ import (
 	"github.com/krazyTry/meteora-go/dynamic_bonding_curve/helpers"
 	dbcidl "github.com/krazyTry/meteora-go/gen/dynamic_bonding_curve"
 
-	solanago "github.com/gagliardetto/solana-go"
-	"github.com/gagliardetto/solana-go/programs/system"
+	solanago "github.com/solana-foundation/solana-go/v2"
+	"github.com/solana-foundation/solana-go/v2/programs/system"
 )
 
 type claimPartnerTradingFeeAccounts struct {

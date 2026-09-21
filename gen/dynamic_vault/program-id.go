@@ -3,6 +3,6 @@
 
 package dynamicvault
 
-import solanago "github.com/gagliardetto/solana-go"
+import solanago "github.com/solana-foundation/solana-go/v2"
 
 var ProgramID = solanago.MustPublicKeyFromBase58("24Uqj9JCLxUeoC3hGfh5W3s9FM9uCHDS2SG3LYwBpyTi")

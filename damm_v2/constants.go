@@ -4,7 +4,7 @@ import (
 	"context"
 	"math/big"
 
-	"github.com/gagliardetto/solana-go/rpc"
+	"github.com/solana-foundation/solana-go/v2/rpc"
 	dammv2gen "github.com/krazyTry/meteora-go/gen/damm_v2"
 )
 

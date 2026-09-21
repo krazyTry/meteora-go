@@ -9,8 +9,8 @@ import (
 	"github.com/krazyTry/meteora-go/dynamic_bonding_curve/shared"
 	dbcidl "github.com/krazyTry/meteora-go/gen/dynamic_bonding_curve"
 
-	solanago "github.com/gagliardetto/solana-go"
-	"github.com/gagliardetto/solana-go/rpc"
+	solanago "github.com/solana-foundation/solana-go/v2"
+	"github.com/solana-foundation/solana-go/v2/rpc"
 	"github.com/shopspring/decimal"
 )
 

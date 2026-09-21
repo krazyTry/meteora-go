@@ -6,9 +6,9 @@ import (
 	"log"
 	"testing"
 
-	"github.com/gagliardetto/solana-go"
-	"github.com/gagliardetto/solana-go/rpc"
-	"github.com/gagliardetto/solana-go/rpc/ws"
+	"github.com/solana-foundation/solana-go/v2"
+	"github.com/solana-foundation/solana-go/v2/rpc"
+	"github.com/solana-foundation/solana-go/v2/rpc/ws"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/krazyTry/meteora-go/dynamic_bonding_curve/helpers"
 	dynamicbondingcurve "github.com/krazyTry/meteora-go/gen/dynamic_bonding_curve"
