@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/solana-foundation/solana-go/v2"
-	"github.com/solana-foundation/solana-go/v2/rpc"
 	"github.com/krazyTry/meteora-go/dynamic_bonding_curve"
 	"github.com/krazyTry/meteora-go/dynamic_bonding_curve/helpers"
+	"github.com/solana-foundation/solana-go/v2"
+	"github.com/solana-foundation/solana-go/v2/rpc"
 )
 
 func TestMigrateToDammV2(t *testing.T) {
@@ -42,7 +42,7 @@ func TestMigrateToDammV2(t *testing.T) {
 	}
 	fmt.Println("token info Pool:", poolState)
 
-	if poolState.Account.QuoteReserve == configState.MigrationQuoteThreshold {
+	if poolState.Account.PoolState.QuoteReserve == configState.MigrationQuoteThreshold {
 
 		params := dynamic_bonding_curve.CreateDammV2MigrationMetadataParams{
 			VirtualPool: poolState.Pubkey,
@@ -67,7 +67,7 @@ func TestMigrateToDammV2(t *testing.T) {
 		}
 		fmt.Println("create migration metadata success Success sig:", sig.String())
 
-		if dynamic_bonding_curve.MigrationProgress(poolState.Account.MigrationProgress) < dynamic_bonding_curve.MigrationProgressPostBondingCurve {
+		if dynamic_bonding_curve.MigrationProgress(poolState.Account.PoolState.MigrationProgress) < dynamic_bonding_curve.MigrationProgressPostBondingCurve {
 			lockerParams := dynamic_bonding_curve.CreateLockerParams{
 				VirtualPool: poolState.Pubkey,
 				Payer:       ownerWallet.PublicKey(),
@@ -124,7 +124,7 @@ func TestMigrateToDammV2(t *testing.T) {
 		}
 		fmt.Println("migrate to damm v2 success Success sig:", sig.String())
 
-		if poolState.Account.IsWithdrawLeftover == 0 {
+		if poolState.Account.PoolState.IsWithdrawLeftover == 0 {
 			leftoverParams := dynamic_bonding_curve.WithdrawLeftoverParams{
 				VirtualPool: poolState.Pubkey,
 				Payer:       leftover.PublicKey(),
@@ -155,7 +155,7 @@ func TestMigrateToDammV2(t *testing.T) {
 			fmt.Println("withdraw token success Success sig:", sig.String())
 		}
 
-		if dynamic_bonding_curve.MigrationFeeWithdrawStatus(poolState.Account.MigrationFeeWithdrawStatus).IsPartnerWithdraw() == 0 {
+		if dynamic_bonding_curve.MigrationFeeWithdrawStatus(poolState.Account.PoolState.MigrationFeeWithdrawStatus).IsPartnerWithdraw() == 0 {
 
 		}
 	}

@@ -24,7 +24,7 @@ func GetFeeMarketCapBaseFeeNumeratorByPeriod(cliffFeeNumerator *big.Int, numberO
 	}
 }
 
-func GetFeeMarketCapBaseFeeNumerator(cliffFeeNumerator *big.Int, numberOfPeriod uint16, sqrtPriceStepBps uint16, schedulerExpirationDuration uint32, reductionFactor *big.Int, feeMarketCapSchedulerMode shared.BaseFeeMode, currentPoint, activationPoint, initSqrtPrice, currentSqrtPrice *big.Int) (*big.Int, error) {
+func GetFeeMarketCapBaseFeeNumerator(cliffFeeNumerator *big.Int, numberOfPeriod uint16, sqrtPriceStepBps uint32, schedulerExpirationDuration uint32, reductionFactor *big.Int, feeMarketCapSchedulerMode shared.BaseFeeMode, currentPoint, activationPoint, initSqrtPrice, currentSqrtPrice *big.Int) (*big.Int, error) {
 	schedulerExpirationPoint := new(big.Int).Add(activationPoint, big.NewInt(int64(schedulerExpirationDuration)))
 	var period *big.Int
 	if currentPoint.Cmp(schedulerExpirationPoint) > 0 || currentPoint.Cmp(activationPoint) < 0 {

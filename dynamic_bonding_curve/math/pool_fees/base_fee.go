@@ -72,6 +72,6 @@ func GetBaseFeeHandler(cliffFeeNumerator *big.Int, firstFactor uint16, secondFac
 	case dbc.BaseFeeModeRateLimiter:
 		return FeeRateLimiter{CliffFeeNumerator: cliffFeeNumerator, FeeIncrementBps: firstFactor, MaxLimiterDuration: secondFactor, ReferenceAmount: thirdFactor}, nil
 	default:
-		return nil, errors.New("Invalid base fee mode")
+		return nil, errors.New(dbc.ErrInvalidBaseFeeMode)
 	}
 }

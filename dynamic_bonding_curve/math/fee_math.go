@@ -12,23 +12,24 @@ func ToNumerator(bps *big.Int, feeDenominator *big.Int) (*big.Int, error) {
 	return MulDiv(bps, feeDenominator, big.NewInt(dbc.MaxBasisPoint), dbc.RoundingDown)
 }
 
-func GetFeeMode(collectFeeMode dbc.CollectFeeMode, tradeDirection dbc.TradeDirection, hasReferral bool) dbc.FeeMode {
-	feesOnInput := false
-	feesOnBaseToken := false
-
-	if collectFeeMode == dbc.CollectFeeModeOutputToken {
-		if tradeDirection == dbc.TradeDirectionQuoteToBase {
-			feesOnInput = false
-			feesOnBaseToken = true
+func GetFeeMode(collectFeeMode dbc.CollectFeeMode, tradeDirection dbc.TradeDirection, hasReferral bool) (dbc.FeeMode, error) {
+	switch collectFeeMode {
+	case dbc.CollectFeeModeQuoteToken:
+		switch tradeDirection {
+		case dbc.TradeDirectionBaseToQuote:
+			return dbc.FeeMode{FeesOnInput: false, FeesOnBaseToken: false, HasReferral: hasReferral}, nil
+		case dbc.TradeDirectionQuoteToBase:
+			return dbc.FeeMode{FeesOnInput: true, FeesOnBaseToken: false, HasReferral: hasReferral}, nil
 		}
-	} else {
-		if tradeDirection == dbc.TradeDirectionQuoteToBase {
-			feesOnInput = true
-			feesOnBaseToken = false
+	case dbc.CollectFeeModeOutputToken:
+		switch tradeDirection {
+		case dbc.TradeDirectionBaseToQuote:
+			return dbc.FeeMode{FeesOnInput: false, FeesOnBaseToken: false, HasReferral: hasReferral}, nil
+		case dbc.TradeDirectionQuoteToBase:
+			return dbc.FeeMode{FeesOnInput: false, FeesOnBaseToken: true, HasReferral: hasReferral}, nil
 		}
 	}
-
-	return dbc.FeeMode{FeesOnInput: feesOnInput, FeesOnBaseToken: feesOnBaseToken, HasReferral: hasReferral}
+	return dbc.FeeMode{}, errors.New(dbc.ErrInvalidCollectFeeMode)
 }
 
 func GetTotalFeeNumeratorFromIncludedFeeAmount(poolFees dbc.PoolFeesConfig, volatilityTracker dbc.VolatilityTracker, currentPoint, activationPoint, includedFeeAmount *big.Int, tradeDirection dbc.TradeDirection) (*big.Int, error) {
@@ -59,35 +60,20 @@ func GetTotalFeeNumerator(baseFeeNumerator *big.Int, dynamicFee dbc.DynamicFeeCo
 	return total
 }
 
-func GetFeeOnAmount(tradeFeeNumerator, amount *big.Int, poolFees dbc.PoolFeesConfig, hasReferral bool) (dbc.FeeOnAmountResult, error) {
-	amountAfterFee, tradingFee, err := GetExcludedFeeAmount(tradeFeeNumerator, amount)
+func GetFeeOnAmount(tradeFeeNumerator, amount *big.Int, hasReferral bool) (dbc.FeeOnAmountResult, error) {
+	amountAfterFee, feeAmount, err := GetExcludedFeeAmount(tradeFeeNumerator, amount)
 	if err != nil {
 		return dbc.FeeOnAmountResult{}, err
 	}
-	protocolFee, err := MulDiv(tradingFee, big.NewInt(dbc.ProtocolFeePercent), big.NewInt(100), dbc.RoundingDown)
-	if err != nil {
-		return dbc.FeeOnAmountResult{}, err
-	}
-	updatedTradingFee, err := Sub(tradingFee, protocolFee)
-	if err != nil {
-		return dbc.FeeOnAmountResult{}, err
-	}
-	referralFee := big.NewInt(0)
-	if hasReferral {
-		referralFee, err = MulDiv(protocolFee, big.NewInt(dbc.HostFeePercent), big.NewInt(100), dbc.RoundingDown)
-		if err != nil {
-			return dbc.FeeOnAmountResult{}, err
-		}
-	}
-	updatedProtocolFee, err := Sub(protocolFee, referralFee)
+	tradingFee, protocolFee, referralFee, err := SplitFees(feeAmount, hasReferral)
 	if err != nil {
 		return dbc.FeeOnAmountResult{}, err
 	}
 	return dbc.FeeOnAmountResult{
 		Amount:      amountAfterFee,
-		ProtocolFee: updatedProtocolFee,
+		ProtocolFee: protocolFee,
 		ReferralFee: referralFee,
-		TradingFee:  updatedTradingFee,
+		TradingFee:  tradingFee,
 	}, nil
 }
 
@@ -112,6 +98,9 @@ func GetIncludedFeeAmount(tradeFeeNumerator, excludedFeeAmount *big.Int) (*big.I
 	if err != nil {
 		return nil, nil, err
 	}
+	if included.Cmp(dbc.U64Max) > 0 {
+		return nil, nil, errors.New(dbc.ErrTypeCastFailed)
+	}
 	feeAmount, err := Sub(included, excludedFeeAmount)
 	if err != nil {
 		return nil, nil, err
@@ -119,7 +108,7 @@ func GetIncludedFeeAmount(tradeFeeNumerator, excludedFeeAmount *big.Int) (*big.I
 	return included, feeAmount, nil
 }
 
-func SplitFees(poolFees dbc.PoolFeesConfig, feeAmount *big.Int, hasReferral bool) (*big.Int, *big.Int, *big.Int, error) {
+func SplitFees(feeAmount *big.Int, hasReferral bool) (*big.Int, *big.Int, *big.Int, error) {
 	protocolFee, err := MulDiv(feeAmount, big.NewInt(dbc.ProtocolFeePercent), big.NewInt(100), dbc.RoundingDown)
 	if err != nil {
 		return nil, nil, nil, err

@@ -3,8 +3,8 @@ package dammv2
 import (
 	"math/big"
 
-	solanago "github.com/solana-foundation/solana-go/v2"
 	"github.com/shopspring/decimal"
+	solanago "github.com/solana-foundation/solana-go/v2"
 
 	"github.com/krazyTry/meteora-go/damm_v2/helpers"
 	"github.com/krazyTry/meteora-go/damm_v2/shared"
@@ -62,9 +62,16 @@ const (
 
 type PoolVersion = shared.PoolVersion
 
+type LayoutVersion = shared.LayoutVersion
+
 const (
 	PoolVersionV0 = shared.PoolVersionV0
 	PoolVersionV1 = shared.PoolVersionV1
+
+	LayoutVersionV0 = shared.LayoutVersionV0
+	LayoutVersionV1 = shared.LayoutVersionV1
+
+	CollectFeeModeCompounding = shared.CollectFeeModeCompounding
 )
 
 type PoolStatus = shared.PoolStatus
@@ -128,9 +135,10 @@ type DecodedPoolFees any
 
 // Parameters.
 type PoolFeesParams struct {
-	BaseFee    BaseFee
-	Padding    []uint8
-	DynamicFee *DynamicFee
+	BaseFee           BaseFee
+	CompoundingFeeBps uint16
+	Padding           uint8
+	DynamicFee        *DynamicFee
 }
 
 type PrepareTokenAccountParams struct {
@@ -184,12 +192,13 @@ type InitializeCustomizeablePoolWithDynamicConfigParams struct {
 }
 
 type PreparePoolCreationParams struct {
-	TokenAAmount *big.Int
-	TokenBAmount *big.Int
-	MinSqrtPrice *big.Int
-	MaxSqrtPrice *big.Int
-	TokenAInfo   *TokenInfo
-	TokenBInfo   *TokenInfo
+	TokenAAmount   *big.Int
+	TokenBAmount   *big.Int
+	MinSqrtPrice   *big.Int
+	MaxSqrtPrice   *big.Int
+	TokenAInfo     *TokenInfo
+	TokenBInfo     *TokenInfo
+	CollectFeeMode CollectFeeMode
 }
 
 type PreparedPoolCreation struct {
@@ -198,11 +207,12 @@ type PreparedPoolCreation struct {
 }
 
 type PreparePoolCreationSingleSide struct {
-	TokenAAmount  *big.Int
-	MinSqrtPrice  *big.Int
-	MaxSqrtPrice  *big.Int
-	InitSqrtPrice *big.Int
-	TokenAInfo    *TokenInfo
+	TokenAAmount   *big.Int
+	MinSqrtPrice   *big.Int
+	MaxSqrtPrice   *big.Int
+	InitSqrtPrice  *big.Int
+	TokenAInfo     *TokenInfo
+	CollectFeeMode CollectFeeMode
 }
 
 // TokenInfo mirrors needed fields for Token2022 fee calculations.
@@ -267,6 +277,12 @@ type LiquidityDeltaParams struct {
 	SqrtPrice       *big.Int
 	SqrtMinPrice    *big.Int
 	SqrtMaxPrice    *big.Int
+	CollectFeeMode  CollectFeeMode
+	TokenAAmount    *big.Int
+	TokenBAmount    *big.Int
+	Liquidity       *big.Int
+	TokenAInfo      *TokenInfo
+	TokenBInfo      *TokenInfo
 }
 
 type RemoveLiquidityParams struct {
@@ -322,6 +338,7 @@ type BuildLiquidatePositionInstructionParams struct {
 	TokenBAccount         solanago.PublicKey
 	TokenAAmountThreshold *big.Int
 	TokenBAmountThreshold *big.Int
+	IsSkipReward          bool
 }
 
 type BuildRemoveAllLiquidityInstructionParams struct {
@@ -360,6 +377,7 @@ type RemoveAllLiquidityAndClosePositionParams struct {
 	TokenBAmountThreshold *big.Int
 	Vestings              []*VestingWithAccount
 	CurrentPoint          *big.Int
+	IsSkipReward          bool
 }
 
 type MergePositionParams struct {
@@ -376,6 +394,58 @@ type MergePositionParams struct {
 	TokenBAmountRemoveLiquidityThreshold *big.Int
 	PositionBVestings                    []*VestingWithAccount
 	CurrentPoint                         *big.Int
+	IsSkipReward                         bool
+	TokenAInfo                           *TokenInfo
+	TokenBInfo                           *TokenInfo
+}
+
+type UpdateDelegatePermissionParams struct {
+	Owner              solanago.PublicKey
+	Position           solanago.PublicKey
+	PositionNftAccount solanago.PublicKey
+	Delegate           solanago.PublicKey
+	Permission         uint32
+}
+
+type WithdrawDeadLiquidityRewardParams struct {
+	RewardIndex uint8
+	Pool        solanago.PublicKey
+	Funder      solanago.PublicKey
+	PoolState   *PoolState
+}
+
+type PositionDelegatePermission uint8
+
+const (
+	PositionDelegatePermissionAddLiquidity            PositionDelegatePermission = 0
+	PositionDelegatePermissionRemoveLiquidity         PositionDelegatePermission = 1
+	PositionDelegatePermissionRemoveLiquidityToOwner  PositionDelegatePermission = 2
+	PositionDelegatePermissionClaimPositionFee        PositionDelegatePermission = 3
+	PositionDelegatePermissionClaimPositionFeeToOwner PositionDelegatePermission = 4
+	PositionDelegatePermissionClaimReward             PositionDelegatePermission = 5
+	PositionDelegatePermissionClaimRewardToOwner      PositionDelegatePermission = 6
+	PositionDelegatePermissionLockPosition            PositionDelegatePermission = 7
+)
+
+type ConfigPermission uint
+
+const (
+	ConfigPermissionCreatePoolWithoutMintValidation ConfigPermission = 0
+)
+
+func EncodeDelegatePermissions(permissions ...PositionDelegatePermission) uint32 {
+	var acc uint32
+	for _, permission := range permissions {
+		acc |= 1 << permission
+	}
+	return acc
+}
+
+func IsConfigPermissionAllow(permission *big.Int, flag ConfigPermission) bool {
+	if permission == nil {
+		return false
+	}
+	return permission.Bit(int(flag)) == 1
 }
 
 type GetQuoteParams struct {
@@ -620,6 +690,10 @@ type GetDepositQuoteParams struct {
 	SqrtPrice       *big.Int
 	InputTokenInfo  *TokenInfo
 	OutputTokenInfo *TokenInfo
+	CollectFeeMode  CollectFeeMode
+	TokenAAmount    *big.Int
+	TokenBAmount    *big.Int
+	Liquidity       *big.Int
 }
 
 type GetWithdrawQuoteParams struct {
@@ -629,6 +703,10 @@ type GetWithdrawQuoteParams struct {
 	SqrtPrice       *big.Int
 	TokenATokenInfo *TokenInfo
 	TokenBTokenInfo *TokenInfo
+	CollectFeeMode  CollectFeeMode
+	TokenAAmount    *big.Int
+	TokenBAmount    *big.Int
+	Liquidity       *big.Int
 }
 
 type DepositQuote struct {

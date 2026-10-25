@@ -6,6 +6,7 @@ import (
 	"math/big"
 
 	solanago "github.com/solana-foundation/solana-go/v2"
+	"github.com/solana-foundation/solana-go/v2/programs/token"
 
 	"github.com/krazyTry/meteora-go/damm_v2/helpers"
 	"github.com/krazyTry/meteora-go/damm_v2/math"
@@ -25,8 +26,16 @@ func (c *CpAmm) IsPoolExist(ctx context.Context, pool solanago.PublicKey) (bool,
 
 // GetLiquidityDelta computes liquidity delta for max token inputs.
 func (c *CpAmm) GetLiquidityDelta(params LiquidityDeltaParams) *big.Int {
-	liquidityFromA := math.GetLiquidityDeltaFromAmountA(params.MaxAmountTokenA, params.SqrtPrice, params.SqrtMaxPrice)
-	liquidityFromB := math.GetLiquidityDeltaFromAmountB(params.MaxAmountTokenB, params.SqrtMinPrice, params.SqrtPrice)
+	actualAmountA := params.MaxAmountTokenA
+	actualAmountB := params.MaxAmountTokenB
+	if params.TokenAInfo != nil {
+		actualAmountA = helpers.CalculateTransferFeeExcludedAmount(params.MaxAmountTokenA, params.TokenAInfo).Amount
+	}
+	if params.TokenBInfo != nil {
+		actualAmountB = helpers.CalculateTransferFeeExcludedAmount(params.MaxAmountTokenB, params.TokenBInfo).Amount
+	}
+	liquidityFromA := math.GetLiquidityDeltaFromAmountA(actualAmountA, params.SqrtPrice, params.SqrtMaxPrice, params.CollectFeeMode, params.TokenAAmount, params.Liquidity)
+	liquidityFromB := math.GetLiquidityDeltaFromAmountB(actualAmountB, params.SqrtMinPrice, params.SqrtPrice, params.CollectFeeMode, params.TokenBAmount, params.Liquidity)
 	return minBig(liquidityFromA, liquidityFromB)
 }
 
@@ -49,8 +58,8 @@ func (c *CpAmm) GetQuote(params GetQuoteParams) (QuoteResult, error) {
 	if err != nil {
 		return QuoteResult{}, err
 	}
-	totalFee := new(big.Int).Add(new(big.Int).SetUint64(swapResult.TradingFee), new(big.Int).SetUint64(swapResult.ProtocolFee))
-	totalFee.Add(totalFee, new(big.Int).SetUint64(swapResult.PartnerFee))
+	totalFee := new(big.Int).Add(new(big.Int).SetUint64(swapResult.ClaimingFee), new(big.Int).SetUint64(swapResult.CompoundingFee))
+	totalFee.Add(totalFee, new(big.Int).SetUint64(swapResult.ProtocolFee))
 	totalFee.Add(totalFee, new(big.Int).SetUint64(swapResult.ReferralFee))
 	return QuoteResult{
 		SwapInAmount:     params.InAmount,
@@ -87,7 +96,13 @@ func (c *CpAmm) GetQuote2(params GetQuote2Params) (Quote2Result, error) {
 }
 
 // GetDepositQuote calculates the deposit quote.
-func (c *CpAmm) GetDepositQuote(params GetDepositQuoteParams) DepositQuote {
+func (c *CpAmm) GetDepositQuote(params GetDepositQuoteParams) (DepositQuote, error) {
+	if params.IsTokenA && params.SqrtPrice.Cmp(params.MaxSqrtPrice) >= 0 {
+		return DepositQuote{}, errors.New("cannot deposit token B: pool price is at the upper bound. All liquidity is in token A")
+	}
+	if !params.IsTokenA && params.SqrtPrice.Cmp(params.MinSqrtPrice) <= 0 {
+		return DepositQuote{}, errors.New("cannot deposit token A: pool price is at the lower bound. All liquidity is in token B")
+	}
 	actualAmountIn := params.InAmount
 	if params.InputTokenInfo != nil {
 		actualAmountIn = helpers.CalculateTransferFeeExcludedAmount(params.InAmount, params.InputTokenInfo).Amount
@@ -95,11 +110,11 @@ func (c *CpAmm) GetDepositQuote(params GetDepositQuoteParams) DepositQuote {
 	var liquidityDelta *big.Int
 	var rawOutputAmount *big.Int
 	if params.IsTokenA {
-		liquidityDelta = math.GetLiquidityDeltaFromAmountA(actualAmountIn, params.SqrtPrice, params.MaxSqrtPrice)
-		rawOutputAmount = math.GetAmountBFromLiquidityDelta(params.MinSqrtPrice, params.SqrtPrice, liquidityDelta, RoundingUp)
+		liquidityDelta = math.GetLiquidityDeltaFromAmountA(actualAmountIn, params.SqrtPrice, params.MaxSqrtPrice, params.CollectFeeMode, params.TokenAAmount, params.Liquidity)
+		rawOutputAmount = math.GetAmountBFromLiquidityDelta(params.MinSqrtPrice, params.SqrtPrice, liquidityDelta, RoundingUp, params.CollectFeeMode, params.TokenBAmount, params.Liquidity)
 	} else {
-		liquidityDelta = math.GetLiquidityDeltaFromAmountB(actualAmountIn, params.MinSqrtPrice, params.SqrtPrice)
-		rawOutputAmount = math.GetAmountAFromLiquidityDelta(params.SqrtPrice, params.MaxSqrtPrice, liquidityDelta, RoundingUp)
+		liquidityDelta = math.GetLiquidityDeltaFromAmountB(actualAmountIn, params.MinSqrtPrice, params.SqrtPrice, params.CollectFeeMode, params.TokenBAmount, params.Liquidity)
+		rawOutputAmount = math.GetAmountAFromLiquidityDelta(params.SqrtPrice, params.MaxSqrtPrice, liquidityDelta, RoundingUp, params.CollectFeeMode, params.TokenAAmount, params.Liquidity)
 	}
 	outputAmount := new(big.Int).Set(rawOutputAmount)
 	if params.OutputTokenInfo != nil {
@@ -110,13 +125,19 @@ func (c *CpAmm) GetDepositQuote(params GetDepositQuoteParams) DepositQuote {
 		ConsumedInputAmount: params.InAmount,
 		LiquidityDelta:      liquidityDelta,
 		OutputAmount:        outputAmount,
-	}
+	}, nil
 }
 
 // GetWithdrawQuote calculates the withdraw quote.
-func (c *CpAmm) GetWithdrawQuote(params GetWithdrawQuoteParams) WithdrawQuote {
-	amountA := math.GetAmountAFromLiquidityDelta(params.SqrtPrice, params.MaxSqrtPrice, params.LiquidityDelta, RoundingDown)
-	amountB := math.GetAmountBFromLiquidityDelta(params.MinSqrtPrice, params.SqrtPrice, params.LiquidityDelta, RoundingDown)
+func (c *CpAmm) GetWithdrawQuote(params GetWithdrawQuoteParams) (WithdrawQuote, error) {
+	if params.LiquidityDelta == nil || params.LiquidityDelta.Sign() == 0 {
+		return WithdrawQuote{}, errors.New("cannot withdraw: liquidityDelta must be greater than zero")
+	}
+	if params.SqrtPrice == nil || params.SqrtPrice.Sign() == 0 {
+		return WithdrawQuote{}, errors.New("cannot withdraw: sqrtPrice must be greater than zero")
+	}
+	amountA := math.GetAmountAFromLiquidityDelta(params.SqrtPrice, params.MaxSqrtPrice, params.LiquidityDelta, RoundingDown, params.CollectFeeMode, params.TokenAAmount, params.Liquidity)
+	amountB := math.GetAmountBFromLiquidityDelta(params.MinSqrtPrice, params.SqrtPrice, params.LiquidityDelta, RoundingDown, params.CollectFeeMode, params.TokenBAmount, params.Liquidity)
 	outA := amountA
 	outB := amountB
 	if params.TokenATokenInfo != nil {
@@ -129,7 +150,7 @@ func (c *CpAmm) GetWithdrawQuote(params GetWithdrawQuoteParams) WithdrawQuote {
 		LiquidityDelta: params.LiquidityDelta,
 		OutAmountA:     outA,
 		OutAmountB:     outB,
-	}
+	}, nil
 }
 
 // PreparePoolCreationSingleSide calculates liquidity for single-sided creation.
@@ -139,10 +160,9 @@ func (c *CpAmm) PreparePoolCreationSingleSide(params PreparePoolCreationSingleSi
 	}
 	actualAmountIn := params.TokenAAmount
 	if params.TokenAInfo != nil {
-		feeInfo := helpers.CalculateTransferFeeIncludedAmount(params.TokenAAmount, params.TokenAInfo)
-		actualAmountIn = new(big.Int).Sub(params.TokenAAmount, feeInfo.TransferFee)
+		actualAmountIn = helpers.CalculateTransferFeeExcludedAmount(params.TokenAAmount, params.TokenAInfo).Amount
 	}
-	liquidityDelta := math.GetLiquidityDeltaFromAmountA(actualAmountIn, params.InitSqrtPrice, params.MaxSqrtPrice)
+	liquidityDelta := math.GetLiquidityDeltaFromAmountA(actualAmountIn, params.InitSqrtPrice, params.MaxSqrtPrice, params.CollectFeeMode, nil, nil)
 	return liquidityDelta, nil
 }
 
@@ -154,19 +174,17 @@ func (c *CpAmm) PreparePoolCreationParams(params PreparePoolCreationParams) (Pre
 	actualAmountA := params.TokenAAmount
 	actualAmountB := params.TokenBAmount
 	if params.TokenAInfo != nil {
-		feeInfo := helpers.CalculateTransferFeeIncludedAmount(params.TokenAAmount, params.TokenAInfo)
-		actualAmountA = new(big.Int).Sub(params.TokenAAmount, feeInfo.TransferFee)
+		actualAmountA = helpers.CalculateTransferFeeExcludedAmount(params.TokenAAmount, params.TokenAInfo).Amount
 	}
 	if params.TokenBInfo != nil {
-		feeInfo := helpers.CalculateTransferFeeIncludedAmount(params.TokenBAmount, params.TokenBInfo)
-		actualAmountB = new(big.Int).Sub(params.TokenBAmount, feeInfo.TransferFee)
+		actualAmountB = helpers.CalculateTransferFeeExcludedAmount(params.TokenBAmount, params.TokenBInfo).Amount
 	}
 	initSqrtPrice, err := math.CalculateInitSqrtPrice(params.TokenAAmount, params.TokenBAmount, params.MinSqrtPrice, params.MaxSqrtPrice)
 	if err != nil {
 		return PreparedPoolCreation{}, err
 	}
-	liquidityA := math.GetLiquidityDeltaFromAmountA(actualAmountA, initSqrtPrice, params.MaxSqrtPrice)
-	liquidityB := math.GetLiquidityDeltaFromAmountB(actualAmountB, params.MinSqrtPrice, initSqrtPrice)
+	liquidityA := math.GetLiquidityDeltaFromAmountA(actualAmountA, initSqrtPrice, params.MaxSqrtPrice, params.CollectFeeMode, nil, nil)
+	liquidityB := math.GetLiquidityDeltaFromAmountB(actualAmountB, params.MinSqrtPrice, initSqrtPrice, params.CollectFeeMode, nil, nil)
 	return PreparedPoolCreation{
 		InitSqrtPrice:  initSqrtPrice,
 		LiquidityDelta: minBig(liquidityA, liquidityB),
@@ -175,6 +193,20 @@ func (c *CpAmm) PreparePoolCreationParams(params PreparePoolCreationParams) (Pre
 
 // CreatePool builds a transaction to create a permissionless pool.
 func (c *CpAmm) CreatePool(ctx context.Context, params CreatePoolParams) (TxBuilder, solanago.PublicKey, solanago.PublicKey, solanago.PublicKey, error) {
+	if err := ValidateCreatePoolParams(params); err != nil {
+		return nil, solanago.PublicKey{}, solanago.PublicKey{}, solanago.PublicKey{}, err
+	}
+	cfg, err := c.FetchConfigState(ctx, params.Config)
+	if err != nil {
+		return nil, solanago.PublicKey{}, solanago.PublicKey{}, solanago.PublicKey{}, err
+	}
+	baseFeeMode, err := helpers.GetBaseFeeModeFromPodAlignedData(cfg.PoolFees.BaseFee.Data[:])
+	if err != nil {
+		return nil, solanago.PublicKey{}, solanago.PublicKey{}, solanago.PublicKey{}, err
+	}
+	if err := AssertBaseFeeModeAllowedForNewPool(baseFeeMode); err != nil {
+		return nil, solanago.PublicKey{}, solanago.PublicKey{}, solanago.PublicKey{}, err
+	}
 	pool := DerivePoolAddress(params.Config, params.TokenAMint, params.TokenBMint)
 	prepared, err := c.prepareCreatePoolParams(ctx, PrepareCustomizablePoolParams{
 		Pool:          pool,
@@ -233,8 +265,10 @@ func (c *CpAmm) CreatePool(ctx context.Context, params CreatePoolParams) (TxBuil
 	builder.AddInstruction(initIx)
 
 	if params.IsLockLiquidity {
+		lockLiquidity := new(big.Int).Set(params.LiquidityDelta)
+		lockLiquidity = lockLiquidityForCollectFeeMode(lockLiquidity, CollectFeeMode(cfg.CollectFeeMode))
 		lockIx, err := dammv2gen.NewPermanentLockPositionInstruction(
-			u128FromBig(params.LiquidityDelta),
+			u128FromBig(lockLiquidity),
 			pool,
 			prepared.Position,
 			prepared.PositionNftAccount,
@@ -252,6 +286,9 @@ func (c *CpAmm) CreatePool(ctx context.Context, params CreatePoolParams) (TxBuil
 
 // CreateCustomPool builds a transaction to create a customizable pool.
 func (c *CpAmm) CreateCustomPool(ctx context.Context, params InitializeCustomizeablePoolParams) (TxBuilder, solanago.PublicKey, solanago.PublicKey, solanago.PublicKey, error) {
+	if err := ValidateCustomizablePoolParams(params); err != nil {
+		return nil, solanago.PublicKey{}, solanago.PublicKey{}, solanago.PublicKey{}, err
+	}
 	pool := DeriveCustomizablePoolAddress(params.TokenAMint, params.TokenBMint)
 	tokenBAmount := params.TokenBAmount
 	if params.TokenBMint.Equals(helpers.NativeMint) && tokenBAmount != nil {
@@ -275,8 +312,10 @@ func (c *CpAmm) CreateCustomPool(ctx context.Context, params InitializeCustomize
 	}
 
 	poolFees := dammv2gen.PoolFeeParameters{
-		BaseFee:    params.PoolFees.BaseFee,
-		DynamicFee: params.PoolFees.DynamicFee,
+		BaseFee:           params.PoolFees.BaseFee,
+		CompoundingFeeBps: params.PoolFees.CompoundingFeeBps,
+		Padding:           params.PoolFees.Padding,
+		DynamicFee:        params.PoolFees.DynamicFee,
 	}
 	initParams := dammv2gen.InitializeCustomizablePoolParameters{
 		PoolFees:        poolFees,
@@ -324,8 +363,9 @@ func (c *CpAmm) CreateCustomPool(ctx context.Context, params InitializeCustomize
 	}
 	builder.AddInstruction(initIx)
 	if params.IsLockLiquidity {
+		lockLiquidity := lockLiquidityForCollectFeeMode(params.LiquidityDelta, params.CollectFeeMode)
 		lockIx, err := dammv2gen.NewPermanentLockPositionInstruction(
-			u128FromBig(params.LiquidityDelta),
+			u128FromBig(lockLiquidity),
 			pool,
 			prepared.Position,
 			prepared.PositionNftAccount,
@@ -343,6 +383,9 @@ func (c *CpAmm) CreateCustomPool(ctx context.Context, params InitializeCustomize
 
 // CreateCustomPoolWithDynamicConfig builds a transaction to create customizable pool with dynamic config.
 func (c *CpAmm) CreateCustomPoolWithDynamicConfig(ctx context.Context, params InitializeCustomizeablePoolWithDynamicConfigParams) (TxBuilder, solanago.PublicKey, solanago.PublicKey, error) {
+	if err := ValidateCustomizablePoolParams(params.InitializeCustomizeablePoolParams); err != nil {
+		return nil, solanago.PublicKey{}, solanago.PublicKey{}, err
+	}
 	pool := DerivePoolAddress(params.Config, params.TokenAMint, params.TokenBMint)
 	prepared, err := c.prepareCreatePoolParams(ctx, PrepareCustomizablePoolParams{
 		Pool:          pool,
@@ -359,8 +402,10 @@ func (c *CpAmm) CreateCustomPoolWithDynamicConfig(ctx context.Context, params In
 		return nil, solanago.PublicKey{}, solanago.PublicKey{}, err
 	}
 	poolFees := dammv2gen.PoolFeeParameters{
-		BaseFee:    params.PoolFees.BaseFee,
-		DynamicFee: params.PoolFees.DynamicFee,
+		BaseFee:           params.PoolFees.BaseFee,
+		CompoundingFeeBps: params.PoolFees.CompoundingFeeBps,
+		Padding:           params.PoolFees.Padding,
+		DynamicFee:        params.PoolFees.DynamicFee,
 	}
 	initParams := dammv2gen.InitializeCustomizablePoolParameters{
 		PoolFees:        poolFees,
@@ -409,8 +454,9 @@ func (c *CpAmm) CreateCustomPoolWithDynamicConfig(ctx context.Context, params In
 	}
 	builder.AddInstruction(initIx)
 	if params.IsLockLiquidity {
+		lockLiquidity := lockLiquidityForCollectFeeMode(params.LiquidityDelta, params.CollectFeeMode)
 		lockIx, err := dammv2gen.NewPermanentLockPositionInstruction(
-			u128FromBig(params.LiquidityDelta),
+			u128FromBig(lockLiquidity),
 			pool,
 			prepared.Position,
 			prepared.PositionNftAccount,
@@ -426,6 +472,13 @@ func (c *CpAmm) CreateCustomPoolWithDynamicConfig(ctx context.Context, params In
 	return builder, pool, prepared.Position, nil
 }
 
+func lockLiquidityForCollectFeeMode(liquidityDelta *big.Int, collectFeeMode CollectFeeMode) *big.Int {
+	if collectFeeMode != CollectFeeModeCompounding {
+		return liquidityDelta
+	}
+	return new(big.Int).Sub(liquidityDelta, shared.DeadLiquidity)
+}
+
 // CreatePosition builds a transaction to create a position.
 func (c *CpAmm) CreatePosition(ctx context.Context, params CreatePositionParams) (TxBuilder, solanago.PublicKey, solanago.PublicKey, error) {
 	ix, position, positionNftAccount, err := c.buildCreatePositionInstruction(params)
@@ -439,6 +492,9 @@ func (c *CpAmm) CreatePosition(ctx context.Context, params CreatePositionParams)
 
 // AddLiquidity builds a transaction to add liquidity.
 func (c *CpAmm) AddLiquidity(ctx context.Context, params AddLiquidityParams) (TxBuilder, error) {
+	if err := ValidateAddLiquidityParams(params.LiquidityDelta); err != nil {
+		return nil, err
+	}
 	tokenAProgram := helpers.GetTokenProgram(params.PoolState.TokenAFlag)
 	tokenBProgram := helpers.GetTokenProgram(params.PoolState.TokenBFlag)
 
@@ -574,6 +630,9 @@ func (c *CpAmm) CreatePositionAndAddLiquidity(ctx context.Context, params Create
 
 // RemoveLiquidity builds a transaction to remove liquidity.
 func (c *CpAmm) RemoveLiquidity(ctx context.Context, params RemoveLiquidityParams) (TxBuilder, error) {
+	if err := ValidateRemoveLiquidityParams(params.LiquidityDelta); err != nil {
+		return nil, err
+	}
 	tokenAProgram := helpers.GetTokenProgram(params.PoolState.TokenAFlag)
 	tokenBProgram := helpers.GetTokenProgram(params.PoolState.TokenBFlag)
 	tokenAAccount, tokenBAccount, preIxs, err := c.prepareTokenAccounts(ctx, PrepareTokenAccountParams{
@@ -966,6 +1025,9 @@ func (c *CpAmm) Swap2(ctx context.Context, params Swap2Params) (TxBuilder, error
 
 // LockPosition builds a transaction to lock a position.
 func (c *CpAmm) LockPosition(ctx context.Context, params LockPositionParams) (TxBuilder, error) {
+	if err := ValidateLockPositionParams(params.NumberOfPeriod, params.PeriodFrequency, params.CliffUnlockLiquidity, params.LiquidityPerPeriod); err != nil {
+		return nil, err
+	}
 	vestingParams := dammv2gen.VestingParameters{
 		CliffPoint:           toU64Ptr(params.CliffPoint),
 		PeriodFrequency:      toU64(params.PeriodFrequency),
@@ -1063,7 +1125,7 @@ func (c *CpAmm) ClosePosition(ctx context.Context, params ClosePositionParams) (
 
 // RemoveAllLiquidityAndClosePosition builds a transaction to claim, remove, and close.
 func (c *CpAmm) RemoveAllLiquidityAndClosePosition(ctx context.Context, params RemoveAllLiquidityAndClosePositionParams) (TxBuilder, error) {
-	canUnlock, reason := c.canUnlockPosition(params.PositionState, params.Vestings, params.CurrentPoint)
+	canUnlock, reason := c.CanUnlockPosition(params.PositionState, params.Vestings, params.CurrentPoint)
 	if !canUnlock {
 		return nil, errors.New("cannot remove liquidity: " + reason)
 	}
@@ -1105,7 +1167,7 @@ func (c *CpAmm) RemoveAllLiquidityAndClosePosition(ctx context.Context, params R
 	for _, ix := range preIxs {
 		builder.AddInstruction(ix)
 	}
-	liquidateIxs, err := c.buildLiquidatePositionInstruction(BuildLiquidatePositionInstructionParams{
+	liquidateIxs, err := c.buildLiquidatePositionInstruction(ctx, BuildLiquidatePositionInstructionParams{
 		Owner:                 params.Owner,
 		Position:              params.Position,
 		PositionNftAccount:    params.PositionNftAccount,
@@ -1115,6 +1177,7 @@ func (c *CpAmm) RemoveAllLiquidityAndClosePosition(ctx context.Context, params R
 		TokenBAccount:         tokenBAccount,
 		TokenAAmountThreshold: params.TokenAAmountThreshold,
 		TokenBAmountThreshold: params.TokenBAmountThreshold,
+		IsSkipReward:          params.IsSkipReward,
 	})
 	if err != nil {
 		return nil, err
@@ -1122,7 +1185,7 @@ func (c *CpAmm) RemoveAllLiquidityAndClosePosition(ctx context.Context, params R
 	for _, ix := range liquidateIxs {
 		builder.AddInstruction(ix)
 	}
-	if tokenAMint.Equals(helpers.NativeMint) || tokenBMint.Equals(helpers.NativeMint) {
+	if poolUsesNativeMint(params.PoolState) {
 		closeIx, _ := helpers.UnwrapSOLInstruction(params.Owner, params.Owner, true)
 		if closeIx != nil {
 			builder.AddInstruction(closeIx)
@@ -1133,7 +1196,7 @@ func (c *CpAmm) RemoveAllLiquidityAndClosePosition(ctx context.Context, params R
 
 // MergePosition merges liquidity from position B to A.
 func (c *CpAmm) MergePosition(ctx context.Context, params MergePositionParams) (TxBuilder, error) {
-	canUnlock, reason := c.canUnlockPosition(params.PositionBState, params.PositionBVestings, params.CurrentPoint)
+	canUnlock, reason := c.CanUnlockPosition(params.PositionBState, params.PositionBVestings, params.CurrentPoint)
 	if !canUnlock {
 		return nil, errors.New("cannot remove liquidity: " + reason)
 	}
@@ -1181,20 +1244,36 @@ func (c *CpAmm) MergePosition(ctx context.Context, params MergePositionParams) (
 		preIxs = append(preIxs, refreshIx)
 	}
 
-	tokenAWithdraw := math.GetAmountAFromLiquidityDelta(params.PoolState.SqrtPrice.BigInt(), params.PoolState.SqrtMaxPrice.BigInt(), positionBLiquidityDelta, RoundingDown)
-	tokenBWithdraw := math.GetAmountBFromLiquidityDelta(params.PoolState.SqrtMinPrice.BigInt(), params.PoolState.SqrtPrice.BigInt(), positionBLiquidityDelta, RoundingDown)
+	collectFeeMode := CollectFeeMode(params.PoolState.CollectFeeMode)
+	tokenAAmount := new(big.Int).SetUint64(params.PoolState.TokenAAmount)
+	tokenBAmount := new(big.Int).SetUint64(params.PoolState.TokenBAmount)
+	poolLiquidity := params.PoolState.Liquidity.BigInt()
+	tokenAWithdraw := math.GetAmountAFromLiquidityDelta(params.PoolState.SqrtPrice.BigInt(), params.PoolState.SqrtMaxPrice.BigInt(), positionBLiquidityDelta, RoundingDown, collectFeeMode, tokenAAmount, poolLiquidity)
+	tokenBWithdraw := math.GetAmountBFromLiquidityDelta(params.PoolState.SqrtMinPrice.BigInt(), params.PoolState.SqrtPrice.BigInt(), positionBLiquidityDelta, RoundingDown, collectFeeMode, tokenBAmount, poolLiquidity)
+	tokenAReceived := tokenAWithdraw
+	tokenBReceived := tokenBWithdraw
+	if params.TokenAInfo != nil {
+		tokenAReceived = helpers.CalculateTransferFeeExcludedAmount(tokenAWithdraw, params.TokenAInfo).Amount
+	}
+	if params.TokenBInfo != nil {
+		tokenBReceived = helpers.CalculateTransferFeeExcludedAmount(tokenBWithdraw, params.TokenBInfo).Amount
+	}
 	newLiquidityDelta := c.GetLiquidityDelta(LiquidityDeltaParams{
-		MaxAmountTokenA: tokenAWithdraw,
-		MaxAmountTokenB: tokenBWithdraw,
+		MaxAmountTokenA: tokenAReceived,
+		MaxAmountTokenB: tokenBReceived,
 		SqrtPrice:       params.PoolState.SqrtPrice.BigInt(),
 		SqrtMinPrice:    params.PoolState.SqrtMinPrice.BigInt(),
 		SqrtMaxPrice:    params.PoolState.SqrtMaxPrice.BigInt(),
+		CollectFeeMode:  collectFeeMode,
+		TokenAAmount:    new(big.Int).Sub(tokenAAmount, tokenAWithdraw),
+		TokenBAmount:    new(big.Int).Sub(tokenBAmount, tokenBWithdraw),
+		Liquidity:       new(big.Int).Sub(poolLiquidity, positionBLiquidityDelta),
 	})
 	builder := solanago.NewTransactionBuilder()
 	for _, ix := range preIxs {
 		builder.AddInstruction(ix)
 	}
-	liquidateIxs, err := c.buildLiquidatePositionInstruction(BuildLiquidatePositionInstructionParams{
+	liquidateIxs, err := c.buildLiquidatePositionInstruction(ctx, BuildLiquidatePositionInstructionParams{
 		Owner:                 params.Owner,
 		Position:              params.PositionB,
 		PositionNftAccount:    params.PositionBNftAccount,
@@ -1204,6 +1283,7 @@ func (c *CpAmm) MergePosition(ctx context.Context, params MergePositionParams) (
 		TokenBAccount:         tokenBAccount,
 		TokenAAmountThreshold: params.TokenAAmountRemoveLiquidityThreshold,
 		TokenBAmountThreshold: params.TokenBAmountRemoveLiquidityThreshold,
+		IsSkipReward:          params.IsSkipReward,
 	})
 	if err != nil {
 		return nil, err
@@ -1232,7 +1312,7 @@ func (c *CpAmm) MergePosition(ctx context.Context, params MergePositionParams) (
 		return nil, err
 	}
 	builder.AddInstruction(addIx)
-	if tokenAMint.Equals(helpers.NativeMint) || tokenBMint.Equals(helpers.NativeMint) {
+	if poolUsesNativeMint(params.PoolState) {
 		closeIx, _ := helpers.UnwrapSOLInstruction(params.Owner, params.Owner, true)
 		if closeIx != nil {
 			builder.AddInstruction(closeIx)
@@ -1241,8 +1321,44 @@ func (c *CpAmm) MergePosition(ctx context.Context, params MergePositionParams) (
 	return builder, nil
 }
 
+func poolUsesNativeMint(pool *PoolState) bool {
+	if pool.TokenAMint.Equals(helpers.NativeMint) || pool.TokenBMint.Equals(helpers.NativeMint) {
+		return true
+	}
+	for _, reward := range pool.RewardInfos {
+		if reward.Initialized != 0 && reward.Mint.Equals(helpers.NativeMint) {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *CpAmm) mintTokenProgram(ctx context.Context, mint solanago.PublicKey) (solanago.PublicKey, error) {
+	acc, err := c.Client.GetAccountInfo(ctx, mint)
+	if err != nil {
+		return solanago.PublicKey{}, err
+	}
+	if acc == nil || acc.Value == nil {
+		return solanago.PublicKey{}, errors.New("mint account not found")
+	}
+	return acc.Value.Owner, nil
+}
+
 // InitializeReward builds a transaction to initialize reward.
 func (c *CpAmm) InitializeReward(ctx context.Context, params InitializeRewardParams) (TxBuilder, error) {
+	if err := ValidateRewardIndex(params.RewardIndex); err != nil {
+		return nil, err
+	}
+	if err := ValidateRewardDuration(params.RewardDuration); err != nil {
+		return nil, err
+	}
+	if err := helpers.ValidateNotNativeMintToken2022(params.RewardMint); err != nil {
+		return nil, err
+	}
+	tokenProgram, err := c.mintTokenProgram(ctx, params.RewardMint)
+	if err != nil {
+		return nil, err
+	}
 	rewardVault := DeriveRewardVaultAddress(params.Pool, params.RewardIndex)
 	tokenBadge := DeriveTokenBadgeAddress(params.RewardMint)
 	operator := DeriveOperatorAddress(params.Creator)
@@ -1267,7 +1383,7 @@ func (c *CpAmm) InitializeReward(ctx context.Context, params InitializeRewardPar
 		params.RewardMint,
 		params.Creator,
 		params.Payer,
-		helpers.GetTokenProgram(params.RewardIndex),
+		tokenProgram,
 		solanago.SystemProgramID,
 		c.EventAuthority,
 		dammv2gen.ProgramID,
@@ -1285,6 +1401,19 @@ func (c *CpAmm) InitializeReward(ctx context.Context, params InitializeRewardPar
 
 // InitializeAndFundReward builds a transaction to initialize and fund reward.
 func (c *CpAmm) InitializeAndFundReward(ctx context.Context, params InitializeAndFundReward) (TxBuilder, error) {
+	if err := ValidateRewardIndex(params.RewardIndex); err != nil {
+		return nil, err
+	}
+	if err := ValidateRewardDuration(params.RewardDuration); err != nil {
+		return nil, err
+	}
+	if err := helpers.ValidateNotNativeMintToken2022(params.RewardMint); err != nil {
+		return nil, err
+	}
+	tokenProgram, err := c.mintTokenProgram(ctx, params.RewardMint)
+	if err != nil {
+		return nil, err
+	}
 	builder := solanago.NewTransactionBuilder()
 
 	// Initialize reward.
@@ -1312,7 +1441,7 @@ func (c *CpAmm) InitializeAndFundReward(ctx context.Context, params InitializeAn
 		params.RewardMint,
 		params.Creator,
 		params.Payer,
-		helpers.GetTokenProgram(params.RewardIndex),
+		tokenProgram,
 		solanago.SystemProgramID,
 		c.EventAuthority,
 		dammv2gen.ProgramID,
@@ -1327,7 +1456,7 @@ func (c *CpAmm) InitializeAndFundReward(ctx context.Context, params InitializeAn
 
 	// Fund reward.
 	preIxs := []solanago.Instruction{}
-	funderTokenAccount, createIx, err := helpers.GetOrCreateATAInstruction(ctx, c.Client, params.RewardMint, params.Payer, params.Payer, helpers.GetTokenProgram(params.RewardIndex))
+	funderTokenAccount, createIx, err := helpers.GetOrCreateATAInstruction(ctx, c.Client, params.RewardMint, params.Payer, params.Payer, tokenProgram)
 	if err != nil {
 		return nil, err
 	}
@@ -1347,7 +1476,7 @@ func (c *CpAmm) InitializeAndFundReward(ctx context.Context, params InitializeAn
 		params.RewardMint,
 		funderTokenAccount,
 		params.Payer,
-		helpers.GetTokenProgram(params.RewardIndex),
+		tokenProgram,
 		c.EventAuthority,
 		dammv2gen.ProgramID,
 	)
@@ -1363,6 +1492,12 @@ func (c *CpAmm) InitializeAndFundReward(ctx context.Context, params InitializeAn
 
 // UpdateRewardDuration builds a transaction to update reward duration.
 func (c *CpAmm) UpdateRewardDuration(ctx context.Context, params UpdateRewardDurationParams) (TxBuilder, error) {
+	if err := ValidateRewardIndex(params.RewardIndex); err != nil {
+		return nil, err
+	}
+	if err := ValidateRewardDuration(params.NewDuration); err != nil {
+		return nil, err
+	}
 	ix, err := dammv2gen.NewUpdateRewardDurationInstruction(
 		params.RewardIndex,
 		toU64(params.NewDuration),
@@ -1381,6 +1516,9 @@ func (c *CpAmm) UpdateRewardDuration(ctx context.Context, params UpdateRewardDur
 
 // UpdateRewardFunder builds a transaction to update reward funder.
 func (c *CpAmm) UpdateRewardFunder(ctx context.Context, params UpdateRewardFunderParams) (TxBuilder, error) {
+	if err := ValidateRewardIndex(params.RewardIndex); err != nil {
+		return nil, err
+	}
 	ix, err := dammv2gen.NewUpdateRewardFunderInstruction(
 		params.RewardIndex,
 		params.NewFunder,
@@ -1399,8 +1537,15 @@ func (c *CpAmm) UpdateRewardFunder(ctx context.Context, params UpdateRewardFunde
 
 // FundReward builds a transaction to fund reward.
 func (c *CpAmm) FundReward(ctx context.Context, params FundRewardParams) (TxBuilder, error) {
+	if err := ValidateRewardIndex(params.RewardIndex); err != nil {
+		return nil, err
+	}
+	tokenProgram, err := c.mintTokenProgram(ctx, params.RewardMint)
+	if err != nil {
+		return nil, err
+	}
 	preIxs := []solanago.Instruction{}
-	funderTokenAccount, createIx, err := helpers.GetOrCreateATAInstruction(ctx, c.Client, params.RewardMint, params.Funder, params.Funder, helpers.GetTokenProgram(params.RewardIndex))
+	funderTokenAccount, createIx, err := helpers.GetOrCreateATAInstruction(ctx, c.Client, params.RewardMint, params.Funder, params.Funder, tokenProgram)
 	if err != nil {
 		return nil, err
 	}
@@ -1420,7 +1565,7 @@ func (c *CpAmm) FundReward(ctx context.Context, params FundRewardParams) (TxBuil
 		params.RewardMint,
 		funderTokenAccount,
 		params.Funder,
-		helpers.GetTokenProgram(params.RewardIndex),
+		tokenProgram,
 		c.EventAuthority,
 		dammv2gen.ProgramID,
 	)
@@ -1437,6 +1582,9 @@ func (c *CpAmm) FundReward(ctx context.Context, params FundRewardParams) (TxBuil
 
 // WithdrawIneligibleReward builds a transaction to withdraw ineligible reward.
 func (c *CpAmm) WithdrawIneligibleReward(ctx context.Context, params WithdrawIneligibleRewardParams) (TxBuilder, error) {
+	if err := ValidateRewardIndex(params.RewardIndex); err != nil {
+		return nil, err
+	}
 	poolState, err := c.FetchPoolState(ctx, params.Pool)
 	if err != nil {
 		return nil, err
@@ -1467,62 +1615,6 @@ func (c *CpAmm) WithdrawIneligibleReward(ctx context.Context, params WithdrawIne
 		funderTokenAccount,
 		params.Funder,
 		tokenProgram,
-		c.EventAuthority,
-		dammv2gen.ProgramID,
-	)
-	if err != nil {
-		return nil, err
-	}
-	builder := solanago.NewTransactionBuilder()
-	for _, ix := range preIxs {
-		builder.AddInstruction(ix)
-	}
-	builder.AddInstruction(ix)
-	for _, ix := range postIxs {
-		builder.AddInstruction(ix)
-	}
-	return builder, nil
-}
-
-// ClaimPartnerFee builds a transaction to claim partner fee.
-func (c *CpAmm) ClaimPartnerFee(ctx context.Context, params ClaimPartnerFeeParams) (TxBuilder, error) {
-	poolState, err := c.FetchPoolState(ctx, params.Pool)
-	if err != nil {
-		return nil, err
-	}
-	tokenAProgram := helpers.GetTokenProgram(poolState.TokenAFlag)
-	tokenBProgram := helpers.GetTokenProgram(poolState.TokenBFlag)
-	payer := params.Partner
-	if params.FeePayer != nil {
-		payer = *params.FeePayer
-	}
-	tokenAAccount, tokenBAccount, preIxs, postIxs, err := c.setupFeeClaimAccounts(ctx, SetupFeeClaimAccountsParams{
-		Payer:           payer,
-		Owner:           params.Partner,
-		TokenAMint:      poolState.TokenAMint,
-		TokenBMint:      poolState.TokenBMint,
-		TokenAProgram:   tokenAProgram,
-		TokenBProgram:   tokenBProgram,
-		Receiver:        params.Receiver,
-		TempWSolAccount: params.TempWSolAccount,
-	})
-	if err != nil {
-		return nil, err
-	}
-	ix, err := dammv2gen.NewClaimPartnerFeeInstruction(
-		toU64(params.MaxAmountA),
-		toU64(params.MaxAmountB),
-		c.PoolAuthority,
-		params.Pool,
-		tokenAAccount,
-		tokenBAccount,
-		poolState.TokenAVault,
-		poolState.TokenBVault,
-		poolState.TokenAMint,
-		poolState.TokenBMint,
-		params.Partner,
-		tokenAProgram,
-		tokenBProgram,
 		c.EventAuthority,
 		dammv2gen.ProgramID,
 	)
@@ -1646,6 +1738,9 @@ func (c *CpAmm) ClaimPositionFee2(ctx context.Context, params ClaimPositionFeePa
 
 // ClaimReward builds a transaction to claim reward.
 func (c *CpAmm) ClaimReward(ctx context.Context, params ClaimRewardParams) (TxBuilder, error) {
+	if err := ValidateRewardIndex(params.RewardIndex); err != nil {
+		return nil, err
+	}
 	rewardInfo := params.PoolState.RewardInfos[int(params.RewardIndex)]
 	tokenProgram := helpers.GetTokenProgram(rewardInfo.RewardTokenFlag)
 	preIxs := []solanago.Instruction{}
@@ -1702,6 +1797,9 @@ func (c *CpAmm) ClaimReward(ctx context.Context, params ClaimRewardParams) (TxBu
 
 // SplitPosition builds a transaction to split position.
 func (c *CpAmm) SplitPosition(ctx context.Context, params SplitPositionParams) (TxBuilder, error) {
+	if err := ValidateSplitPositionParams(params.PermanentLockedLiquidityPercentage, params.UnlockedLiquidityPercentage, params.FeeAPercentage, params.FeeBPercentage, params.Reward0Percentage, params.Reward1Percentage, params.InnerVestingLiquidityPercentage); err != nil {
+		return nil, err
+	}
 	param := dammv2gen.SplitPositionParameters{
 		PermanentLockedLiquidityPercentage: params.PermanentLockedLiquidityPercentage,
 		UnlockedLiquidityPercentage:        params.UnlockedLiquidityPercentage,
@@ -1734,6 +1832,9 @@ func (c *CpAmm) SplitPosition(ctx context.Context, params SplitPositionParams) (
 
 // SplitPosition2 builds a transaction to split position with numerator.
 func (c *CpAmm) SplitPosition2(ctx context.Context, params SplitPosition2Params) (TxBuilder, error) {
+	if err := ValidateSplitPosition2Params(params.Numerator); err != nil {
+		return nil, err
+	}
 	ix, err := dammv2gen.NewSplitPosition2Instruction(
 		params.Numerator,
 		params.Pool,
@@ -1779,6 +1880,75 @@ func minBig(a, b *big.Int) *big.Int {
 		return new(big.Int).Set(a)
 	}
 	return new(big.Int).Set(b)
+}
+
+func (c *CpAmm) UpdateDelegatePermission(_ context.Context, params UpdateDelegatePermissionParams) (TxBuilder, error) {
+	approveIx, err := token.NewApproveInstruction(0, params.PositionNftAccount, params.Delegate, params.Owner, nil).ValidateAndBuild()
+	if err != nil {
+		return nil, err
+	}
+	approveIx.SetProgramID(solanago.Token2022ProgramID)
+	updateIx, err := dammv2gen.NewUpdateDelegatePermissionInstruction(
+		params.Permission,
+		params.Position,
+		params.PositionNftAccount,
+		params.Owner,
+		c.EventAuthority,
+		dammv2gen.ProgramID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	builder := solanago.NewTransactionBuilder()
+	builder.AddInstruction(approveIx)
+	builder.AddInstruction(updateIx)
+	return builder, nil
+}
+
+func (c *CpAmm) WithdrawDeadLiquidityReward(ctx context.Context, params WithdrawDeadLiquidityRewardParams) (TxBuilder, error) {
+	if err := ValidateRewardIndex(params.RewardIndex); err != nil {
+		return nil, err
+	}
+	if params.PoolState == nil {
+		return nil, errors.New("pool state is required")
+	}
+	if int(params.RewardIndex) >= len(params.PoolState.RewardInfos) {
+		return nil, errors.New("invalid reward index")
+	}
+	reward := params.PoolState.RewardInfos[params.RewardIndex]
+	if reward.Initialized == 0 {
+		return nil, errors.New("reward is not initialized")
+	}
+	tokenProgram := helpers.GetTokenProgram(reward.RewardTokenFlag)
+	funderTokenAccount, createAta, err := helpers.GetOrCreateATAInstruction(ctx, c.Client, reward.Mint, params.Funder, params.Funder, tokenProgram)
+	if err != nil {
+		return nil, err
+	}
+	ix, err := dammv2gen.NewWithdrawDeadLiquidityRewardInstruction(
+		params.RewardIndex,
+		c.PoolAuthority,
+		params.Pool,
+		reward.Vault,
+		reward.Mint,
+		funderTokenAccount,
+		params.Funder,
+		tokenProgram,
+		c.EventAuthority,
+		dammv2gen.ProgramID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	builder := solanago.NewTransactionBuilder()
+	if createAta != nil {
+		builder.AddInstruction(createAta)
+	}
+	builder.AddInstruction(ix)
+	return builder, nil
+}
+
+func (c *CpAmm) GetDeadLiquidityReward(pool *PoolState, rewardIndex int, currentTime *big.Int) (*big.Int, error) {
+	return helpers.GetDeadLiquidityReward(pool, rewardIndex, currentTime)
 }
 
 func optionalPubkey(pk *solanago.PublicKey) solanago.PublicKey {

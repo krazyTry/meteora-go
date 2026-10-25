@@ -15,6 +15,16 @@ import (
 // NativeMint is the wrapped SOL mint.
 var NativeMint = solanago.WrappedSol
 
+// NativeMint2022 is Token-2022 wrapped SOL, which DAMM v2 rejects.
+var NativeMint2022 = solanago.MustPublicKeyFromBase58("9pan9bMn5HatX4EJdBwg9VgCa7Uz5HL8N1m5D3NdXejP")
+
+func ValidateNotNativeMintToken2022(mint solanago.PublicKey) error {
+	if mint.Equals(NativeMint2022) {
+		return fmt.Errorf("Token-2022 wrapped SOL is not supported. Use SPL wrapped SOL (NATIVE_MINT) instead")
+	}
+	return nil
+}
+
 func GetTokenProgram(flag uint8) solanago.PublicKey {
 	if flag == 0 {
 		return token.ProgramID
@@ -134,6 +144,29 @@ func GetAllPositionNftAccountByOwner(ctx context.Context, client *rpc.Client, us
 		if tokenAcc.Amount == 1 {
 			out = append(out, PositionNftAccount{PositionNft: tokenAcc.Mint, PositionNftAccount: acc.Pubkey})
 		}
+	}
+	return out, nil
+}
+
+// GetAllPositionNftAccountByDelegate finds Token-2022 accounts whose delegate is the given wallet and amount is 1.
+func GetAllPositionNftAccountByDelegate(ctx context.Context, client *rpc.Client, delegate solanago.PublicKey) ([]PositionNftAccount, error) {
+	filters := []rpc.RPCFilter{
+		{Memcmp: &rpc.RPCFilterMemcmp{Offset: 76, Bytes: solanago.Base58(delegate.Bytes())}},
+		{Memcmp: &rpc.RPCFilterMemcmp{Offset: 72, Bytes: solanago.Base58([]byte{1, 0, 0, 0})}},
+		{Memcmp: &rpc.RPCFilterMemcmp{Offset: 64, Bytes: solanago.Base58([]byte{1, 0, 0, 0, 0, 0, 0, 0})}},
+	}
+	resp, err := client.GetProgramAccountsWithOpts(ctx, solanago.Token2022ProgramID, &rpc.GetProgramAccountsOpts{Filters: filters})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]PositionNftAccount, 0, len(resp))
+	for _, acc := range resp {
+		dec := bin.NewBinDecoder(acc.Account.Data.GetBinary())
+		var tokenAcc token.Account
+		if err := tokenAcc.UnmarshalWithDecoder(dec); err != nil {
+			continue
+		}
+		out = append(out, PositionNftAccount{PositionNft: tokenAcc.Mint, PositionNftAccount: acc.Pubkey})
 	}
 	return out, nil
 }

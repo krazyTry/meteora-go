@@ -8,30 +8,32 @@ import (
 	"reflect"
 
 	binary "github.com/gagliardetto/binary"
-	"github.com/solana-foundation/solana-go/v2"
-	"github.com/solana-foundation/solana-go/v2/rpc"
 	"github.com/krazyTry/meteora-go/damm_v2/shared"
 	dammv2gen "github.com/krazyTry/meteora-go/gen/damm_v2"
+	"github.com/solana-foundation/solana-go/v2"
+	"github.com/solana-foundation/solana-go/v2/rpc"
 )
 
-func GetUnClaimLpFee(poolState *dammv2gen.Pool, positionState *dammv2gen.Position) (feeTokenA, feeTokenB *big.Int, rewards []*big.Int, err error) {
-	totalPositionLiquidity := new(big.Int).Add(positionState.UnlockedLiquidity.BigInt(), positionState.VestedLiquidity.BigInt())
-	totalPositionLiquidity.Add(totalPositionLiquidity, positionState.PermanentLockedLiquidity.BigInt())
+func GetUnClaimLpFee(poolState *dammv2gen.Pool, positionState *dammv2gen.Position, currentTime ...*big.Int) (feeTokenA, feeTokenB *big.Int, rewards []*big.Int, err error) {
+	totalPositionLiquidity := positionLiquidity(positionState)
+	feeAPerTokenStored := wrappingSubU256(leBytesToBigInt(poolState.FeeAPerLiquidity[:]), leBytesToBigInt(positionState.FeeAPerTokenCheckpoint[:]))
+	feeBPerTokenStored := wrappingSubU256(leBytesToBigInt(poolState.FeeBPerLiquidity[:]), leBytesToBigInt(positionState.FeeBPerTokenCheckpoint[:]))
+	feeA := calculatePositionFeeOrReward(totalPositionLiquidity, feeAPerTokenStored, shared.LiquidityScale)
+	feeB := calculatePositionFeeOrReward(totalPositionLiquidity, feeBPerTokenStored, shared.LiquidityScale)
+	feeTokenA = saturatingAddU64(new(big.Int).SetUint64(positionState.FeeAPending), feeA)
+	feeTokenB = saturatingAddU64(new(big.Int).SetUint64(positionState.FeeBPending), feeB)
 
-	feeAPerTokenStored := new(big.Int).Sub(leBytesToBigInt(poolState.FeeAPerLiquidity[:]), leBytesToBigInt(positionState.FeeAPerTokenCheckpoint[:]))
-	feeBPerTokenStored := new(big.Int).Sub(leBytesToBigInt(poolState.FeeBPerLiquidity[:]), leBytesToBigInt(positionState.FeeBPerTokenCheckpoint[:]))
-
-	feeA := new(big.Int).Mul(totalPositionLiquidity, feeAPerTokenStored)
-	feeA.Rsh(feeA, shared.LiquidityScale)
-	feeB := new(big.Int).Mul(totalPositionLiquidity, feeBPerTokenStored)
-	feeB.Rsh(feeB, shared.LiquidityScale)
-
-	feeTokenA = new(big.Int).Add(big.NewInt(int64(positionState.FeeAPending)), feeA)
-	feeTokenB = new(big.Int).Add(big.NewInt(int64(positionState.FeeBPending)), feeB)
-
+	var point *big.Int
+	if len(currentTime) > 0 {
+		point = currentTime[0]
+	}
 	rewards = make([]*big.Int, 0, len(positionState.RewardInfos))
-	for _, item := range positionState.RewardInfos {
-		rewards = append(rewards, big.NewInt(int64(item.RewardPendings)))
+	for rewardIndex := range positionState.RewardInfos {
+		reward, err := quotePositionReward(poolState, positionState, rewardIndex, point)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		rewards = append(rewards, reward)
 	}
 	return feeTokenA, feeTokenB, rewards, nil
 }
@@ -42,82 +44,157 @@ func GetRewardInfo(poolState *dammv2gen.Pool, rewardIndex int, periodTime, curre
 	}
 	poolReward := poolState.RewardInfos[rewardIndex]
 	poolLiquidity := poolState.Liquidity.BigInt()
-
-	rewardPerTokenStore := getRewardPerTokenStore(poolReward, poolLiquidity, currentTime)
-
+	rewardPerTokenStore, err := getRewardPerTokenStore(poolReward, poolLiquidity, currentTime)
+	if err != nil {
+		return nil, nil, nil, err
+	}
 	totalRewardDistributed = new(big.Int).Mul(rewardPerTokenStore, poolLiquidity)
-	totalRewardDistributed.Rsh(totalRewardDistributed, 192)
+	totalRewardDistributed.Rsh(totalRewardDistributed, shared.TotalRewardScale)
 
-	rewardDurationEnd := big.NewInt(int64(poolReward.RewardDurationEnd))
+	rewardDurationEnd := new(big.Int).SetUint64(poolReward.RewardDurationEnd)
 	if rewardDurationEnd.Cmp(currentTime) <= 0 {
 		return big.NewInt(0), big.NewInt(0), totalRewardDistributed, nil
 	}
-
-	rewardPerPeriod = getRewardPerPeriod(poolReward, currentTime, periodTime)
+	rewardPerPeriod, err = getRewardPerPeriod(poolReward, currentTime, periodTime)
+	if err != nil {
+		return nil, nil, nil, err
+	}
 	remainTime := new(big.Int).Sub(rewardDurationEnd, currentTime)
 	rewardBalance = new(big.Int).Mul(poolReward.RewardRate.BigInt(), remainTime)
-	rewardBalance.Rsh(rewardBalance, 64)
-
-	if poolLiquidity.Sign() == 0 {
-		return rewardPerPeriod, rewardBalance, big.NewInt(0), nil
+	if rewardBalance.Cmp(shared.U128Max) > 0 {
+		return nil, nil, nil, errors.New("math overflow")
 	}
-
-	return rewardPerPeriod.Rsh(rewardPerPeriod, 64), rewardBalance, totalRewardDistributed, nil
+	return new(big.Int).Rsh(rewardPerPeriod, 64), new(big.Int).Rsh(rewardBalance, 64), totalRewardDistributed, nil
 }
 
 func GetUserRewardPending(poolState *dammv2gen.Pool, positionState *dammv2gen.Position, rewardIndex int, currentTime, periodTime *big.Int) (userRewardPerPeriod, userPendingReward *big.Int, err error) {
-	poolLiquidity := poolState.Liquidity.BigInt()
-	if poolLiquidity.Sign() == 0 {
-		return big.NewInt(0), big.NewInt(0), nil
-	}
 	if rewardIndex < 0 || rewardIndex >= len(poolState.RewardInfos) {
 		return nil, nil, errors.New("invalid reward index")
 	}
 	poolReward := poolState.RewardInfos[rewardIndex]
 	userRewardInfo := positionState.RewardInfos[rewardIndex]
-
-	rewardPerTokenStore := getRewardPerTokenStore(poolReward, poolLiquidity, currentTime)
-
-	totalPositionLiquidity := new(big.Int).Add(positionState.UnlockedLiquidity.BigInt(), positionState.VestedLiquidity.BigInt())
-	totalPositionLiquidity.Add(totalPositionLiquidity, positionState.PermanentLockedLiquidity.BigInt())
-
-	userRewardPerTokenCheckPoint := leBytesToBigInt(userRewardInfo.RewardPerTokenCheckpoint[:])
-	newReward := new(big.Int).Sub(rewardPerTokenStore, userRewardPerTokenCheckPoint)
-	newReward.Mul(newReward, totalPositionLiquidity)
-	newReward.Rsh(newReward, 192)
-
-	rewardDurationEnd := big.NewInt(int64(poolReward.RewardDurationEnd))
-	pending := new(big.Int).Add(big.NewInt(int64(userRewardInfo.RewardPendings)), newReward)
-	if rewardDurationEnd.Cmp(currentTime) <= 0 {
-		return big.NewInt(0), pending, nil
+	if poolReward.Initialized == 0 {
+		return big.NewInt(0), new(big.Int).SetUint64(userRewardInfo.RewardPendings), nil
 	}
-
-	rewardPerPeriod := getRewardPerPeriod(poolReward, currentTime, periodTime)
-	rewardPerTokenStorePerPeriod := new(big.Int).Lsh(rewardPerPeriod, 128)
+	poolLiquidity := poolState.Liquidity.BigInt()
+	rewardPerTokenStore, err := getRewardPerTokenStore(poolReward, poolLiquidity, currentTime)
+	if err != nil {
+		return nil, nil, err
+	}
+	userPendingReward, err = pendingPositionReward(positionState, rewardIndex, rewardPerTokenStore)
+	if err != nil {
+		return nil, nil, err
+	}
+	if poolLiquidity.Sign() == 0 || new(big.Int).SetUint64(poolReward.RewardDurationEnd).Cmp(currentTime) <= 0 {
+		return big.NewInt(0), userPendingReward, nil
+	}
+	rewardPerPeriod, err := getRewardPerPeriod(poolReward, currentTime, periodTime)
+	if err != nil {
+		return nil, nil, err
+	}
+	rewardPerTokenStorePerPeriod := new(big.Int).Lsh(rewardPerPeriod, shared.LiquidityScale)
 	rewardPerTokenStorePerPeriod.Div(rewardPerTokenStorePerPeriod, poolLiquidity)
-	userRewardPerPeriod = new(big.Int).Mul(totalPositionLiquidity, rewardPerTokenStorePerPeriod)
-	userRewardPerPeriod.Rsh(userRewardPerPeriod, 192)
-
-	return userRewardPerPeriod, pending, nil
+	userRewardPerPeriod = calculatePositionFeeOrReward(positionLiquidity(positionState), rewardPerTokenStorePerPeriod, shared.TotalRewardScale)
+	return userRewardPerPeriod, userPendingReward, nil
 }
 
-func getRewardPerTokenStore(poolReward dammv2gen.RewardInfo, poolLiquidity *big.Int, currentTime *big.Int) *big.Int {
-	if poolLiquidity.Sign() == 0 {
-		return big.NewInt(0)
+func GetDeadLiquidityReward(poolState *dammv2gen.Pool, rewardIndex int, currentTime *big.Int) (*big.Int, error) {
+	if rewardIndex < 0 || rewardIndex >= len(poolState.RewardInfos) {
+		return nil, errors.New("invalid reward index")
 	}
-	lastTimeRewardApplicable := minBigInt(currentTime, big.NewInt(int64(poolReward.RewardDurationEnd)))
-	timePeriod := new(big.Int).Sub(lastTimeRewardApplicable, big.NewInt(int64(poolReward.LastUpdateTime)))
-	currentTotalReward := new(big.Int).Mul(timePeriod, poolReward.RewardRate.BigInt())
-	rewardPerTokenStore := new(big.Int).Lsh(currentTotalReward, 128)
-	rewardPerTokenStore.Div(rewardPerTokenStore, poolLiquidity)
-
-	totalRewardPerTokenStore := new(big.Int).Add(leBytesToBigInt(poolReward.RewardPerTokenStored[:]), rewardPerTokenStore)
-	return totalRewardPerTokenStore
+	if shared.CollectFeeMode(poolState.CollectFeeMode) != shared.CollectFeeModeCompounding {
+		return big.NewInt(0), nil
+	}
+	poolReward := poolState.RewardInfos[rewardIndex]
+	if poolReward.Initialized == 0 {
+		return big.NewInt(0), nil
+	}
+	rewardPerTokenStored, err := getRewardPerTokenStore(poolReward, poolState.Liquidity.BigInt(), currentTime)
+	if err != nil {
+		return nil, err
+	}
+	checkpoint := mulShr256WrappingU64(shared.DeadLiquidity, rewardPerTokenStored, shared.TotalRewardScale)
+	return wrappingSubU64(checkpoint, new(big.Int).SetUint64(poolReward.DeadLiquidityRewardCheckpoint)), nil
 }
 
-func getRewardPerPeriod(poolReward dammv2gen.RewardInfo, currentTime, periodTime *big.Int) *big.Int {
+func positionLiquidity(positionState *dammv2gen.Position) *big.Int {
+	total := new(big.Int).Add(positionState.UnlockedLiquidity.BigInt(), positionState.VestedLiquidity.BigInt())
+	return total.Add(total, positionState.PermanentLockedLiquidity.BigInt())
+}
+
+func pendingPositionReward(positionState *dammv2gen.Position, rewardIndex int, rewardPerTokenStored *big.Int) (*big.Int, error) {
+	userRewardInfo := positionState.RewardInfos[rewardIndex]
+	accrued := calculatePositionFeeOrReward(
+		positionLiquidity(positionState),
+		wrappingSubU256(rewardPerTokenStored, leBytesToBigInt(userRewardInfo.RewardPerTokenCheckpoint[:])),
+		shared.TotalRewardScale,
+	)
+	return saturatingAddU64(new(big.Int).SetUint64(userRewardInfo.RewardPendings), accrued), nil
+}
+
+func quotePositionReward(poolState *dammv2gen.Pool, positionState *dammv2gen.Position, rewardIndex int, currentTime *big.Int) (*big.Int, error) {
+	userRewardInfo := positionState.RewardInfos[rewardIndex]
+	poolReward := poolState.RewardInfos[rewardIndex]
+	if poolReward.Initialized == 0 {
+		return new(big.Int).SetUint64(userRewardInfo.RewardPendings), nil
+	}
+	var rewardPerTokenStored *big.Int
+	var err error
+	if currentTime != nil {
+		rewardPerTokenStored, err = getRewardPerTokenStore(poolReward, poolState.Liquidity.BigInt(), currentTime)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		rewardPerTokenStored = leBytesToBigInt(poolReward.RewardPerTokenStored[:])
+	}
+	return pendingPositionReward(positionState, rewardIndex, rewardPerTokenStored)
+}
+
+func elapsedRewardSeconds(poolReward dammv2gen.RewardInfo, currentTime *big.Int) (*big.Int, error) {
+	lastTime := minBigInt(currentTime, new(big.Int).SetUint64(poolReward.RewardDurationEnd))
+	timePeriod := new(big.Int).Sub(lastTime, new(big.Int).SetUint64(poolReward.LastUpdateTime))
+	if timePeriod.Sign() < 0 {
+		return nil, errors.New("math overflow")
+	}
+	return timePeriod, nil
+}
+
+func rewardPerTokenDelta(poolReward dammv2gen.RewardInfo, poolLiquidity, currentTime *big.Int) (*big.Int, error) {
+	timePeriod, err := elapsedRewardSeconds(poolReward, currentTime)
+	if err != nil {
+		return nil, err
+	}
+	if poolLiquidity.Sign() == 0 {
+		emptySeconds := new(big.Int).Add(new(big.Int).SetUint64(poolReward.CumulativeSecondsWithEmptyLiquidityReward), timePeriod)
+		if emptySeconds.Cmp(shared.U64Max) > 0 {
+			return nil, errors.New("math overflow")
+		}
+		return big.NewInt(0), nil
+	}
+	currentTotalReward := new(big.Int).Mul(timePeriod, poolReward.RewardRate.BigInt())
+	if currentTotalReward.Cmp(shared.U128Max) > 0 {
+		return nil, errors.New("math overflow")
+	}
+	delta := new(big.Int).Lsh(currentTotalReward, shared.LiquidityScale)
+	return delta.Div(delta, poolLiquidity), nil
+}
+
+func getRewardPerTokenStore(poolReward dammv2gen.RewardInfo, poolLiquidity, currentTime *big.Int) (*big.Int, error) {
+	stored := leBytesToBigInt(poolReward.RewardPerTokenStored[:])
+	if poolReward.Initialized == 0 {
+		return stored, nil
+	}
+	delta, err := rewardPerTokenDelta(poolReward, poolLiquidity, currentTime)
+	if err != nil {
+		return nil, err
+	}
+	return wrappingAddU256(stored, delta), nil
+}
+
+func getRewardPerPeriod(poolReward dammv2gen.RewardInfo, currentTime, periodTime *big.Int) (*big.Int, error) {
 	timeRewardApplicable := new(big.Int).Add(currentTime, periodTime)
-	rewardDurationEnd := big.NewInt(int64(poolReward.RewardDurationEnd))
+	rewardDurationEnd := new(big.Int).SetUint64(poolReward.RewardDurationEnd)
 	period := new(big.Int)
 	if timeRewardApplicable.Cmp(rewardDurationEnd) <= 0 {
 		period.Set(periodTime)
@@ -125,7 +202,45 @@ func getRewardPerPeriod(poolReward dammv2gen.RewardInfo, currentTime, periodTime
 		period.Sub(rewardDurationEnd, currentTime)
 	}
 	rewardPerPeriod := new(big.Int).Mul(poolReward.RewardRate.BigInt(), period)
-	return rewardPerPeriod
+	if rewardPerPeriod.Cmp(shared.U128Max) > 0 {
+		return nil, errors.New("math overflow")
+	}
+	return rewardPerPeriod, nil
+}
+
+func wrappingAddU256(value, delta *big.Int) *big.Int {
+	return new(big.Int).Mod(new(big.Int).Add(value, delta), shared.U256Modulus)
+}
+
+func wrappingSubU256(value, checkpoint *big.Int) *big.Int {
+	return new(big.Int).Mod(new(big.Int).Sub(value, checkpoint), shared.U256Modulus)
+}
+
+func wrappingSubU64(value, checkpoint *big.Int) *big.Int {
+	return new(big.Int).Mod(new(big.Int).Sub(value, checkpoint), shared.U64Modulus)
+}
+
+func saturatingAddU64(pending, amount *big.Int) *big.Int {
+	sum := new(big.Int).Add(pending, amount)
+	if sum.Cmp(shared.U64Max) > 0 {
+		return new(big.Int).Set(shared.U64Max)
+	}
+	return sum
+}
+
+func calculatePositionFeeOrReward(liquidity, tokenPerLiquidityDelta *big.Int, offset uint) *big.Int {
+	shifted := new(big.Int).Mul(liquidity, tokenPerLiquidityDelta)
+	shifted.Rsh(shifted, offset)
+	if shifted.Cmp(shared.U64Max) > 0 {
+		return new(big.Int).Set(shared.U64Max)
+	}
+	return shifted
+}
+
+func mulShr256WrappingU64(x, y *big.Int, offset uint) *big.Int {
+	prod := new(big.Int).Mul(x, y)
+	prod.Rsh(prod, offset)
+	return prod.Mod(prod, shared.U64Modulus)
 }
 
 func leBytesToBigInt(b []uint8) *big.Int {

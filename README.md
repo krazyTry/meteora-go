@@ -7,7 +7,7 @@
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/krazyTry/meteora-go/blob/master/LICENSE.md)
 
 Go SDK for interacting with the **Meteora Protocol** on Solana.  
-Currently supports **Dynamic Bonding Curves (DBC) v0.1.9** and **Dynamic AMM (DAMM v2) v0.1.8**.
+Currently supports **Dynamic Bonding Curves (DBC) v0.2.2** and **Dynamic AMM (DAMM v2) v0.2.5**.
 
 ---
 

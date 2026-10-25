@@ -21,416 +21,253 @@ func curveFromConfig(config *dbc.PoolConfig) []curvePoint {
 	return curve
 }
 
-// SwapQuote V1
-func GetSwapResult(virtualPool *dbc.VirtualPool, config *dbc.PoolConfig, amountIn *big.Int, feeMode dbc.FeeMode, tradeDirection dbc.TradeDirection, currentPoint *big.Int, eligibleForFirstSwapWithMinFee bool) (dbc.SwapResult, error) {
-	var actualProtocolFee = big.NewInt(0)
-	var actualTradingFee = big.NewInt(0)
-	var actualReferralFee = big.NewInt(0)
-
-	baseFeeHandler, err := pool_fees.GetBaseFeeHandler(new(big.Int).SetUint64(config.PoolFees.BaseFee.CliffFeeNumerator), config.PoolFees.BaseFee.FirstFactor, new(big.Int).SetUint64(config.PoolFees.BaseFee.SecondFactor), new(big.Int).SetUint64(config.PoolFees.BaseFee.ThirdFactor), dbc.BaseFeeMode(config.PoolFees.BaseFee.BaseFeeMode))
-	if err != nil {
-		return dbc.SwapResult{}, err
+func addU64(total, amount *big.Int) (*big.Int, error) {
+	sum := new(big.Int).Add(total, amount)
+	if sum.Cmp(dbc.U64Max) > 0 {
+		return nil, errors.New(dbc.ErrMathOverflow)
 	}
-
-	tradeFeeNumerator := baseFeeHandler.GetMinBaseFeeNumerator()
-	if !eligibleForFirstSwapWithMinFee {
-		tradeFeeNumerator, err = GetTotalFeeNumeratorFromIncludedFeeAmount(config.PoolFees, virtualPool.VolatilityTracker, currentPoint, new(big.Int).SetUint64(virtualPool.ActivationPoint), amountIn, tradeDirection)
-		if err != nil {
-			return dbc.SwapResult{}, err
-		}
-	}
-
-	actualAmountIn := amountIn
-	if feeMode.FeesOnInput {
-		feeResult, err := GetFeeOnAmount(tradeFeeNumerator, amountIn, config.PoolFees, feeMode.HasReferral)
-		if err != nil {
-			return dbc.SwapResult{}, err
-		}
-		actualProtocolFee = feeResult.ProtocolFee
-		actualTradingFee = feeResult.TradingFee
-		actualReferralFee = feeResult.ReferralFee
-		actualAmountIn = feeResult.Amount
-	}
-
-	currentSqrtPrice := U128ToBig(virtualPool.SqrtPrice)
-	var swapAmount dbc.SwapAmount
-	if tradeDirection == dbc.TradeDirectionBaseToQuote {
-		swapAmount, err = CalculateBaseToQuoteFromAmountIn(config, currentSqrtPrice, actualAmountIn)
-	} else {
-		swapAmount, err = CalculateQuoteToBaseFromAmountIn(config, currentSqrtPrice, actualAmountIn, U128ToBig(config.MigrationSqrtPrice))
-	}
-	if err != nil {
-		return dbc.SwapResult{}, err
-	}
-
-	if swapAmount.AmountLeft.Sign() != 0 {
-		return dbc.SwapResult{}, errors.New("Insufficient Liquidity")
-	}
-
-	actualAmountOut := swapAmount.OutputAmount
-	if !feeMode.FeesOnInput {
-		feeResult, err := GetFeeOnAmount(tradeFeeNumerator, swapAmount.OutputAmount, config.PoolFees, feeMode.HasReferral)
-		if err != nil {
-			return dbc.SwapResult{}, err
-		}
-		actualTradingFee = feeResult.TradingFee
-		actualProtocolFee = feeResult.ProtocolFee
-		actualReferralFee = feeResult.ReferralFee
-		actualAmountOut = feeResult.Amount
-	}
-
-	return dbc.SwapResult{
-		ActualInputAmount: actualAmountIn,
-		OutputAmount:      actualAmountOut,
-		NextSqrtPrice:     swapAmount.NextSqrtPrice,
-		TradingFee:        actualTradingFee,
-		ProtocolFee:       actualProtocolFee,
-		ReferralFee:       actualReferralFee,
-	}, nil
+	return sum, nil
 }
 
-func SwapQuote(virtualPool *dbc.VirtualPool, config *dbc.PoolConfig, swapBaseForQuote bool, amountIn *big.Int, slippageBps uint16, hasReferral bool, currentPoint *big.Int, eligibleForFirstSwapWithMinFee bool) (dbc.SwapQuoteResult, error) {
-	if new(big.Int).SetUint64(virtualPool.QuoteReserve).Cmp(new(big.Int).SetUint64(config.MigrationQuoteThreshold)) >= 0 {
-		return dbc.SwapQuoteResult{}, errors.New("Virtual pool is completed")
+func assertSlippageBps(slippageBps uint64) error {
+	if slippageBps > dbc.MaxBasisPoint {
+		return errors.New("slippageBps must be between 0 and 10000")
 	}
-	if amountIn.Sign() == 0 {
-		return dbc.SwapQuoteResult{}, errors.New("Amount is zero")
-	}
+	return nil
+}
 
+func minimumAmountOutWithSlippage(amount *big.Int, slippageBps uint64) (*big.Int, error) {
+	if err := assertSlippageBps(slippageBps); err != nil {
+		return nil, err
+	}
+	return new(big.Int).Div(
+		new(big.Int).Mul(amount, big.NewInt(int64(dbc.MaxBasisPoint-slippageBps))),
+		big.NewInt(dbc.MaxBasisPoint),
+	), nil
+}
+
+func maximumAmountInWithSlippage(amount *big.Int, slippageBps uint64) (*big.Int, error) {
+	if err := assertSlippageBps(slippageBps); err != nil {
+		return nil, err
+	}
+	return new(big.Int).Div(
+		new(big.Int).Mul(amount, big.NewInt(int64(dbc.MaxBasisPoint+slippageBps))),
+		big.NewInt(dbc.MaxBasisPoint),
+	), nil
+}
+
+func isFirstSwapWithMinFee(virtualPool *dbc.VirtualPool, config *dbc.PoolConfig, hasReferral, eligible bool) bool {
+	return eligible && !hasReferral && config.EnableFirstSwapWithMinFee == 1 && virtualPool.PoolState.HasSwap == 0
+}
+
+func tradeFeeNumerator(virtualPool *dbc.VirtualPool, config *dbc.PoolConfig, currentPoint *big.Int, tradeDirection dbc.TradeDirection, amount *big.Int, amountExcludesFee, eligibleForFirstSwapWithMinFee bool) (*big.Int, error) {
+	baseFeeHandler, err := pool_fees.GetBaseFeeHandler(
+		new(big.Int).SetUint64(config.PoolFees.BaseFee.CliffFeeNumerator),
+		config.PoolFees.BaseFee.FirstFactor,
+		new(big.Int).SetUint64(config.PoolFees.BaseFee.SecondFactor),
+		new(big.Int).SetUint64(config.PoolFees.BaseFee.ThirdFactor),
+		dbc.BaseFeeMode(config.PoolFees.BaseFee.BaseFeeMode),
+	)
+	if err != nil {
+		return nil, err
+	}
+	if eligibleForFirstSwapWithMinFee {
+		return baseFeeHandler.GetMinBaseFeeNumerator(), nil
+	}
+	activationPoint := new(big.Int).SetUint64(virtualPool.PoolState.ActivationPoint)
+	if amountExcludesFee {
+		return GetTotalFeeNumeratorFromExcludedFeeAmount(config.PoolFees, virtualPool.PoolState.VolatilityTracker, currentPoint, activationPoint, amount, tradeDirection)
+	}
+	return GetTotalFeeNumeratorFromIncludedFeeAmount(config.PoolFees, virtualPool.PoolState.VolatilityTracker, currentPoint, activationPoint, amount, tradeDirection)
+}
+
+type swapFees struct {
+	trading  *big.Int
+	protocol *big.Int
+	referral *big.Int
+}
+
+func takeFee(feeNumerator, includedFeeAmount *big.Int, hasReferral bool) (amount *big.Int, fees swapFees, err error) {
+	result, err := GetFeeOnAmount(feeNumerator, includedFeeAmount, hasReferral)
+	if err != nil {
+		return nil, swapFees{}, err
+	}
+	return result.Amount, swapFees{trading: result.TradingFee, protocol: result.ProtocolFee, referral: result.ReferralFee}, nil
+}
+
+func addFee(feeNumerator, excludedFeeAmount *big.Int, hasReferral bool) (amount *big.Int, fees swapFees, err error) {
+	included, feeAmount, err := GetIncludedFeeAmount(feeNumerator, excludedFeeAmount)
+	if err != nil {
+		return nil, swapFees{}, err
+	}
+	trading, protocol, referral, err := SplitFees(feeAmount, hasReferral)
+	if err != nil {
+		return nil, swapFees{}, err
+	}
+	return included, swapFees{trading: trading, protocol: protocol, referral: referral}, nil
+}
+
+func zeroFees() swapFees {
+	return swapFees{trading: big.NewInt(0), protocol: big.NewInt(0), referral: big.NewInt(0)}
+}
+
+func swapFromInput(virtualPool *dbc.VirtualPool, config *dbc.PoolConfig, tradeDirection dbc.TradeDirection, amountIn *big.Int) (dbc.SwapAmount, error) {
+	currentSqrtPrice := U128ToBig(virtualPool.PoolState.SqrtPrice)
+	if tradeDirection == dbc.TradeDirectionBaseToQuote {
+		return CalculateBaseToQuoteFromAmountIn(config, currentSqrtPrice, amountIn)
+	}
+	return CalculateQuoteToBaseFromAmountIn(config, currentSqrtPrice, amountIn, U128ToBig(config.MigrationSqrtPrice))
+}
+
+func beginSwapQuote(virtualPool *dbc.VirtualPool, config *dbc.PoolConfig, swapBaseForQuote bool, amount *big.Int, hasReferral bool, transferFees *dbc.QuoteTransferFees) (dbc.TradeDirection, dbc.FeeMode, *dbc.EpochTransferFee, *dbc.EpochTransferFee, error) {
+	if amount.Sign() == 0 {
+		return 0, dbc.FeeMode{}, nil, nil, errors.New(dbc.ErrAmountIsZero)
+	}
+	if amount.Cmp(dbc.U64Max) > 0 {
+		return 0, dbc.FeeMode{}, nil, nil, errors.New(dbc.ErrMathOverflow)
+	}
+	if new(big.Int).SetUint64(virtualPool.PoolState.QuoteReserve).Cmp(new(big.Int).SetUint64(config.MigrationQuoteThreshold)) >= 0 {
+		return 0, dbc.FeeMode{}, nil, nil, errors.New(dbc.ErrPoolIsCompleted)
+	}
 	tradeDirection := dbc.TradeDirectionQuoteToBase
 	if swapBaseForQuote {
 		tradeDirection = dbc.TradeDirectionBaseToQuote
 	}
-	feeMode := GetFeeMode(dbc.CollectFeeMode(config.CollectFeeMode), tradeDirection, hasReferral)
-	result, err := GetSwapResult(virtualPool, config, amountIn, feeMode, tradeDirection, currentPoint, eligibleForFirstSwapWithMinFee)
+	feeMode, err := GetFeeMode(dbc.CollectFeeMode(config.CollectFeeMode), tradeDirection, hasReferral)
 	if err != nil {
-		return dbc.SwapQuoteResult{}, err
+		return 0, dbc.FeeMode{}, nil, nil, err
 	}
-
-	minimumAmountOut := result.OutputAmount
-	if slippageBps > 0 {
-		slippageFactor := big.NewInt(int64(10000 - slippageBps))
-		denom := big.NewInt(10000)
-		minimumAmountOut = new(big.Int).Div(new(big.Int).Mul(result.OutputAmount, slippageFactor), denom)
+	input, output, err := ResolveSwapTransferFees(config, swapBaseForQuote, transferFees)
+	if err != nil {
+		return 0, dbc.FeeMode{}, nil, nil, err
 	}
-
-	return dbc.SwapQuoteResult{SwapResult: result, MinimumAmountOut: minimumAmountOut}, nil
+	return tradeDirection, feeMode, input, output, nil
 }
 
-// SwapQuote V2
+func swapResult2(amountLeft, includedIn, excludedIn, output, next *big.Int, fees swapFees) dbc.SwapResult2 {
+	return dbc.SwapResult2{
+		AmountLeft:             amountLeft,
+		IncludedFeeInputAmount: includedIn,
+		ExcludedFeeInputAmount: excludedIn,
+		OutputAmount:           output,
+		NextSqrtPrice:          next,
+		TradingFee:             fees.trading,
+		ProtocolFee:            fees.protocol,
+		ReferralFee:            fees.referral,
+	}
+}
 
+// GetSwapResultFromExactInput is the program's get_swap_result_from_exact_input.
 func GetSwapResultFromExactInput(virtualPool *dbc.VirtualPool, config *dbc.PoolConfig, amountIn *big.Int, feeMode dbc.FeeMode, tradeDirection dbc.TradeDirection, currentPoint *big.Int, eligibleForFirstSwapWithMinFee bool) (dbc.SwapResult2, error) {
-	var actualProtocolFee = big.NewInt(0)
-	var actualTradingFee = big.NewInt(0)
-	var actualReferralFee = big.NewInt(0)
-
-	baseFeeHandler, err := pool_fees.GetBaseFeeHandler(new(big.Int).SetUint64(config.PoolFees.BaseFee.CliffFeeNumerator), config.PoolFees.BaseFee.FirstFactor, new(big.Int).SetUint64(config.PoolFees.BaseFee.SecondFactor), new(big.Int).SetUint64(config.PoolFees.BaseFee.ThirdFactor), dbc.BaseFeeMode(config.PoolFees.BaseFee.BaseFeeMode))
+	feeNumerator, err := tradeFeeNumerator(virtualPool, config, currentPoint, tradeDirection, amountIn, false, eligibleForFirstSwapWithMinFee)
 	if err != nil {
 		return dbc.SwapResult2{}, err
 	}
-
-	tradeFeeNumerator := baseFeeHandler.GetMinBaseFeeNumerator()
-	if !eligibleForFirstSwapWithMinFee {
-		tradeFeeNumerator, err = GetTotalFeeNumeratorFromIncludedFeeAmount(config.PoolFees, virtualPool.VolatilityTracker, currentPoint, new(big.Int).SetUint64(virtualPool.ActivationPoint), amountIn, tradeDirection)
-		if err != nil {
-			return dbc.SwapResult2{}, err
-		}
-	}
-
-	actualAmountIn := amountIn
+	fees := zeroFees()
+	actualAmountIn := new(big.Int).Set(amountIn)
 	if feeMode.FeesOnInput {
-		feeResult, err := GetFeeOnAmount(tradeFeeNumerator, amountIn, config.PoolFees, feeMode.HasReferral)
+		actualAmountIn, fees, err = takeFee(feeNumerator, amountIn, feeMode.HasReferral)
 		if err != nil {
 			return dbc.SwapResult2{}, err
 		}
-		actualProtocolFee = feeResult.ProtocolFee
-		actualTradingFee = feeResult.TradingFee
-		actualReferralFee = feeResult.ReferralFee
-		actualAmountIn = feeResult.Amount
 	}
-
-	currentSqrtPrice := U128ToBig(virtualPool.SqrtPrice)
-	var swapAmount dbc.SwapAmount
-	if tradeDirection == dbc.TradeDirectionBaseToQuote {
-		swapAmount, err = CalculateBaseToQuoteFromAmountIn(config, currentSqrtPrice, actualAmountIn)
-	} else {
-		swapAmount, err = CalculateQuoteToBaseFromAmountIn(config, currentSqrtPrice, actualAmountIn, U128ToBig(config.MigrationSqrtPrice))
-	}
+	swapAmount, err := swapFromInput(virtualPool, config, tradeDirection, actualAmountIn)
 	if err != nil {
 		return dbc.SwapResult2{}, err
 	}
-
 	if swapAmount.AmountLeft.Sign() != 0 {
-		return dbc.SwapResult2{}, errors.New("Insufficient Liquidity")
+		return dbc.SwapResult2{}, errors.New(dbc.ErrInsufficientLiquidity)
 	}
-
 	actualAmountOut := swapAmount.OutputAmount
 	if !feeMode.FeesOnInput {
-		feeResult, err := GetFeeOnAmount(tradeFeeNumerator, swapAmount.OutputAmount, config.PoolFees, feeMode.HasReferral)
+		actualAmountOut, fees, err = takeFee(feeNumerator, swapAmount.OutputAmount, feeMode.HasReferral)
 		if err != nil {
 			return dbc.SwapResult2{}, err
 		}
-		actualTradingFee = feeResult.TradingFee
-		actualProtocolFee = feeResult.ProtocolFee
-		actualReferralFee = feeResult.ReferralFee
-		actualAmountOut = feeResult.Amount
 	}
+	return swapResult2(swapAmount.AmountLeft, amountIn, actualAmountIn, actualAmountOut, swapAmount.NextSqrtPrice, fees), nil
+}
 
-	return dbc.SwapResult2{
-		AmountLeft:             swapAmount.AmountLeft,
-		IncludedFeeInputAmount: amountIn,
-		ExcludedFeeInputAmount: actualAmountIn,
-		OutputAmount:           actualAmountOut,
-		NextSqrtPrice:          swapAmount.NextSqrtPrice,
-		TradingFee:             actualTradingFee,
-		ProtocolFee:            actualProtocolFee,
-		ReferralFee:            actualReferralFee,
+// GetSwapResult is the legacy swap result derived from an exact-input quote.
+func GetSwapResult(virtualPool *dbc.VirtualPool, config *dbc.PoolConfig, amountIn *big.Int, feeMode dbc.FeeMode, tradeDirection dbc.TradeDirection, currentPoint *big.Int, eligibleForFirstSwapWithMinFee bool) (dbc.SwapResult, error) {
+	result, err := GetSwapResultFromExactInput(virtualPool, config, amountIn, feeMode, tradeDirection, currentPoint, eligibleForFirstSwapWithMinFee)
+	if err != nil {
+		return dbc.SwapResult{}, err
+	}
+	return dbc.SwapResult{
+		ActualInputAmount: result.ExcludedFeeInputAmount,
+		OutputAmount:      result.OutputAmount,
+		NextSqrtPrice:     result.NextSqrtPrice,
+		TradingFee:        result.TradingFee,
+		ProtocolFee:       result.ProtocolFee,
+		ReferralFee:       result.ReferralFee,
 	}, nil
 }
 
+// GetSwapResultFromPartialInput is the program's get_swap_result_from_partial_input.
 func GetSwapResultFromPartialInput(virtualPool *dbc.VirtualPool, config *dbc.PoolConfig, amountIn *big.Int, feeMode dbc.FeeMode, tradeDirection dbc.TradeDirection, currentPoint *big.Int, eligibleForFirstSwapWithMinFee bool) (dbc.SwapResult2, error) {
-	var actualProtocolFee = big.NewInt(0)
-	var actualTradingFee = big.NewInt(0)
-	var actualReferralFee = big.NewInt(0)
-
-	baseFeeHandler, err := pool_fees.GetBaseFeeHandler(new(big.Int).SetUint64(config.PoolFees.BaseFee.CliffFeeNumerator), config.PoolFees.BaseFee.FirstFactor, new(big.Int).SetUint64(config.PoolFees.BaseFee.SecondFactor), new(big.Int).SetUint64(config.PoolFees.BaseFee.ThirdFactor), dbc.BaseFeeMode(config.PoolFees.BaseFee.BaseFeeMode))
+	feeNumerator, err := tradeFeeNumerator(virtualPool, config, currentPoint, tradeDirection, amountIn, false, eligibleForFirstSwapWithMinFee)
 	if err != nil {
 		return dbc.SwapResult2{}, err
 	}
-
-	tradeFeeNumerator := baseFeeHandler.GetMinBaseFeeNumerator()
-	if !eligibleForFirstSwapWithMinFee {
-		tradeFeeNumerator, err = GetTotalFeeNumeratorFromIncludedFeeAmount(config.PoolFees, virtualPool.VolatilityTracker, currentPoint, new(big.Int).SetUint64(virtualPool.ActivationPoint), amountIn, tradeDirection)
-		if err != nil {
-			return dbc.SwapResult2{}, err
-		}
-	}
-
-	actualAmountIn := amountIn
+	fees := zeroFees()
+	actualAmountIn := new(big.Int).Set(amountIn)
 	if feeMode.FeesOnInput {
-		feeResult, err := GetFeeOnAmount(tradeFeeNumerator, amountIn, config.PoolFees, feeMode.HasReferral)
+		actualAmountIn, fees, err = takeFee(feeNumerator, amountIn, feeMode.HasReferral)
 		if err != nil {
 			return dbc.SwapResult2{}, err
 		}
-		actualProtocolFee = feeResult.ProtocolFee
-		actualTradingFee = feeResult.TradingFee
-		actualReferralFee = feeResult.ReferralFee
-		actualAmountIn = feeResult.Amount
 	}
-
-	currentSqrtPrice := U128ToBig(virtualPool.SqrtPrice)
-	var swapAmount dbc.SwapAmount
-	if tradeDirection == dbc.TradeDirectionBaseToQuote {
-		swapAmount, err = CalculateBaseToQuoteFromAmountIn(config, currentSqrtPrice, actualAmountIn)
-	} else {
-		swapAmount, err = CalculateQuoteToBaseFromAmountIn(config, currentSqrtPrice, actualAmountIn, U128ToBig(config.MigrationSqrtPrice))
-	}
+	swapAmount, err := swapFromInput(virtualPool, config, tradeDirection, actualAmountIn)
 	if err != nil {
 		return dbc.SwapResult2{}, err
 	}
-
-	includedFeeInputAmount := amountIn
+	includedFeeInputAmount := new(big.Int).Set(amountIn)
 	if swapAmount.AmountLeft.Sign() != 0 {
-		actualAmountIn, _ = Sub(actualAmountIn, swapAmount.AmountLeft)
+		actualAmountIn, err = Sub(actualAmountIn, swapAmount.AmountLeft)
+		if err != nil {
+			return dbc.SwapResult2{}, err
+		}
 		if feeMode.FeesOnInput {
-			tradeFeeNumeratorPartial := baseFeeHandler.GetMinBaseFeeNumerator()
-			if !eligibleForFirstSwapWithMinFee {
-				tradeFeeNumeratorPartial, err = GetTotalFeeNumeratorFromExcludedFeeAmount(config.PoolFees, virtualPool.VolatilityTracker, currentPoint, new(big.Int).SetUint64(virtualPool.ActivationPoint), actualAmountIn, tradeDirection)
-				if err != nil {
-					return dbc.SwapResult2{}, err
-				}
-			}
-			includedFeeAmount, feeAmount, err := GetIncludedFeeAmount(tradeFeeNumeratorPartial, actualAmountIn)
+			partialFee, err := tradeFeeNumerator(virtualPool, config, currentPoint, tradeDirection, actualAmountIn, true, eligibleForFirstSwapWithMinFee)
 			if err != nil {
 				return dbc.SwapResult2{}, err
 			}
-			tradingFee, protocolFee, referralFee, err := SplitFees(config.PoolFees, feeAmount, feeMode.HasReferral)
+			includedFeeInputAmount, fees, err = addFee(partialFee, actualAmountIn, feeMode.HasReferral)
 			if err != nil {
 				return dbc.SwapResult2{}, err
 			}
-			actualTradingFee = tradingFee
-			actualProtocolFee = protocolFee
-			actualReferralFee = referralFee
-			includedFeeInputAmount = includedFeeAmount
 		} else {
 			includedFeeInputAmount = actualAmountIn
 		}
 	}
-
 	actualAmountOut := swapAmount.OutputAmount
 	if !feeMode.FeesOnInput {
-		feeResult, err := GetFeeOnAmount(tradeFeeNumerator, swapAmount.OutputAmount, config.PoolFees, feeMode.HasReferral)
+		actualAmountOut, fees, err = takeFee(feeNumerator, swapAmount.OutputAmount, feeMode.HasReferral)
 		if err != nil {
 			return dbc.SwapResult2{}, err
 		}
-		actualTradingFee = feeResult.TradingFee
-		actualProtocolFee = feeResult.ProtocolFee
-		actualReferralFee = feeResult.ReferralFee
-		actualAmountOut = feeResult.Amount
 	}
-
-	return dbc.SwapResult2{
-		AmountLeft:             swapAmount.AmountLeft,
-		IncludedFeeInputAmount: includedFeeInputAmount,
-		ExcludedFeeInputAmount: actualAmountIn,
-		OutputAmount:           actualAmountOut,
-		NextSqrtPrice:          swapAmount.NextSqrtPrice,
-		TradingFee:             actualTradingFee,
-		ProtocolFee:            actualProtocolFee,
-		ReferralFee:            actualReferralFee,
-	}, nil
+	return swapResult2(swapAmount.AmountLeft, includedFeeInputAmount, actualAmountIn, actualAmountOut, swapAmount.NextSqrtPrice, fees), nil
 }
 
-func CalculateBaseToQuoteFromAmountIn(config *dbc.PoolConfig, currentSqrtPrice, amountIn *big.Int) (dbc.SwapAmount, error) {
-	curve := curveFromConfig(config)
-	totalOutput := big.NewInt(0)
-	current := new(big.Int).Set(currentSqrtPrice)
-	amountLeft := new(big.Int).Set(amountIn)
-
-	for i := len(curve) - 2; i >= 0; i-- {
-		if curve[i].SqrtPrice.Sign() == 0 || curve[i].Liquidity.Sign() == 0 {
-			continue
-		}
-		if curve[i].SqrtPrice.Cmp(current) < 0 {
-			maxAmountIn, err := GetDeltaAmountBaseUnsigned(curve[i].SqrtPrice, current, curve[i+1].Liquidity, dbc.RoundingUp)
-			if err != nil {
-				return dbc.SwapAmount{}, err
-			}
-			if amountLeft.Cmp(maxAmountIn) < 0 {
-				nextSqrtPrice, err := GetNextSqrtPriceFromInput(current, curve[i+1].Liquidity, amountLeft, true)
-				if err != nil {
-					return dbc.SwapAmount{}, err
-				}
-				outputAmount, err := GetDeltaAmountQuoteUnsigned(nextSqrtPrice, current, curve[i+1].Liquidity, dbc.RoundingDown)
-				if err != nil {
-					return dbc.SwapAmount{}, err
-				}
-				totalOutput.Add(totalOutput, outputAmount)
-				current = nextSqrtPrice
-				amountLeft = big.NewInt(0)
-				break
-			}
-			nextSqrtPrice := curve[i].SqrtPrice
-			outputAmount, err := GetDeltaAmountQuoteUnsigned(nextSqrtPrice, current, curve[i+1].Liquidity, dbc.RoundingDown)
-			if err != nil {
-				return dbc.SwapAmount{}, err
-			}
-			totalOutput.Add(totalOutput, outputAmount)
-			current = nextSqrtPrice
-			amountLeft.Sub(amountLeft, maxAmountIn)
-		}
-	}
-
-	if amountLeft.Sign() != 0 {
-		nextSqrtPrice, err := GetNextSqrtPriceFromInput(current, curve[0].Liquidity, amountLeft, true)
-		if err != nil {
-			return dbc.SwapAmount{}, err
-		}
-		if nextSqrtPrice.Cmp(U128ToBig(config.SqrtStartPrice)) < 0 {
-			nextSqrtPrice = U128ToBig(config.SqrtStartPrice)
-			amountIn2, err := GetDeltaAmountBaseUnsigned(nextSqrtPrice, current, curve[0].Liquidity, dbc.RoundingUp)
-			if err != nil {
-				return dbc.SwapAmount{}, err
-			}
-			amountLeft, _ = Sub(amountLeft, amountIn2)
-		} else {
-			amountLeft = big.NewInt(0)
-		}
-		outputAmount, err := GetDeltaAmountQuoteUnsigned(nextSqrtPrice, current, curve[0].Liquidity, dbc.RoundingDown)
-		if err != nil {
-			return dbc.SwapAmount{}, err
-		}
-		totalOutput.Add(totalOutput, outputAmount)
-		current = nextSqrtPrice
-	}
-
-	return dbc.SwapAmount{OutputAmount: totalOutput, NextSqrtPrice: current, AmountLeft: amountLeft}, nil
-}
-
-func CalculateQuoteToBaseFromAmountIn(config *dbc.PoolConfig, currentSqrtPrice, amountIn *big.Int, stopSqrtPrice *big.Int) (dbc.SwapAmount, error) {
-	curve := curveFromConfig(config)
-	if amountIn.Sign() == 0 {
-		return dbc.SwapAmount{OutputAmount: big.NewInt(0), NextSqrtPrice: currentSqrtPrice, AmountLeft: big.NewInt(0)}, nil
-	}
-	current := new(big.Int).Set(currentSqrtPrice)
-	amountLeft := new(big.Int).Set(amountIn)
-	totalOutput := big.NewInt(0)
-
-	for i := 0; i < len(curve); i++ {
-		if curve[i].SqrtPrice.Sign() == 0 || curve[i].Liquidity.Sign() == 0 {
-			break
-		}
-		reference := minBig(stopSqrtPrice, curve[i].SqrtPrice)
-		if reference.Cmp(current) > 0 {
-			maxAmountIn, err := GetDeltaAmountQuoteUnsigned(current, reference, curve[i].Liquidity, dbc.RoundingUp)
-			if err != nil {
-				return dbc.SwapAmount{}, err
-			}
-			if amountLeft.Cmp(maxAmountIn) < 0 {
-				nextSqrtPrice, err := GetNextSqrtPriceFromInput(current, curve[i].Liquidity, amountLeft, false)
-				if err != nil {
-					return dbc.SwapAmount{}, err
-				}
-				outputAmount, err := GetDeltaAmountBaseUnsigned(current, nextSqrtPrice, curve[i].Liquidity, dbc.RoundingDown)
-				if err != nil {
-					return dbc.SwapAmount{}, err
-				}
-				totalOutput.Add(totalOutput, outputAmount)
-				current = nextSqrtPrice
-				amountLeft = big.NewInt(0)
-				break
-			}
-			nextSqrtPrice := reference
-			outputAmount, err := GetDeltaAmountBaseUnsigned(current, nextSqrtPrice, curve[i].Liquidity, dbc.RoundingDown)
-			if err != nil {
-				return dbc.SwapAmount{}, err
-			}
-			totalOutput.Add(totalOutput, outputAmount)
-			current = nextSqrtPrice
-			amountLeft.Sub(amountLeft, maxAmountIn)
-			if nextSqrtPrice.Cmp(stopSqrtPrice) == 0 {
-				break
-			}
-		}
-	}
-
-	return dbc.SwapAmount{OutputAmount: totalOutput, NextSqrtPrice: current, AmountLeft: amountLeft}, nil
-}
-
+// GetSwapResultFromExactOutput is the program's get_swap_result_from_exact_output.
 func GetSwapResultFromExactOutput(virtualPool *dbc.VirtualPool, config *dbc.PoolConfig, amountOut *big.Int, feeMode dbc.FeeMode, tradeDirection dbc.TradeDirection, currentPoint *big.Int, eligibleForFirstSwapWithMinFee bool) (dbc.SwapResult2, error) {
-	var actualProtocolFee = big.NewInt(0)
-	var actualTradingFee = big.NewInt(0)
-	var actualReferralFee = big.NewInt(0)
-
-	baseFeeHandler, err := pool_fees.GetBaseFeeHandler(new(big.Int).SetUint64(config.PoolFees.BaseFee.CliffFeeNumerator), config.PoolFees.BaseFee.FirstFactor, new(big.Int).SetUint64(config.PoolFees.BaseFee.SecondFactor), new(big.Int).SetUint64(config.PoolFees.BaseFee.ThirdFactor), dbc.BaseFeeMode(config.PoolFees.BaseFee.BaseFeeMode))
-	if err != nil {
-		return dbc.SwapResult2{}, err
-	}
-
-	includedFeeOutAmount := amountOut
+	fees := zeroFees()
+	includedFeeOutAmount := new(big.Int).Set(amountOut)
+	var err error
 	if !feeMode.FeesOnInput {
-		tradeFeeNumerator := baseFeeHandler.GetMinBaseFeeNumerator()
-		if !eligibleForFirstSwapWithMinFee {
-			tradeFeeNumerator, err = GetTotalFeeNumeratorFromExcludedFeeAmount(config.PoolFees, virtualPool.VolatilityTracker, currentPoint, new(big.Int).SetUint64(virtualPool.ActivationPoint), amountOut, tradeDirection)
-			if err != nil {
-				return dbc.SwapResult2{}, err
-			}
-		}
-		var feeAmount *big.Int
-		includedFeeOutAmount, feeAmount, err = GetIncludedFeeAmount(tradeFeeNumerator, amountOut)
+		feeNumerator, err := tradeFeeNumerator(virtualPool, config, currentPoint, tradeDirection, amountOut, true, eligibleForFirstSwapWithMinFee)
 		if err != nil {
 			return dbc.SwapResult2{}, err
 		}
-		tradingFee, protocolFee, referralFee, err := SplitFees(config.PoolFees, feeAmount, feeMode.HasReferral)
+		includedFeeOutAmount, fees, err = addFee(feeNumerator, amountOut, feeMode.HasReferral)
 		if err != nil {
 			return dbc.SwapResult2{}, err
 		}
-		actualTradingFee = tradingFee
-		actualProtocolFee = protocolFee
-		actualReferralFee = referralFee
 	}
 
-	currentSqrtPrice := U128ToBig(virtualPool.SqrtPrice)
+	currentSqrtPrice := U128ToBig(virtualPool.PoolState.SqrtPrice)
 	var swapAmount dbc.SwapAmount
 	if tradeDirection == dbc.TradeDirectionBaseToQuote {
 		swapAmount, err = CalculateBaseToQuoteFromAmountOut(config, currentSqrtPrice, includedFeeOutAmount)
@@ -440,239 +277,440 @@ func GetSwapResultFromExactOutput(virtualPool *dbc.VirtualPool, config *dbc.Pool
 	if err != nil {
 		return dbc.SwapResult2{}, err
 	}
-
 	amountIn := swapAmount.OutputAmount
 	if swapAmount.NextSqrtPrice.Cmp(U128ToBig(config.MigrationSqrtPrice)) > 0 {
-		return dbc.SwapResult2{}, errors.New("Insufficient Liquidity")
+		return dbc.SwapResult2{}, errors.New(dbc.ErrInsufficientLiquidity)
 	}
 
-	excludedFeeInputAmount := amountIn
-	includedFeeInputAmount := amountIn
+	includedFeeInputAmount := new(big.Int).Set(amountIn)
 	if feeMode.FeesOnInput {
-		tradeFeeNumerator := baseFeeHandler.GetMinBaseFeeNumerator()
-		if !eligibleForFirstSwapWithMinFee {
-			tradeFeeNumerator, err = GetTotalFeeNumeratorFromExcludedFeeAmount(config.PoolFees, virtualPool.VolatilityTracker, currentPoint, new(big.Int).SetUint64(virtualPool.ActivationPoint), amountIn, tradeDirection)
-			if err != nil {
-				return dbc.SwapResult2{}, err
-			}
-		}
-		var feeAmount *big.Int
-		includedFeeInputAmount, feeAmount, err = GetIncludedFeeAmount(tradeFeeNumerator, amountIn)
+		feeNumerator, err := tradeFeeNumerator(virtualPool, config, currentPoint, tradeDirection, amountIn, true, eligibleForFirstSwapWithMinFee)
 		if err != nil {
 			return dbc.SwapResult2{}, err
 		}
-		tradingFee, protocolFee, referralFee, err := SplitFees(config.PoolFees, feeAmount, feeMode.HasReferral)
+		includedFeeInputAmount, fees, err = addFee(feeNumerator, amountIn, feeMode.HasReferral)
 		if err != nil {
 			return dbc.SwapResult2{}, err
 		}
-		actualTradingFee = tradingFee
-		actualProtocolFee = protocolFee
-		actualReferralFee = referralFee
-		excludedFeeInputAmount = amountIn
 	}
-
-	return dbc.SwapResult2{
-		AmountLeft:             big.NewInt(0),
-		IncludedFeeInputAmount: includedFeeInputAmount,
-		ExcludedFeeInputAmount: excludedFeeInputAmount,
-		OutputAmount:           amountOut,
-		NextSqrtPrice:          swapAmount.NextSqrtPrice,
-		TradingFee:             actualTradingFee,
-		ProtocolFee:            actualProtocolFee,
-		ReferralFee:            actualReferralFee,
-	}, nil
+	return swapResult2(big.NewInt(0), includedFeeInputAmount, amountIn, amountOut, swapAmount.NextSqrtPrice, fees), nil
 }
 
+// CalculateBaseToQuoteFromAmountIn is the quote received for amountIn base, walking the curve down.
+func CalculateBaseToQuoteFromAmountIn(config *dbc.PoolConfig, currentSqrtPrice, amountIn *big.Int) (dbc.SwapAmount, error) {
+	curve := curveFromConfig(config)
+	totalOutput := big.NewInt(0)
+	sqrtPrice := new(big.Int).Set(currentSqrtPrice)
+	amountLeft := new(big.Int).Set(amountIn)
+	var err error
+
+	for i := len(curve) - 2; i >= 0; i-- {
+		point := curve[i]
+		liquidity := curve[i+1].Liquidity
+		if point.SqrtPrice.Sign() == 0 || point.Liquidity.Sign() == 0 {
+			continue
+		}
+		if point.SqrtPrice.Cmp(sqrtPrice) >= 0 {
+			continue
+		}
+		maxAmountIn, err := GetDeltaAmountBaseUnsigned256(point.SqrtPrice, sqrtPrice, liquidity, dbc.RoundingUp)
+		if err != nil {
+			return dbc.SwapAmount{}, err
+		}
+		if amountLeft.Cmp(maxAmountIn) < 0 {
+			nextSqrtPrice, err := GetNextSqrtPriceFromInput(sqrtPrice, liquidity, amountLeft, true)
+			if err != nil {
+				return dbc.SwapAmount{}, err
+			}
+			outputAmount, err := GetDeltaAmountQuoteUnsigned(nextSqrtPrice, sqrtPrice, liquidity, dbc.RoundingDown)
+			if err != nil {
+				return dbc.SwapAmount{}, err
+			}
+			totalOutput, err = addU64(totalOutput, outputAmount)
+			if err != nil {
+				return dbc.SwapAmount{}, err
+			}
+			sqrtPrice = nextSqrtPrice
+			amountLeft = big.NewInt(0)
+			break
+		}
+		outputAmount, err := GetDeltaAmountQuoteUnsigned(point.SqrtPrice, sqrtPrice, liquidity, dbc.RoundingDown)
+		if err != nil {
+			return dbc.SwapAmount{}, err
+		}
+		totalOutput, err = addU64(totalOutput, outputAmount)
+		if err != nil {
+			return dbc.SwapAmount{}, err
+		}
+		capped, err := requireU64(maxAmountIn)
+		if err != nil {
+			return dbc.SwapAmount{}, err
+		}
+		amountLeft, err = Sub(amountLeft, capped)
+		if err != nil {
+			return dbc.SwapAmount{}, err
+		}
+		sqrtPrice = point.SqrtPrice
+	}
+
+	if amountLeft.Sign() != 0 {
+		liquidity := curve[0].Liquidity
+		nextSqrtPrice, err := GetNextSqrtPriceFromInput(sqrtPrice, liquidity, amountLeft, true)
+		if err != nil {
+			return dbc.SwapAmount{}, err
+		}
+		start := U128ToBig(config.SqrtStartPrice)
+		if nextSqrtPrice.Cmp(start) < 0 {
+			nextSqrtPrice = start
+			consumed, err := GetDeltaAmountBaseUnsigned(nextSqrtPrice, sqrtPrice, liquidity, dbc.RoundingUp)
+			if err != nil {
+				return dbc.SwapAmount{}, err
+			}
+			amountLeft, err = Sub(amountLeft, consumed)
+			if err != nil {
+				return dbc.SwapAmount{}, err
+			}
+		} else {
+			amountLeft = big.NewInt(0)
+		}
+		outputAmount, err := GetDeltaAmountQuoteUnsigned(nextSqrtPrice, sqrtPrice, liquidity, dbc.RoundingDown)
+		if err != nil {
+			return dbc.SwapAmount{}, err
+		}
+		totalOutput, err = addU64(totalOutput, outputAmount)
+		if err != nil {
+			return dbc.SwapAmount{}, err
+		}
+		sqrtPrice = nextSqrtPrice
+	}
+
+	return dbc.SwapAmount{OutputAmount: totalOutput, NextSqrtPrice: sqrtPrice, AmountLeft: amountLeft}, err
+}
+
+// CalculateQuoteToBaseFromAmountIn is the base received for amountIn quote, walking the curve up to stopSqrtPrice.
+func CalculateQuoteToBaseFromAmountIn(config *dbc.PoolConfig, currentSqrtPrice, amountIn, stopSqrtPrice *big.Int) (dbc.SwapAmount, error) {
+	curve := curveFromConfig(config)
+	totalOutput := big.NewInt(0)
+	sqrtPrice := new(big.Int).Set(currentSqrtPrice)
+	amountLeft := new(big.Int).Set(amountIn)
+
+	for i := range curve {
+		point := curve[i]
+		if point.SqrtPrice.Sign() == 0 || point.Liquidity.Sign() == 0 {
+			break
+		}
+		reference := stopSqrtPrice
+		if point.SqrtPrice.Cmp(reference) < 0 {
+			reference = point.SqrtPrice
+		}
+		if reference.Cmp(sqrtPrice) <= 0 {
+			continue
+		}
+		maxAmountIn, err := GetDeltaAmountQuoteUnsigned256(sqrtPrice, reference, point.Liquidity, dbc.RoundingUp)
+		if err != nil {
+			return dbc.SwapAmount{}, err
+		}
+		if amountLeft.Cmp(maxAmountIn) < 0 {
+			nextSqrtPrice, err := GetNextSqrtPriceFromInput(sqrtPrice, point.Liquidity, amountLeft, false)
+			if err != nil {
+				return dbc.SwapAmount{}, err
+			}
+			outputAmount, err := GetDeltaAmountBaseUnsigned(sqrtPrice, nextSqrtPrice, point.Liquidity, dbc.RoundingDown)
+			if err != nil {
+				return dbc.SwapAmount{}, err
+			}
+			totalOutput, err = addU64(totalOutput, outputAmount)
+			if err != nil {
+				return dbc.SwapAmount{}, err
+			}
+			return dbc.SwapAmount{OutputAmount: totalOutput, NextSqrtPrice: nextSqrtPrice, AmountLeft: big.NewInt(0)}, nil
+		}
+		outputAmount, err := GetDeltaAmountBaseUnsigned(sqrtPrice, reference, point.Liquidity, dbc.RoundingDown)
+		if err != nil {
+			return dbc.SwapAmount{}, err
+		}
+		totalOutput, err = addU64(totalOutput, outputAmount)
+		if err != nil {
+			return dbc.SwapAmount{}, err
+		}
+		capped, err := requireU64(maxAmountIn)
+		if err != nil {
+			return dbc.SwapAmount{}, err
+		}
+		amountLeft, err = Sub(amountLeft, capped)
+		if err != nil {
+			return dbc.SwapAmount{}, err
+		}
+		sqrtPrice = new(big.Int).Set(reference)
+		if sqrtPrice.Cmp(stopSqrtPrice) == 0 {
+			break
+		}
+	}
+	return dbc.SwapAmount{OutputAmount: totalOutput, NextSqrtPrice: sqrtPrice, AmountLeft: amountLeft}, nil
+}
+
+// CalculateBaseToQuoteFromAmountOut is the base needed for outAmount quote. OutputAmount is the required base input.
 func CalculateBaseToQuoteFromAmountOut(config *dbc.PoolConfig, currentSqrtPrice, outAmount *big.Int) (dbc.SwapAmount, error) {
 	curve := curveFromConfig(config)
-	current := new(big.Int).Set(currentSqrtPrice)
+	sqrtPrice := new(big.Int).Set(currentSqrtPrice)
 	amountLeft := new(big.Int).Set(outAmount)
 	totalAmountIn := big.NewInt(0)
 
 	for i := len(curve) - 2; i >= 0; i-- {
-		if curve[i].SqrtPrice.Sign() == 0 || curve[i].Liquidity.Sign() == 0 {
+		point := curve[i]
+		liquidity := curve[i+1].Liquidity
+		if point.SqrtPrice.Sign() == 0 || point.Liquidity.Sign() == 0 {
 			continue
 		}
-		if curve[i].SqrtPrice.Cmp(current) < 0 {
-			maxAmountOut, err := GetDeltaAmountQuoteUnsigned(curve[i].SqrtPrice, current, curve[i+1].Liquidity, dbc.RoundingDown)
-			if err != nil {
-				return dbc.SwapAmount{}, err
-			}
-			if amountLeft.Cmp(maxAmountOut) < 0 {
-				nextSqrtPrice, err := GetNextSqrtPriceFromOutput(current, curve[i+1].Liquidity, amountLeft, true)
-				if err != nil {
-					return dbc.SwapAmount{}, err
-				}
-				inAmount, err := GetDeltaAmountBaseUnsigned(nextSqrtPrice, current, curve[i+1].Liquidity, dbc.RoundingUp)
-				if err != nil {
-					return dbc.SwapAmount{}, err
-				}
-				totalAmountIn.Add(totalAmountIn, inAmount)
-				current = nextSqrtPrice
-				amountLeft = big.NewInt(0)
-				break
-			}
-			nextSqrtPrice := curve[i].SqrtPrice
-			inAmount, err := GetDeltaAmountBaseUnsigned(nextSqrtPrice, current, curve[i+1].Liquidity, dbc.RoundingUp)
-			if err != nil {
-				return dbc.SwapAmount{}, err
-			}
-			totalAmountIn.Add(totalAmountIn, inAmount)
-			current = nextSqrtPrice
-			amountLeft.Sub(amountLeft, maxAmountOut)
+		if point.SqrtPrice.Cmp(sqrtPrice) >= 0 {
+			continue
 		}
+		maxAmountOut, err := GetDeltaAmountQuoteUnsigned256(point.SqrtPrice, sqrtPrice, liquidity, dbc.RoundingDown)
+		if err != nil {
+			return dbc.SwapAmount{}, err
+		}
+		if amountLeft.Cmp(maxAmountOut) < 0 {
+			nextSqrtPrice, err := GetNextSqrtPriceFromOutput(sqrtPrice, liquidity, amountLeft, true)
+			if err != nil {
+				return dbc.SwapAmount{}, err
+			}
+			inAmount, err := GetDeltaAmountBaseUnsigned(nextSqrtPrice, sqrtPrice, liquidity, dbc.RoundingUp)
+			if err != nil {
+				return dbc.SwapAmount{}, err
+			}
+			totalAmountIn, err = addU64(totalAmountIn, inAmount)
+			if err != nil {
+				return dbc.SwapAmount{}, err
+			}
+			sqrtPrice = nextSqrtPrice
+			amountLeft = big.NewInt(0)
+			break
+		}
+		inAmount, err := GetDeltaAmountBaseUnsigned(point.SqrtPrice, sqrtPrice, liquidity, dbc.RoundingUp)
+		if err != nil {
+			return dbc.SwapAmount{}, err
+		}
+		totalAmountIn, err = addU64(totalAmountIn, inAmount)
+		if err != nil {
+			return dbc.SwapAmount{}, err
+		}
+		capped, err := requireU64(maxAmountOut)
+		if err != nil {
+			return dbc.SwapAmount{}, err
+		}
+		amountLeft, err = Sub(amountLeft, capped)
+		if err != nil {
+			return dbc.SwapAmount{}, err
+		}
+		sqrtPrice = point.SqrtPrice
 	}
 
 	if amountLeft.Sign() != 0 {
-		maxAmountOut, err := GetDeltaAmountQuoteUnsigned(U128ToBig(config.SqrtStartPrice), current, curve[0].Liquidity, dbc.RoundingDown)
+		liquidity := curve[0].Liquidity
+		start := U128ToBig(config.SqrtStartPrice)
+		maxAmountOut, err := GetDeltaAmountQuoteUnsigned256(start, sqrtPrice, liquidity, dbc.RoundingDown)
 		if err != nil {
 			return dbc.SwapAmount{}, err
 		}
 		if amountLeft.Cmp(maxAmountOut) > 0 {
-			return dbc.SwapAmount{}, errors.New("Insufficient Liquidity")
+			return dbc.SwapAmount{}, errors.New(dbc.ErrInsufficientLiquidity)
 		}
-		nextSqrtPrice, err := GetNextSqrtPriceFromOutput(current, curve[0].Liquidity, amountLeft, true)
+		nextSqrtPrice, err := GetNextSqrtPriceFromOutput(sqrtPrice, liquidity, amountLeft, true)
 		if err != nil {
 			return dbc.SwapAmount{}, err
 		}
-		if nextSqrtPrice.Cmp(U128ToBig(config.SqrtStartPrice)) < 0 {
-			return dbc.SwapAmount{}, errors.New("Insufficient Liquidity")
+		if nextSqrtPrice.Cmp(start) < 0 {
+			return dbc.SwapAmount{}, errors.New(dbc.ErrInsufficientLiquidity)
 		}
-		inAmount, err := GetDeltaAmountBaseUnsigned(nextSqrtPrice, current, curve[0].Liquidity, dbc.RoundingUp)
+		inAmount, err := GetDeltaAmountBaseUnsigned(nextSqrtPrice, sqrtPrice, liquidity, dbc.RoundingUp)
 		if err != nil {
 			return dbc.SwapAmount{}, err
 		}
-		totalAmountIn.Add(totalAmountIn, inAmount)
-		current = nextSqrtPrice
+		totalAmountIn, err = addU64(totalAmountIn, inAmount)
+		if err != nil {
+			return dbc.SwapAmount{}, err
+		}
+		sqrtPrice = nextSqrtPrice
 	}
-
-	return dbc.SwapAmount{OutputAmount: totalAmountIn, NextSqrtPrice: current, AmountLeft: big.NewInt(0)}, nil
+	return dbc.SwapAmount{OutputAmount: totalAmountIn, NextSqrtPrice: sqrtPrice, AmountLeft: big.NewInt(0)}, nil
 }
 
+// CalculateQuoteToBaseFromAmountOut is the quote needed for outAmount base. OutputAmount is the required quote input.
 func CalculateQuoteToBaseFromAmountOut(config *dbc.PoolConfig, currentSqrtPrice, outAmount *big.Int) (dbc.SwapAmount, error) {
 	curve := curveFromConfig(config)
-	current := new(big.Int).Set(currentSqrtPrice)
-	amountLeft := new(big.Int).Set(outAmount)
 	totalIn := big.NewInt(0)
+	sqrtPrice := new(big.Int).Set(currentSqrtPrice)
+	amountLeft := new(big.Int).Set(outAmount)
 
-	for i := 0; i < len(curve); i++ {
-		if curve[i].SqrtPrice.Sign() == 0 || curve[i].Liquidity.Sign() == 0 {
+	for i := range curve {
+		point := curve[i]
+		if point.SqrtPrice.Sign() == 0 || point.Liquidity.Sign() == 0 {
 			break
 		}
-		if curve[i].SqrtPrice.Cmp(current) > 0 {
-			maxAmountOut, err := GetDeltaAmountBaseUnsigned(current, curve[i].SqrtPrice, curve[i].Liquidity, dbc.RoundingDown)
+		if point.SqrtPrice.Cmp(sqrtPrice) <= 0 {
+			continue
+		}
+		maxAmountOut, err := GetDeltaAmountBaseUnsigned256(sqrtPrice, point.SqrtPrice, point.Liquidity, dbc.RoundingDown)
+		if err != nil {
+			return dbc.SwapAmount{}, err
+		}
+		if amountLeft.Cmp(maxAmountOut) < 0 {
+			nextSqrtPrice, err := GetNextSqrtPriceFromOutput(sqrtPrice, point.Liquidity, amountLeft, false)
 			if err != nil {
 				return dbc.SwapAmount{}, err
 			}
-			if amountLeft.Cmp(maxAmountOut) < 0 {
-				nextSqrtPrice, err := GetNextSqrtPriceFromOutput(current, curve[i].Liquidity, amountLeft, false)
-				if err != nil {
-					return dbc.SwapAmount{}, err
-				}
-				inAmount, err := GetDeltaAmountQuoteUnsigned(current, nextSqrtPrice, curve[i].Liquidity, dbc.RoundingUp)
-				if err != nil {
-					return dbc.SwapAmount{}, err
-				}
-				totalIn.Add(totalIn, inAmount)
-				current = nextSqrtPrice
-				amountLeft = big.NewInt(0)
-				break
-			}
-			nextSqrtPrice := curve[i].SqrtPrice
-			inAmount, err := GetDeltaAmountQuoteUnsigned(current, nextSqrtPrice, curve[i].Liquidity, dbc.RoundingUp)
+			inAmount, err := GetDeltaAmountQuoteUnsigned(sqrtPrice, nextSqrtPrice, point.Liquidity, dbc.RoundingUp)
 			if err != nil {
 				return dbc.SwapAmount{}, err
 			}
-			totalIn.Add(totalIn, inAmount)
-			current = nextSqrtPrice
-			amountLeft.Sub(amountLeft, maxAmountOut)
+			totalIn, err = addU64(totalIn, inAmount)
+			if err != nil {
+				return dbc.SwapAmount{}, err
+			}
+			return dbc.SwapAmount{OutputAmount: totalIn, NextSqrtPrice: nextSqrtPrice, AmountLeft: big.NewInt(0)}, nil
+		}
+		inAmount, err := GetDeltaAmountQuoteUnsigned(sqrtPrice, point.SqrtPrice, point.Liquidity, dbc.RoundingUp)
+		if err != nil {
+			return dbc.SwapAmount{}, err
+		}
+		totalIn, err = addU64(totalIn, inAmount)
+		if err != nil {
+			return dbc.SwapAmount{}, err
+		}
+		capped, err := requireU64(maxAmountOut)
+		if err != nil {
+			return dbc.SwapAmount{}, err
+		}
+		amountLeft, err = Sub(amountLeft, capped)
+		if err != nil {
+			return dbc.SwapAmount{}, err
+		}
+		sqrtPrice = point.SqrtPrice
+	}
+	if amountLeft.Sign() != 0 {
+		return dbc.SwapAmount{}, errors.New(dbc.ErrAmountLeftIsNotZero)
+	}
+	return dbc.SwapAmount{OutputAmount: totalIn, NextSqrtPrice: sqrtPrice, AmountLeft: big.NewInt(0)}, nil
+}
+
+func quoteExactIn(virtualPool *dbc.VirtualPool, config *dbc.PoolConfig, swapBaseForQuote bool, amountIn *big.Int, slippageBps uint16, hasReferral bool, currentPoint *big.Int, eligibleForFirstSwapWithMinFee bool, transferFees *dbc.QuoteTransferFees) (dbc.SwapQuote2Result, error) {
+	tradeDirection, feeMode, input, output, err := beginSwapQuote(virtualPool, config, swapBaseForQuote, amountIn, hasReferral, transferFees)
+	if err != nil {
+		return dbc.SwapQuote2Result{}, err
+	}
+	excludedAmountIn, _ := CalculateTransferFeeExcludedAmount(input, amountIn)
+	if excludedAmountIn.Sign() == 0 {
+		return dbc.SwapQuote2Result{}, errors.New(dbc.ErrAmountIsZero)
+	}
+	result, err := GetSwapResultFromExactInput(virtualPool, config, excludedAmountIn, feeMode, tradeDirection, currentPoint, isFirstSwapWithMinFee(virtualPool, config, hasReferral, eligibleForFirstSwapWithMinFee))
+	if err != nil {
+		return dbc.SwapQuote2Result{}, err
+	}
+	excludedAmountOut, _ := CalculateTransferFeeExcludedAmount(output, result.OutputAmount)
+	minimum, err := minimumAmountOutWithSlippage(excludedAmountOut, uint64(slippageBps))
+	if err != nil {
+		return dbc.SwapQuote2Result{}, err
+	}
+	return dbc.SwapQuote2Result{
+		SwapResult2:                  result,
+		MinimumAmountOut:             minimum,
+		IncludedTransferFeeAmountIn:  new(big.Int).Set(amountIn),
+		ExcludedTransferFeeAmountOut: excludedAmountOut,
+	}, nil
+}
+
+// SwapQuote is an exact-in quote in the legacy SwapResult shape.
+func SwapQuote(virtualPool *dbc.VirtualPool, config *dbc.PoolConfig, swapBaseForQuote bool, amountIn *big.Int, slippageBps uint16, hasReferral bool, currentPoint *big.Int, eligibleForFirstSwapWithMinFee bool, transferFees *dbc.QuoteTransferFees) (dbc.SwapQuoteResult, error) {
+	result, err := quoteExactIn(virtualPool, config, swapBaseForQuote, amountIn, slippageBps, hasReferral, currentPoint, eligibleForFirstSwapWithMinFee, transferFees)
+	if err != nil {
+		return dbc.SwapQuoteResult{}, err
+	}
+	return dbc.SwapQuoteResult{
+		SwapResult: dbc.SwapResult{
+			ActualInputAmount: result.ExcludedFeeInputAmount,
+			OutputAmount:      result.OutputAmount,
+			NextSqrtPrice:     result.NextSqrtPrice,
+			TradingFee:        result.TradingFee,
+			ProtocolFee:       result.ProtocolFee,
+			ReferralFee:       result.ReferralFee,
+		},
+		MinimumAmountOut:             result.MinimumAmountOut,
+		IncludedTransferFeeAmountIn:  result.IncludedTransferFeeAmountIn,
+		ExcludedTransferFeeAmountOut: result.ExcludedTransferFeeAmountOut,
+	}, nil
+}
+
+// SwapQuoteExactIn quotes an exact input. amountIn includes any transfer fee on the input mint.
+func SwapQuoteExactIn(virtualPool *dbc.VirtualPool, config *dbc.PoolConfig, swapBaseForQuote bool, amountIn *big.Int, slippageBps uint16, hasReferral bool, currentPoint *big.Int, eligibleForFirstSwapWithMinFee bool, transferFees *dbc.QuoteTransferFees) (dbc.SwapQuote2Result, error) {
+	return quoteExactIn(virtualPool, config, swapBaseForQuote, amountIn, slippageBps, hasReferral, currentPoint, eligibleForFirstSwapWithMinFee, transferFees)
+}
+
+// SwapQuotePartialFill quotes a partial fill. The input the pool can take is IncludedTransferFeeAmountIn.
+func SwapQuotePartialFill(virtualPool *dbc.VirtualPool, config *dbc.PoolConfig, swapBaseForQuote bool, amountIn *big.Int, slippageBps uint16, hasReferral bool, currentPoint *big.Int, eligibleForFirstSwapWithMinFee bool, transferFees *dbc.QuoteTransferFees) (dbc.SwapQuote2Result, error) {
+	tradeDirection, feeMode, input, output, err := beginSwapQuote(virtualPool, config, swapBaseForQuote, amountIn, hasReferral, transferFees)
+	if err != nil {
+		return dbc.SwapQuote2Result{}, err
+	}
+	excludedAmountIn, _ := CalculateTransferFeeExcludedAmount(input, amountIn)
+	if excludedAmountIn.Sign() == 0 {
+		return dbc.SwapQuote2Result{}, errors.New(dbc.ErrAmountIsZero)
+	}
+	result, err := GetSwapResultFromPartialInput(virtualPool, config, excludedAmountIn, feeMode, tradeDirection, currentPoint, isFirstSwapWithMinFee(virtualPool, config, hasReferral, eligibleForFirstSwapWithMinFee))
+	if err != nil {
+		return dbc.SwapQuote2Result{}, err
+	}
+	includedAmountIn := new(big.Int).Set(amountIn)
+	if result.AmountLeft.Sign() != 0 {
+		includedAmountIn, _, err = CalculateTransferFeeIncludedAmount(input, result.IncludedFeeInputAmount)
+		if err != nil {
+			return dbc.SwapQuote2Result{}, err
 		}
 	}
-
-	if amountLeft.Sign() != 0 {
-		return dbc.SwapAmount{}, errors.New("Not enough liquidity")
+	if includedAmountIn.Cmp(amountIn) > 0 {
+		return dbc.SwapQuote2Result{}, errors.New(dbc.ErrExceededInputAmount)
 	}
-	return dbc.SwapAmount{OutputAmount: totalIn, NextSqrtPrice: current, AmountLeft: big.NewInt(0)}, nil
-}
-
-func SwapQuoteExactIn(virtualPool *dbc.VirtualPool, config *dbc.PoolConfig, swapBaseForQuote bool, amountIn *big.Int, slippageBps uint16, hasReferral bool, currentPoint *big.Int, eligibleForFirstSwapWithMinFee bool) (dbc.SwapQuote2Result, error) {
-	if new(big.Int).SetUint64(virtualPool.QuoteReserve).Cmp(new(big.Int).SetUint64(config.MigrationQuoteThreshold)) >= 0 {
-		return dbc.SwapQuote2Result{}, errors.New("Virtual pool is completed")
-	}
-	if amountIn.Sign() == 0 {
-		return dbc.SwapQuote2Result{}, errors.New("Amount is zero")
-	}
-	tradeDirection := dbc.TradeDirectionQuoteToBase
-	if swapBaseForQuote {
-		tradeDirection = dbc.TradeDirectionBaseToQuote
-	}
-	feeMode := GetFeeMode(dbc.CollectFeeMode(config.CollectFeeMode), tradeDirection, hasReferral)
-	result, err := GetSwapResultFromExactInput(virtualPool, config, amountIn, feeMode, tradeDirection, currentPoint, eligibleForFirstSwapWithMinFee)
+	excludedAmountOut, _ := CalculateTransferFeeExcludedAmount(output, result.OutputAmount)
+	minimum, err := minimumAmountOutWithSlippage(excludedAmountOut, uint64(slippageBps))
 	if err != nil {
 		return dbc.SwapQuote2Result{}, err
 	}
-	minimumAmountOut := result.OutputAmount
-	if slippageBps > 0 {
-		slippageFactor := big.NewInt(int64(10000 - slippageBps))
-		minimumAmountOut = new(big.Int).Div(new(big.Int).Mul(result.OutputAmount, slippageFactor), big.NewInt(10000))
-	}
-	return dbc.SwapQuote2Result{SwapResult2: result, MinimumAmountOut: minimumAmountOut}, nil
+	return dbc.SwapQuote2Result{
+		SwapResult2:                  result,
+		MinimumAmountOut:             minimum,
+		IncludedTransferFeeAmountIn:  includedAmountIn,
+		ExcludedTransferFeeAmountOut: excludedAmountOut,
+	}, nil
 }
 
-func SwapQuotePartialFill(virtualPool *dbc.VirtualPool, config *dbc.PoolConfig, swapBaseForQuote bool, amountIn *big.Int, slippageBps uint16, hasReferral bool, currentPoint *big.Int, eligibleForFirstSwapWithMinFee bool) (dbc.SwapQuote2Result, error) {
-	if new(big.Int).SetUint64(virtualPool.QuoteReserve).Cmp(new(big.Int).SetUint64(config.MigrationQuoteThreshold)) >= 0 {
-		return dbc.SwapQuote2Result{}, errors.New("Virtual pool is completed")
-	}
-	if amountIn.Sign() == 0 {
-		return dbc.SwapQuote2Result{}, errors.New("Amount is zero")
-	}
-	tradeDirection := dbc.TradeDirectionQuoteToBase
-	if swapBaseForQuote {
-		tradeDirection = dbc.TradeDirectionBaseToQuote
-	}
-	feeMode := GetFeeMode(dbc.CollectFeeMode(config.CollectFeeMode), tradeDirection, hasReferral)
-	result, err := GetSwapResultFromPartialInput(virtualPool, config, amountIn, feeMode, tradeDirection, currentPoint, eligibleForFirstSwapWithMinFee)
+// SwapQuoteExactOut quotes an exact output. outAmount is what the user receives after the output transfer fee.
+func SwapQuoteExactOut(virtualPool *dbc.VirtualPool, config *dbc.PoolConfig, swapBaseForQuote bool, outAmount *big.Int, slippageBps uint16, hasReferral bool, currentPoint *big.Int, eligibleForFirstSwapWithMinFee bool, transferFees *dbc.QuoteTransferFees) (dbc.SwapQuote2Result, error) {
+	tradeDirection, feeMode, input, output, err := beginSwapQuote(virtualPool, config, swapBaseForQuote, outAmount, hasReferral, transferFees)
 	if err != nil {
 		return dbc.SwapQuote2Result{}, err
 	}
-	minimumAmountOut := result.OutputAmount
-	if slippageBps > 0 {
-		slippageFactor := big.NewInt(int64(10000 - slippageBps))
-		minimumAmountOut = new(big.Int).Div(new(big.Int).Mul(result.OutputAmount, slippageFactor), big.NewInt(10000))
-	}
-	return dbc.SwapQuote2Result{SwapResult2: result, MinimumAmountOut: minimumAmountOut}, nil
-}
-
-func SwapQuoteExactOut(virtualPool *dbc.VirtualPool, config *dbc.PoolConfig, swapBaseForQuote bool, outAmount *big.Int, slippageBps uint16, hasReferral bool, currentPoint *big.Int, eligibleForFirstSwapWithMinFee bool) (dbc.SwapQuote2Result, error) {
-	if new(big.Int).SetUint64(virtualPool.QuoteReserve).Cmp(new(big.Int).SetUint64(config.MigrationQuoteThreshold)) >= 0 {
-		return dbc.SwapQuote2Result{}, errors.New("Virtual pool is completed")
-	}
-	if outAmount.Sign() == 0 {
-		return dbc.SwapQuote2Result{}, errors.New("Amount is zero")
-	}
-	tradeDirection := dbc.TradeDirectionQuoteToBase
-	if swapBaseForQuote {
-		tradeDirection = dbc.TradeDirectionBaseToQuote
-	}
-	feeMode := GetFeeMode(dbc.CollectFeeMode(config.CollectFeeMode), tradeDirection, hasReferral)
-	result, err := GetSwapResultFromExactOutput(virtualPool, config, outAmount, feeMode, tradeDirection, currentPoint, eligibleForFirstSwapWithMinFee)
+	includedAmountOut, _, err := CalculateTransferFeeIncludedAmount(output, outAmount)
 	if err != nil {
 		return dbc.SwapQuote2Result{}, err
 	}
-	maximumAmountIn := result.IncludedFeeInputAmount
-	if slippageBps > 0 {
-		slippageFactor := big.NewInt(int64(10000 + slippageBps))
-		maximumAmountIn = new(big.Int).Div(new(big.Int).Mul(result.IncludedFeeInputAmount, slippageFactor), big.NewInt(10000))
+	if includedAmountOut.Sign() == 0 {
+		return dbc.SwapQuote2Result{}, errors.New(dbc.ErrAmountIsZero)
 	}
-	return dbc.SwapQuote2Result{SwapResult2: result, MaximumAmountIn: maximumAmountIn}, nil
-}
-
-func minBig(a, b *big.Int) *big.Int {
-	if a.Cmp(b) <= 0 {
-		return a
+	result, err := GetSwapResultFromExactOutput(virtualPool, config, includedAmountOut, feeMode, tradeDirection, currentPoint, isFirstSwapWithMinFee(virtualPool, config, hasReferral, eligibleForFirstSwapWithMinFee))
+	if err != nil {
+		return dbc.SwapQuote2Result{}, err
 	}
-	return b
+	includedAmountIn, _, err := CalculateTransferFeeIncludedAmount(input, result.IncludedFeeInputAmount)
+	if err != nil {
+		return dbc.SwapQuote2Result{}, err
+	}
+	maximum, err := maximumAmountInWithSlippage(includedAmountIn, uint64(slippageBps))
+	if err != nil {
+		return dbc.SwapQuote2Result{}, err
+	}
+	return dbc.SwapQuote2Result{
+		SwapResult2:                  result,
+		MaximumAmountIn:              maximum,
+		IncludedTransferFeeAmountIn:  includedAmountIn,
+		ExcludedTransferFeeAmountOut: new(big.Int).Set(outAmount),
+	}, nil
 }
-
-// binFromBig converts big.Int to binary.Uint128 (little endian default).
-// no-op placeholder removed

@@ -20,7 +20,7 @@ func (s *DynamicBondingCurve) CreateLocker(ctx context.Context, params CreateLoc
 		return nil, nil, nil, err
 	}
 
-	poolConfigState, err := s.GetPoolConfig(ctx, virtualPoolState.Config)
+	poolConfigState, err := s.GetPoolConfig(ctx, virtualPoolState.PoolState.Config)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -30,7 +30,7 @@ func (s *DynamicBondingCurve) CreateLocker(ctx context.Context, params CreateLoc
 	escrow := helpers.DeriveEscrow(base)
 
 	tokenProgram := helpers.GetTokenProgram(TokenType(poolConfigState.TokenType))
-	escrowToken, createIx, err := helpers.GetOrCreateATAInstruction(ctx, s.RPC, virtualPoolState.BaseMint, escrow, params.Payer, tokenProgram)
+	escrowToken, createIx, err := helpers.GetOrCreateATAInstruction(ctx, s.RPC, virtualPoolState.PoolState.BaseMint, escrow, params.Payer, tokenProgram)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -41,12 +41,12 @@ func (s *DynamicBondingCurve) CreateLocker(ctx context.Context, params CreateLoc
 
 	ix, err = dbcidl.NewCreateLockerInstruction(
 		params.VirtualPool,
-		virtualPoolState.Config,
+		virtualPoolState.PoolState.Config,
 		s.PoolAuthority,
-		virtualPoolState.BaseVault,
-		virtualPoolState.BaseMint,
+		virtualPoolState.PoolState.BaseVault,
+		virtualPoolState.PoolState.BaseMint,
 		base,
-		virtualPoolState.Creator,
+		virtualPoolState.PoolState.Creator,
 		escrow,
 		escrowToken,
 		params.Payer,
@@ -68,13 +68,13 @@ func (s *DynamicBondingCurve) WithdrawLeftover(ctx context.Context, params Withd
 		return nil, nil, nil, err
 	}
 
-	poolConfigState, err := s.GetPoolConfig(ctx, poolState.Config)
+	poolConfigState, err := s.GetPoolConfig(ctx, poolState.PoolState.Config)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
 	tokenBaseProgram := helpers.GetTokenProgram(TokenType(poolConfigState.TokenType))
-	tokenBaseAccount, createIx, err := helpers.GetOrCreateATAInstruction(ctx, s.RPC, poolState.BaseMint, poolConfigState.LeftoverReceiver, params.Payer, tokenBaseProgram)
+	tokenBaseAccount, createIx, err := helpers.GetOrCreateATAInstruction(ctx, s.RPC, poolState.PoolState.BaseMint, poolConfigState.LeftoverReceiver, params.Payer, tokenBaseProgram)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -85,11 +85,11 @@ func (s *DynamicBondingCurve) WithdrawLeftover(ctx context.Context, params Withd
 
 	ix, err = dbcidl.NewWithdrawLeftoverInstruction(
 		s.PoolAuthority,
-		poolState.Config,
+		poolState.PoolState.Config,
 		params.VirtualPool,
 		tokenBaseAccount,
-		poolState.BaseVault,
-		poolState.BaseMint,
+		poolState.PoolState.BaseVault,
+		poolState.PoolState.BaseMint,
 		poolConfigState.LeftoverReceiver,
 		tokenBaseProgram,
 		s.EventAuthority,
@@ -122,21 +122,21 @@ func (s *DynamicBondingCurve) MigrateToDammV1(ctx context.Context, params Migrat
 		return nil, nil, nil, err
 	}
 
-	poolConfigState, err := s.GetPoolConfig(ctx, poolState.Config)
+	poolConfigState, err := s.GetPoolConfig(ctx, poolState.PoolState.Config)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
 	migrationMetadata := helpers.DeriveDammV1MigrationMetadataAddress(params.VirtualPool)
-	dammPool := helpers.DeriveDammV1PoolAddress(params.DammConfig, poolState.BaseMint, poolConfigState.QuoteMint)
+	dammPool := helpers.DeriveDammV1PoolAddress(params.DammConfig, poolState.PoolState.BaseMint, poolConfigState.QuoteMint)
 	lpMint := helpers.DeriveDammV1LpMintAddress(dammPool)
 	mintMetadata := helpers.DeriveMintMetadata(lpMint)
-	protocolTokenAFee := helpers.DeriveDammV1ProtocolFeeAddress(poolState.BaseMint, dammPool)
+	protocolTokenAFee := helpers.DeriveDammV1ProtocolFeeAddress(poolState.PoolState.BaseMint, dammPool)
 	protocolTokenBFee := helpers.DeriveDammV1ProtocolFeeAddress(poolConfigState.QuoteMint, dammPool)
 
 	pre = []solanago.Instruction{}
 
-	aVault := helpers.DeriveVaultAddress(poolState.BaseMint, helpers.BaseAddress)
+	aVault := helpers.DeriveVaultAddress(poolState.PoolState.BaseMint, helpers.BaseAddress)
 	aTokenVault := helpers.DeriveTokenVaultKey(aVault)
 	aLpMintPda := helpers.DeriveVaultLpMintAddress(aVault)
 	bVault := helpers.DeriveVaultAddress(poolConfigState.QuoteMint, helpers.BaseAddress)
@@ -152,7 +152,7 @@ func (s *DynamicBondingCurve) MigrateToDammV1(ctx context.Context, params Migrat
 			aVaultLpMint = vaultAcc.LpMint
 		}
 	} else {
-		_, _, lpMintKey, createIx, err := helpers.CreateInitializePermissionlessDynamicVaultIx(poolState.BaseMint, params.Payer)
+		_, _, lpMintKey, createIx, err := helpers.CreateInitializePermissionlessDynamicVaultIx(poolState.PoolState.BaseMint, params.Payer)
 		if err != nil {
 			return nil, nil, nil, err
 		}
@@ -189,12 +189,12 @@ func (s *DynamicBondingCurve) MigrateToDammV1(ctx context.Context, params Migrat
 	ix, err = dbcidl.NewMigrateMeteoraDammInstruction(
 		params.VirtualPool,
 		migrationMetadata,
-		poolState.Config,
+		poolState.PoolState.Config,
 		s.PoolAuthority,
 		dammPool,
 		params.DammConfig,
 		lpMint,
-		poolState.BaseMint,
+		poolState.PoolState.BaseMint,
 		poolConfigState.QuoteMint,
 		aVault,
 		bVault,
@@ -204,8 +204,8 @@ func (s *DynamicBondingCurve) MigrateToDammV1(ctx context.Context, params Migrat
 		bVaultLpMint,
 		aVaultLp,
 		bVaultLp,
-		poolState.BaseVault,
-		poolState.QuoteVault,
+		poolState.PoolState.BaseVault,
+		poolState.PoolState.QuoteVault,
 		virtualPoolLp,
 		protocolTokenAFee,
 		protocolTokenBFee,
@@ -237,15 +237,15 @@ func (s *DynamicBondingCurve) LockDammV1LpToken(ctx context.Context, params Damm
 		return nil, nil, nil, err
 	}
 
-	poolConfigState, err := s.GetPoolConfig(ctx, poolState.Config)
+	poolConfigState, err := s.GetPoolConfig(ctx, poolState.PoolState.Config)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	dammPool := helpers.DeriveDammV1PoolAddress(params.DammConfig, poolState.BaseMint, poolConfigState.QuoteMint)
+	dammPool := helpers.DeriveDammV1PoolAddress(params.DammConfig, poolState.PoolState.BaseMint, poolConfigState.QuoteMint)
 	migrationMetadata := helpers.DeriveDammV1MigrationMetadataAddress(params.VirtualPool)
 
-	aVault := helpers.DeriveVaultAddress(poolState.BaseMint, helpers.BaseAddress)
+	aVault := helpers.DeriveVaultAddress(poolState.PoolState.BaseMint, helpers.BaseAddress)
 	aLpMintPda := helpers.DeriveVaultLpMintAddress(aVault)
 	bVault := helpers.DeriveVaultAddress(poolConfigState.QuoteMint, helpers.BaseAddress)
 	bLpMintPda := helpers.DeriveVaultLpMintAddress(bVault)
@@ -261,7 +261,7 @@ func (s *DynamicBondingCurve) LockDammV1LpToken(ctx context.Context, params Damm
 			aVaultLpMint = vaultAcc.LpMint
 		}
 	} else {
-		_, _, lpMintKey, createIx, err := helpers.CreateInitializePermissionlessDynamicVaultIx(poolState.BaseMint, params.Payer)
+		_, _, lpMintKey, createIx, err := helpers.CreateInitializePermissionlessDynamicVaultIx(poolState.PoolState.BaseMint, params.Payer)
 		if err != nil {
 			return nil, nil, nil, err
 		}
@@ -302,9 +302,9 @@ func (s *DynamicBondingCurve) LockDammV1LpToken(ctx context.Context, params Damm
 			pre = append(pre, lockIx)
 		}
 	} else {
-		lockEscrowKey = helpers.DeriveDammV1LockEscrowAddress(dammPool, poolState.Creator)
+		lockEscrowKey = helpers.DeriveDammV1LockEscrowAddress(dammPool, poolState.PoolState.Creator)
 		if info, _ := s.RPC.GetAccountInfo(ctx, lockEscrowKey); info == nil || info.Value == nil {
-			lockIx, err := helpers.CreateLockEscrowIx(params.Payer, dammPool, lpMint, poolState.Creator, lockEscrowKey)
+			lockIx, err := helpers.CreateLockEscrowIx(params.Payer, dammPool, lpMint, poolState.PoolState.Creator, lockEscrowKey)
 			if err != nil {
 				return nil, nil, nil, err
 			}
@@ -325,7 +325,7 @@ func (s *DynamicBondingCurve) LockDammV1LpToken(ctx context.Context, params Damm
 		return nil, nil, nil, err
 	}
 
-	owner := poolState.Creator
+	owner := poolState.PoolState.Creator
 	if params.IsPartner {
 		owner = poolConfigState.FeeClaimer
 	}
@@ -362,17 +362,17 @@ func (s *DynamicBondingCurve) ClaimDammV1LpToken(ctx context.Context, params Dam
 		return nil, nil, nil, err
 	}
 
-	poolConfigState, err := s.GetPoolConfig(ctx, virtualPoolState.Config)
+	poolConfigState, err := s.GetPoolConfig(ctx, virtualPoolState.PoolState.Config)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	dammPool := helpers.DeriveDammV1PoolAddress(params.DammConfig, virtualPoolState.BaseMint, poolConfigState.QuoteMint)
+	dammPool := helpers.DeriveDammV1PoolAddress(params.DammConfig, virtualPoolState.PoolState.BaseMint, poolConfigState.QuoteMint)
 	migrationMetadata := helpers.DeriveDammV1MigrationMetadataAddress(params.VirtualPool)
 	lpMint := helpers.DeriveDammV1LpMintAddress(dammPool)
 
 	pre = []solanago.Instruction{}
-	owner := virtualPoolState.Creator
+	owner := virtualPoolState.PoolState.Creator
 	if params.IsPartner {
 		owner = poolConfigState.FeeClaimer
 	}
@@ -427,7 +427,7 @@ func (s *DynamicBondingCurve) MigrateToDammV2(ctx context.Context, params Migrat
 		return MigrateToDammV2Response{}, err
 	}
 
-	poolConfigState, err := s.GetPoolConfig(ctx, virtualPoolState.Config)
+	poolConfigState, err := s.GetPoolConfig(ctx, virtualPoolState.PoolState.Config)
 	if err != nil {
 		return MigrateToDammV2Response{}, err
 	}
@@ -435,7 +435,7 @@ func (s *DynamicBondingCurve) MigrateToDammV2(ctx context.Context, params Migrat
 	dammPoolAuthority := helpers.DeriveDammV2PoolAuthority()
 	dammEventAuthority := helpers.DeriveDammV2EventAuthority()
 	migrationMetadata := helpers.DeriveDammV2MigrationMetadataAddress(params.VirtualPool)
-	dammPool := helpers.DeriveDammV2PoolAddress(params.DammConfig, virtualPoolState.BaseMint, poolConfigState.QuoteMint)
+	dammPool := helpers.DeriveDammV2PoolAddress(params.DammConfig, virtualPoolState.PoolState.BaseMint, poolConfigState.QuoteMint)
 
 	firstKP, err := solanago.NewRandomPrivateKey()
 	if err != nil {
@@ -451,7 +451,7 @@ func (s *DynamicBondingCurve) MigrateToDammV2(ctx context.Context, params Migrat
 	secondPosition := helpers.DerivePositionAddress(secondKP.PublicKey())
 	secondPositionNftAccount := helpers.DerivePositionNftAccount(secondKP.PublicKey())
 
-	tokenAVault := helpers.DeriveDammV2TokenVaultAddress(dammPool, virtualPoolState.BaseMint)
+	tokenAVault := helpers.DeriveDammV2TokenVaultAddress(dammPool, virtualPoolState.PoolState.BaseMint)
 	tokenBVault := helpers.DeriveDammV2TokenVaultAddress(dammPool, poolConfigState.QuoteMint)
 
 	tokenBaseProgram := helpers.GetTokenProgram(TokenType(poolConfigState.TokenType))
@@ -463,7 +463,7 @@ func (s *DynamicBondingCurve) MigrateToDammV2(ctx context.Context, params Migrat
 	ix, err := dbcidl.NewMigrationDammV2Instruction(
 		params.VirtualPool,
 		migrationMetadata,
-		virtualPoolState.Config,
+		virtualPoolState.PoolState.Config,
 		s.PoolAuthority,
 		dammPool,
 		firstKP.PublicKey(),
@@ -474,12 +474,12 @@ func (s *DynamicBondingCurve) MigrateToDammV2(ctx context.Context, params Migrat
 		secondPosition,
 		dammPoolAuthority,
 		helpers.DammV2ProgramID,
-		virtualPoolState.BaseMint,
+		virtualPoolState.PoolState.BaseMint,
 		poolConfigState.QuoteMint,
 		tokenAVault,
 		tokenBVault,
-		virtualPoolState.BaseVault,
-		virtualPoolState.QuoteVault,
+		virtualPoolState.PoolState.BaseVault,
+		virtualPoolState.PoolState.QuoteVault,
 		params.Payer,
 		tokenBaseProgram,
 		tokenQuoteProgram,

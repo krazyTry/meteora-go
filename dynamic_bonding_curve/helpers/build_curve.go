@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	mathutil "github.com/krazyTry/meteora-go/dynamic_bonding_curve/math"
+	"github.com/krazyTry/meteora-go/dynamic_bonding_curve/math/pool_fees"
 	"github.com/krazyTry/meteora-go/dynamic_bonding_curve/shared"
 	"github.com/shopspring/decimal"
 )
@@ -299,9 +300,9 @@ func BuildCurveWithTwoSegments(params shared.BuildCurveWithTwoSegmentsParams) (s
 		PartnerPermanentLockedLiquidityPercentage: params.PartnerPermanentLockedLiquidityPercentage,
 		CreatorLiquidityPercentage:                params.CreatorLiquidityPercentage,
 		CreatorPermanentLockedLiquidityPercentage: params.CreatorPermanentLockedLiquidityPercentage,
-		SqrtStartPrice:     BigToU128(sqrtStartPrice),
-		LockedVesting:      lockedVesting,
-		MigrationFeeOption: uint8(params.MigrationFeeOption),
+		SqrtStartPrice:                            BigToU128(sqrtStartPrice),
+		LockedVesting:                             lockedVesting,
+		MigrationFeeOption:                        uint8(params.MigrationFeeOption),
 		TokenSupply: &shared.TokenSupplyParams{
 			PreMigrationTokenSupply:  totalSupplyU64,
 			PostMigrationTokenSupply: totalSupplyU64,
@@ -327,7 +328,7 @@ func BuildCurveWithTwoSegments(params shared.BuildCurveWithTwoSegmentsParams) (s
 
 	if params.DynamicFeeEnabled {
 		dynamicFeeBps := baseFeeBpsForDynamicFee(params.BaseFeeParams)
-		dynamicFee, err := GetDynamicFeeParams(dynamicFeeBps, uint16(shared.MaxPriceChangePercentageDefault))
+		dynamicFee, err := GetDynamicFeeParams(dynamicFeeBps, uint16(shared.MaxPriceChangeBpsDefault))
 		if err != nil {
 			return shared.ConfigParameters{}, err
 		}
@@ -529,9 +530,9 @@ func BuildCurveWithMidPrice(params shared.BuildCurveWithMidPriceParams) (shared.
 		PartnerPermanentLockedLiquidityPercentage: params.PartnerPermanentLockedLiquidityPercentage,
 		CreatorLiquidityPercentage:                params.CreatorLiquidityPercentage,
 		CreatorPermanentLockedLiquidityPercentage: params.CreatorPermanentLockedLiquidityPercentage,
-		SqrtStartPrice:     BigToU128(result.SqrtStartPrice),
-		LockedVesting:      lockedVesting,
-		MigrationFeeOption: uint8(params.MigrationFeeOption),
+		SqrtStartPrice:                            BigToU128(result.SqrtStartPrice),
+		LockedVesting:                             lockedVesting,
+		MigrationFeeOption:                        uint8(params.MigrationFeeOption),
 		TokenSupply: &shared.TokenSupplyParams{
 			PreMigrationTokenSupply:  totalSupplyU64,
 			PostMigrationTokenSupply: totalSupplyU64,
@@ -557,7 +558,7 @@ func BuildCurveWithMidPrice(params shared.BuildCurveWithMidPriceParams) (shared.
 
 	if params.DynamicFeeEnabled {
 		dynamicFeeBps := baseFeeBpsForDynamicFee(params.BaseFeeParams)
-		dynamicFee, err := GetDynamicFeeParams(dynamicFeeBps, uint16(shared.MaxPriceChangePercentageDefault))
+		dynamicFee, err := GetDynamicFeeParams(dynamicFeeBps, uint16(shared.MaxPriceChangeBpsDefault))
 		if err != nil {
 			return shared.ConfigParameters{}, err
 		}
@@ -788,9 +789,9 @@ func BuildCurveWithLiquidityWeights(params shared.BuildCurveWithLiquidityWeights
 		PartnerPermanentLockedLiquidityPercentage: params.PartnerPermanentLockedLiquidityPercentage,
 		CreatorLiquidityPercentage:                params.CreatorLiquidityPercentage,
 		CreatorPermanentLockedLiquidityPercentage: params.CreatorPermanentLockedLiquidityPercentage,
-		SqrtStartPrice:     BigToU128(pMin),
-		LockedVesting:      lockedVesting,
-		MigrationFeeOption: uint8(params.MigrationFeeOption),
+		SqrtStartPrice:                            BigToU128(pMin),
+		LockedVesting:                             lockedVesting,
+		MigrationFeeOption:                        uint8(params.MigrationFeeOption),
 		TokenSupply: &shared.TokenSupplyParams{
 			PreMigrationTokenSupply:  totalSupplyU64,
 			PostMigrationTokenSupply: totalSupplyU64,
@@ -816,7 +817,7 @@ func BuildCurveWithLiquidityWeights(params shared.BuildCurveWithLiquidityWeights
 
 	if params.DynamicFeeEnabled {
 		dynamicFeeBps := baseFeeBpsForDynamicFee(params.BaseFeeParams)
-		dynamicFee, err := GetDynamicFeeParams(dynamicFeeBps, uint16(shared.MaxPriceChangePercentageDefault))
+		dynamicFee, err := GetDynamicFeeParams(dynamicFeeBps, uint16(shared.MaxPriceChangeBpsDefault))
 		if err != nil {
 			return shared.ConfigParameters{}, err
 		}
@@ -1035,9 +1036,9 @@ func BuildCurveWithCustomSqrtPrices(params shared.BuildCurveWithCustomSqrtPrices
 		PartnerPermanentLockedLiquidityPercentage: params.PartnerPermanentLockedLiquidityPercentage,
 		CreatorLiquidityPercentage:                params.CreatorLiquidityPercentage,
 		CreatorPermanentLockedLiquidityPercentage: params.CreatorPermanentLockedLiquidityPercentage,
-		SqrtStartPrice:     BigToU128(pMin),
-		LockedVesting:      lockedVesting,
-		MigrationFeeOption: uint8(params.MigrationFeeOption),
+		SqrtStartPrice:                            BigToU128(pMin),
+		LockedVesting:                             lockedVesting,
+		MigrationFeeOption:                        uint8(params.MigrationFeeOption),
 		TokenSupply: &shared.TokenSupplyParams{
 			PreMigrationTokenSupply:  totalSupplyU64,
 			PostMigrationTokenSupply: totalSupplyU64,
@@ -1063,7 +1064,7 @@ func BuildCurveWithCustomSqrtPrices(params shared.BuildCurveWithCustomSqrtPrices
 
 	if params.DynamicFeeEnabled {
 		dynamicFeeBps := baseFeeBpsForDynamicFee(params.BaseFeeParams)
-		dynamicFee, err := GetDynamicFeeParams(dynamicFeeBps, uint16(shared.MaxPriceChangePercentageDefault))
+		dynamicFee, err := GetDynamicFeeParams(dynamicFeeBps, uint16(shared.MaxPriceChangeBpsDefault))
 		if err != nil {
 			return shared.ConfigParameters{}, err
 		}
@@ -1179,12 +1180,12 @@ func GetTotalSupplyFromCurve(
 		return nil, err
 	}
 
-	migrationQuoteAmount := GetMigrationQuoteAmountFromMigrationQuoteThreshold(
-		decimal.NewFromBigInt(migrationQuoteThreshold, 0),
-		migrationFeePercent,
-	)
+	migrationQuoteAmount, err := MigrationQuoteAmountFromThreshold(migrationQuoteThreshold, migrationFeePercent)
+	if err != nil {
+		return nil, err
+	}
 	migrationBaseAmount, err := GetMigrationBaseToken(
-		FromDecimalToBig(migrationQuoteAmount),
+		migrationQuoteAmount,
 		sqrtMigrationPrice,
 		migrationOption,
 	)
@@ -1198,6 +1199,14 @@ func GetTotalSupplyFromCurve(
 	minimumBaseSupplyWithBuffer.Add(minimumBaseSupplyWithBuffer, totalVestingAmount)
 	minimumBaseSupplyWithBuffer.Add(minimumBaseSupplyWithBuffer, leftover)
 	return minimumBaseSupplyWithBuffer, nil
+}
+
+// GetPriceFromSqrtPrice is the quote-token price of one base token.
+func GetPriceFromSqrtPrice(sqrtPrice *big.Int, tokenBaseDecimal, tokenQuoteDecimal int) decimal.Decimal {
+	sqrtDec := decimal.NewFromBigInt(sqrtPrice, 0)
+	denom := new(big.Int).Lsh(big.NewInt(1), 128)
+	lamportPrice := sqrtDec.Mul(sqrtDec).Div(decimal.NewFromBigInt(denom, 0))
+	return lamportPrice.Mul(decimal.New(1, int32(tokenBaseDecimal-tokenQuoteDecimal)))
 }
 
 func GetSqrtPriceFromPrice(price string, tokenADecimal, tokenBDecimal int) (*big.Int, error) {
@@ -1255,6 +1264,37 @@ func GetPercentageSupplyOnMigration(
 	return numerator.Div(denominator), nil
 }
 
+// Tokenomics is the supply split for a market-cap pair.
+type Tokenomics struct {
+	BondingCurveSupply  *big.Int
+	MigrationSupply     *big.Int
+	LeftoverSupply      *big.Int
+	LockedVestingSupply *big.Int
+}
+
+// GetTokenomics splits the total supply into bonding curve, migration, leftover and locked vesting.
+func GetTokenomics(initialMarketCap, migrationMarketCap decimal.Decimal, totalLockedVestingAmount, totalLeftover, totalTokenSupply *big.Int) (Tokenomics, error) {
+	marketCapRatio := initialMarketCap.Div(migrationMarketCap)
+	sqrtRatio, err := decimalSqrt(marketCapRatio)
+	if err != nil {
+		return Tokenomics{}, err
+	}
+	supply := decimal.NewFromBigInt(totalTokenSupply, 0)
+	vestingPercentage := decimal.NewFromBigInt(totalLockedVestingAmount, 0).Mul(decimal.NewFromInt(100)).Div(supply)
+	leftoverPercentage := decimal.NewFromBigInt(totalLeftover, 0).Mul(decimal.NewFromInt(100)).Div(supply)
+	pct := sqrtRatio.Mul(decimal.NewFromInt(100).Sub(vestingPercentage).Sub(leftoverPercentage)).Div(decimal.NewFromInt(1).Add(sqrtRatio))
+	migrationSupply := FromDecimalToBig(pct.Mul(supply).Div(decimal.NewFromInt(100)))
+	bonding := new(big.Int).Sub(totalTokenSupply, migrationSupply)
+	bonding.Sub(bonding, totalLeftover)
+	bonding.Sub(bonding, totalLockedVestingAmount)
+	return Tokenomics{
+		BondingCurveSupply:  bonding,
+		MigrationSupply:     migrationSupply,
+		LeftoverSupply:      new(big.Int).Set(totalLeftover),
+		LockedVestingSupply: new(big.Int).Set(totalLockedVestingAmount),
+	}, nil
+}
+
 func CalculateAdjustedPercentageSupplyOnMigration(
 	initialMarketCap decimal.Decimal,
 	migrationMarketCap decimal.Decimal,
@@ -1288,13 +1328,13 @@ func CalculateAdjustedPercentageSupplyOnMigration(
 	return numerator.Div(denominator), nil
 }
 
-func GetDynamicFeeParams(baseFeeBps uint16, maxPriceChangePercentage uint16) (*shared.DynamicFeeParameters, error) {
-	maxAllowed := uint16(shared.MaxPriceChangePercentageDefault)
-	if maxPriceChangePercentage > maxAllowed {
-		return nil, fmt.Errorf("maxPriceChangePercentage (%d) must be <= %d", maxPriceChangePercentage, maxAllowed)
+func GetDynamicFeeParams(baseFeeBps uint16, maxPriceChangeBps uint16) (*shared.DynamicFeeParameters, error) {
+	maxAllowed := uint16(shared.MaxPriceChangeBpsDefault)
+	if maxPriceChangeBps > maxAllowed {
+		return nil, fmt.Errorf("maxPriceChangeBps (%d) must be at most %d", maxPriceChangeBps, maxAllowed)
 	}
 
-	priceRatio := decimal.NewFromInt(int64(maxPriceChangePercentage)).
+	priceRatio := decimal.NewFromInt(int64(maxPriceChangeBps)).
 		Div(decimal.NewFromInt(int64(shared.MaxBasisPoint))).
 		Add(decimal.NewFromInt(1))
 	sqrtPriceRatio, err := decimalSqrt(priceRatio)
@@ -1316,7 +1356,7 @@ func GetDynamicFeeParams(baseFeeBps uint16, maxPriceChangePercentage uint16) (*s
 	}
 
 	baseFeeNumerator := BpsToFeeNumerator(uint64(baseFeeBps))
-	maxDynamicFeeNumerator := new(big.Int).Mul(baseFeeNumerator, big.NewInt(int64(maxPriceChangePercentage)))
+	maxDynamicFeeNumerator := new(big.Int).Mul(baseFeeNumerator, big.NewInt(int64(shared.MaxDynamicFeePercent)))
 	maxDynamicFeeNumerator.Div(maxDynamicFeeNumerator, big.NewInt(100))
 
 	vFee := new(big.Int).Mul(maxDynamicFeeNumerator, shared.DynamicFeeScalingFactor)
@@ -1809,7 +1849,7 @@ func buildCurveInternal(
 
 	if params.DynamicFeeEnabled {
 		dynamicFeeBps := baseFeeBpsForDynamicFee(params.BaseFeeParams)
-		dynamicFee, err := GetDynamicFeeParams(dynamicFeeBps, uint16(shared.MaxPriceChangePercentageDefault))
+		dynamicFee, err := GetDynamicFeeParams(dynamicFeeBps, uint16(shared.MaxPriceChangeBpsDefault))
 		if err != nil {
 			return shared.ConfigParameters{}, err
 		}
@@ -1843,6 +1883,58 @@ func GetLiquidity(baseAmount, quoteAmount, minSqrtPrice, maxSqrtPrice *big.Int) 
 	return liquidityFromQuote, nil
 }
 
+func exponentialReductionFactor(maxBaseFeeNumerator, minBaseFeeNumerator *big.Int, numberOfPeriod int) (*big.Int, error) {
+	ratio := decimal.NewFromBigInt(minBaseFeeNumerator, 0).Div(decimal.NewFromBigInt(maxBaseFeeNumerator, 0))
+	decayBase := ratio.Pow(decimal.NewFromInt(1).Div(decimal.NewFromInt(int64(numberOfPeriod))))
+	reduction := decimal.NewFromInt(shared.MaxBasisPoint).Mul(decimal.NewFromInt(1).Sub(decayBase)).Floor()
+	factor := reduction.BigInt()
+	if factor.Sign() < 0 {
+		factor = big.NewInt(0)
+	}
+	maxBps := big.NewInt(shared.MaxBasisPoint)
+	if factor.Cmp(maxBps) > 0 {
+		factor = new(big.Int).Set(maxBps)
+	}
+	feeAt := func(f *big.Int) (*big.Int, error) {
+		return pool_fees.GetFeeNumeratorOnExponentialFeeScheduler(maxBaseFeeNumerator, f, numberOfPeriod)
+	}
+	for factor.Sign() > 0 {
+		fee, err := feeAt(factor)
+		if err != nil {
+			return nil, err
+		}
+		if fee.Cmp(minBaseFeeNumerator) >= 0 {
+			break
+		}
+		factor = new(big.Int).Sub(factor, big.NewInt(1))
+	}
+	for factor.Cmp(maxBps) < 0 {
+		next := new(big.Int).Add(factor, big.NewInt(1))
+		fee, err := feeAt(next)
+		if err != nil {
+			return nil, err
+		}
+		if fee.Cmp(minBaseFeeNumerator) < 0 {
+			break
+		}
+		factor = next
+	}
+	if factor.Sign() == 0 {
+		return nil, errors.New("endingBaseFeeBps is too close to startingBaseFeeBps for numberOfPeriod periods of exponential decay")
+	}
+	return factor, nil
+}
+
+// GetFeeSchedulerParams builds a fee scheduler that decays from startingBaseFeeBps to endingBaseFeeBps.
+func GetFeeSchedulerParams(startingBaseFeeBps, endingBaseFeeBps uint16, baseFeeMode shared.BaseFeeMode, numberOfPeriod, totalDuration uint64) (shared.BaseFeeParameters, error) {
+	return getFeeSchedulerParams(startingBaseFeeBps, endingBaseFeeBps, baseFeeMode, numberOfPeriod, totalDuration)
+}
+
+// GetRateLimiterParams builds rate limiter parameters. New configs reject this base fee mode.
+func GetRateLimiterParams(baseFeeBps, feeIncrementBps uint16, referenceAmount, maxLimiterDuration uint64, tokenQuoteDecimal shared.TokenDecimal, activationType shared.ActivationType) (shared.BaseFeeParameters, error) {
+	return getRateLimiterParams(baseFeeBps, feeIncrementBps, referenceAmount, maxLimiterDuration, tokenQuoteDecimal, activationType)
+}
+
 func getFeeSchedulerParams(
 	startingBaseFeeBps uint16,
 	endingBaseFeeBps uint16,
@@ -1850,9 +1942,21 @@ func getFeeSchedulerParams(
 	numberOfPeriod uint64,
 	totalDuration uint64,
 ) (shared.BaseFeeParameters, error) {
+	if baseFeeMode != shared.BaseFeeModeFeeSchedulerLinear && baseFeeMode != shared.BaseFeeModeFeeSchedulerExponential {
+		return shared.BaseFeeParameters{}, errors.New(shared.ErrInvalidBaseFeeMode)
+	}
+	if startingBaseFeeBps < shared.MinFeeBps || startingBaseFeeBps > shared.MaxFeeBps {
+		return shared.BaseFeeParameters{}, fmt.Errorf("startingBaseFeeBps must be between %d and %d bps", shared.MinFeeBps, shared.MaxFeeBps)
+	}
+	if endingBaseFeeBps < shared.MinFeeBps || endingBaseFeeBps > shared.MaxFeeBps {
+		return shared.BaseFeeParameters{}, fmt.Errorf("endingBaseFeeBps must be between %d and %d bps", shared.MinFeeBps, shared.MaxFeeBps)
+	}
+	if endingBaseFeeBps > startingBaseFeeBps {
+		return shared.BaseFeeParameters{}, errors.New("endingBaseFeeBps must be less than or equal to startingBaseFeeBps")
+	}
 	if startingBaseFeeBps == endingBaseFeeBps {
 		if numberOfPeriod != 0 || totalDuration != 0 {
-			return shared.BaseFeeParameters{}, errors.New("numberOfPeriod and totalDuration must both be zero")
+			return shared.BaseFeeParameters{}, errors.New("numberOfPeriod and totalDuration must both be zero when the fee is constant")
 		}
 		cliffFeeNumerator := BpsToFeeNumerator(uint64(startingBaseFeeBps))
 		return shared.BaseFeeParameters{
@@ -1861,39 +1965,30 @@ func getFeeSchedulerParams(
 		}, nil
 	}
 
-	if numberOfPeriod == 0 {
-		return shared.BaseFeeParameters{}, errors.New("numberOfPeriod must be greater than zero")
+	if numberOfPeriod == 0 || totalDuration == 0 {
+		return shared.BaseFeeParameters{}, errors.New("numberOfPeriod and totalDuration must both be greater than zero")
 	}
-	if startingBaseFeeBps > shared.MaxFeeBps {
-		return shared.BaseFeeParameters{}, fmt.Errorf("startingBaseFeeBps (%d) exceeds maximum", startingBaseFeeBps)
-	}
-	if endingBaseFeeBps < shared.MinFeeBps {
-		return shared.BaseFeeParameters{}, fmt.Errorf("endingBaseFeeBps (%d) is less than minimum", endingBaseFeeBps)
-	}
-	if endingBaseFeeBps > startingBaseFeeBps {
-		return shared.BaseFeeParameters{}, errors.New("endingBaseFeeBps must be <= startingBaseFeeBps")
-	}
-	if totalDuration == 0 {
-		return shared.BaseFeeParameters{}, errors.New("totalDuration must be greater than zero")
-	}
-	if numberOfPeriod > uint64(^uint16(0)) {
-		return shared.BaseFeeParameters{}, errors.New("numberOfPeriod overflows uint16")
+	if numberOfPeriod > uint64(shared.U16Max) {
+		return shared.BaseFeeParameters{}, fmt.Errorf("numberOfPeriod must be at most %d", shared.U16Max)
 	}
 
 	maxBaseFeeNumerator := BpsToFeeNumerator(uint64(startingBaseFeeBps))
 	minBaseFeeNumerator := BpsToFeeNumerator(uint64(endingBaseFeeBps))
 
 	periodFrequency := totalDuration / numberOfPeriod
+	if periodFrequency == 0 {
+		return shared.BaseFeeParameters{}, errors.New("totalDuration must be at least numberOfPeriod")
+	}
 	var reductionFactor *big.Int
 	if baseFeeMode == shared.BaseFeeModeFeeSchedulerLinear {
 		totalReduction := new(big.Int).Sub(maxBaseFeeNumerator, minBaseFeeNumerator)
 		reductionFactor = new(big.Int).Div(totalReduction, big.NewInt(int64(numberOfPeriod)))
 	} else {
-		ratio := decimal.NewFromBigInt(minBaseFeeNumerator, 0).Div(decimal.NewFromBigInt(maxBaseFeeNumerator, 0))
-		decayBase := ratio.Pow(decimal.NewFromInt(1).Div(decimal.NewFromInt(int64(numberOfPeriod))))
-		reductionFactor = FromDecimalToBig(
-			decimal.NewFromInt(shared.MaxBasisPoint).Mul(decimal.NewFromInt(1).Sub(decayBase)),
-		)
+		factor, err := exponentialReductionFactor(maxBaseFeeNumerator, minBaseFeeNumerator, int(numberOfPeriod))
+		if err != nil {
+			return shared.BaseFeeParameters{}, err
+		}
+		reductionFactor = factor
 	}
 
 	reductionFactorU64, err := BigIntToU64(reductionFactor)

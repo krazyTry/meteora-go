@@ -3,6 +3,7 @@ package dynamic_bonding_curve
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/big"
 
 	"github.com/krazyTry/meteora-go/dynamic_bonding_curve/helpers"
@@ -83,7 +84,7 @@ func (s *DynamicBondingCurve) CreateConfigIx(params CreateConfigParams) (solanag
 	if err := helpers.ValidateConfigParameters(params); err != nil {
 		return nil, err
 	}
-	return dbcidl.NewCreateConfigInstruction(
+	ix, err := dbcidl.NewCreateConfigInstruction(
 		params.ConfigParameters,
 		params.Config,
 		params.FeeClaimer,
@@ -94,6 +95,10 @@ func (s *DynamicBondingCurve) CreateConfigIx(params CreateConfigParams) (solanag
 		s.EventAuthority,
 		helpers.DynamicBondingCurveProgramID,
 	)
+	if err != nil {
+		return nil, err
+	}
+	return withTokenBadge(ix, params.TokenBadge), nil
 }
 
 func (s *DynamicBondingCurve) CreatePoolIx(createPoolParam CreatePoolParams, tokenType TokenType, quoteMint solanago.PublicKey) (solanago.Instruction, error) {
@@ -113,31 +118,50 @@ func (s *DynamicBondingCurve) CreatePoolIx(createPoolParam CreatePoolParams, tok
 		BaseVault:   baseVault,
 		QuoteVault:  quoteVault,
 		QuoteMint:   quoteMint,
+		TokenBadge:  createPoolParam.TokenBadge,
 	}
 	if tokenType == TokenTypeSPL {
 		mintMetadata := helpers.DeriveMintMetadata(createPoolParam.BaseMint)
 		baseParams.MintMetadata = &mintMetadata
-		return s.initializeSplPool(baseParams)
+		ix, err := s.initializeSplPool(baseParams)
+		if err != nil {
+			return nil, err
+		}
+		return withTokenBadge(ix, createPoolParam.TokenBadge), nil
 	}
-	return s.initializeToken2022Pool(baseParams)
-}
-
-func (s *DynamicBondingCurve) CreatePool(ctx context.Context, params CreatePoolParams) (solanago.Instruction, error) {
-	poolConfigState, err := s.GetPoolConfig(ctx, params.Config)
+	ix, err := s.initializeToken2022Pool(baseParams)
 	if err != nil {
 		return nil, err
 	}
-	return s.CreatePoolIx(params, TokenType(poolConfigState.TokenType), poolConfigState.QuoteMint)
+	return withTokenBadge(ix, createPoolParam.TokenBadge), nil
+}
+
+func (s *DynamicBondingCurve) CreatePool(ctx context.Context, params CreatePoolParams) (solanago.Instruction, error) {
+	found, err := s.GetPoolConfigWithKind(ctx, params.Config)
+	if err != nil {
+		return nil, err
+	}
+	if found.TransferHookConfig != nil {
+		return nil, fmt.Errorf("config uses a transfer hook, create the pool with the transfer-hook method")
+	}
+	if err := helpers.AssertNewPoolConfig(found.PoolConfig, false); err != nil {
+		return nil, err
+	}
+	return s.CreatePoolIx(params, TokenType(found.PoolConfig.TokenType), found.PoolConfig.QuoteMint)
 }
 
 func (s *DynamicBondingCurve) CreateConfigAndPool(ctx context.Context, params CreateConfigAndPoolParams) ([]solanago.Instruction, error) {
-	configIx, err := s.CreateConfigIx(CreateConfigParams{
-		ConfigParameters: params.ConfigParameters,
-		Config:           params.Config,
-		FeeClaimer:       params.FeeClaimer,
-		LeftoverReceiver: params.LeftoverReceiver,
-		QuoteMint:        params.QuoteMint,
-		Payer:            params.Payer,
+	configIx, err := s.CreateConfig2(ctx, CreateConfig2Params{
+		CreateConfigParams: CreateConfigParams{
+			ConfigParameters: params.ConfigParameters,
+			Config:           params.Config,
+			FeeClaimer:       params.FeeClaimer,
+			LeftoverReceiver: params.LeftoverReceiver,
+			QuoteMint:        params.QuoteMint,
+			Payer:            params.Payer,
+			TokenBadge:       params.TokenBadge,
+		},
+		TransferFeeParameters: params.TransferFeeParameters,
 	})
 	if err != nil {
 		return nil, err
@@ -150,6 +174,7 @@ func (s *DynamicBondingCurve) CreateConfigAndPool(ctx context.Context, params Cr
 		PoolCreator: params.PreCreatePoolParam.PoolCreator,
 		Config:      params.Config,
 		BaseMint:    params.PreCreatePoolParam.BaseMint,
+		TokenBadge:  params.TokenBadge,
 	}, TokenType(params.TokenType), params.QuoteMint)
 	if err != nil {
 		return nil, err
@@ -166,13 +191,17 @@ type CreateConfigAndPoolWithFirstBuyResult struct {
 }
 
 func (s *DynamicBondingCurve) CreateConfigAndPoolWithFirstBuy(ctx context.Context, params CreateConfigAndPoolWithFirstBuyParams) (CreateConfigAndPoolWithFirstBuyResult, error) {
-	configIx, err := s.CreateConfigIx(CreateConfigParams{
-		ConfigParameters: params.ConfigParameters,
-		Config:           params.Config,
-		FeeClaimer:       params.FeeClaimer,
-		LeftoverReceiver: params.LeftoverReceiver,
-		QuoteMint:        params.QuoteMint,
-		Payer:            params.Payer,
+	configIx, err := s.CreateConfig2(ctx, CreateConfig2Params{
+		CreateConfigParams: CreateConfigParams{
+			ConfigParameters: params.ConfigParameters,
+			Config:           params.Config,
+			FeeClaimer:       params.FeeClaimer,
+			LeftoverReceiver: params.LeftoverReceiver,
+			QuoteMint:        params.QuoteMint,
+			Payer:            params.Payer,
+			TokenBadge:       params.TokenBadge,
+		},
+		TransferFeeParameters: params.TransferFeeParameters,
 	})
 	if err != nil {
 		return CreateConfigAndPoolWithFirstBuyResult{}, err
@@ -185,6 +214,7 @@ func (s *DynamicBondingCurve) CreateConfigAndPoolWithFirstBuy(ctx context.Contex
 		PoolCreator: params.PreCreatePoolParam.PoolCreator,
 		Config:      params.Config,
 		BaseMint:    params.PreCreatePoolParam.BaseMint,
+		TokenBadge:  params.TokenBadge,
 	}, TokenType(params.TokenType), params.QuoteMint)
 	if err != nil {
 		return CreateConfigAndPoolWithFirstBuyResult{}, err
@@ -291,16 +321,10 @@ func (s *DynamicBondingCurve) SwapBuyIx(ctx context.Context, firstBuyParam First
 	// rate limiter check
 	rateLimiterApplied := false
 	if BaseFeeMode(baseFee.BaseFeeMode) == BaseFeeModeRateLimiter {
-		currentPoint := big.NewInt(0)
-		if activationType == ActivationTypeSlot {
-			slot, _ := s.RPC.GetSlot(ctx, s.Commitment)
-			currentPoint = new(big.Int).SetUint64(slot)
-		} else {
-			slot, _ := s.RPC.GetSlot(ctx, s.Commitment)
-			bt, _ := s.RPC.GetBlockTime(ctx, slot)
-			if bt != nil {
-				currentPoint = big.NewInt(int64(*bt))
-			}
+		currentPoint, pointErr := CurrentPointForActivation(ctx, s.RPC, s.Commitment, activationType)
+		if pointErr != nil {
+			err = pointErr
+			return
 		}
 		rateLimiterApplied = pool_fees.IsRateLimiterApplied(currentPoint, big.NewInt(0), func() TradeDirection {
 			if swapBaseForQuote {
@@ -399,20 +423,20 @@ func (s *DynamicBondingCurve) Swap(ctx context.Context, params SwapParams) ([]so
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	poolConfigState, err := s.GetPoolConfig(ctx, poolState.Config)
+	poolConfigState, err := s.GetPoolConfig(ctx, poolState.PoolState.Config)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	inputMint := poolState.BaseMint
+	inputMint := poolState.PoolState.BaseMint
 	outputMint := poolConfigState.QuoteMint
-	inputProgram := helpers.GetTokenProgram(TokenType(poolState.PoolType))
+	inputProgram := helpers.GetTokenProgram(TokenType(poolState.PoolState.PoolType))
 	outputProgram := helpers.GetTokenProgram(TokenType(poolConfigState.QuoteTokenFlag))
 	if !params.SwapBaseForQuote {
 		inputMint = poolConfigState.QuoteMint
-		outputMint = poolState.BaseMint
+		outputMint = poolState.PoolState.BaseMint
 		inputProgram = helpers.GetTokenProgram(TokenType(poolConfigState.QuoteTokenFlag))
-		outputProgram = helpers.GetTokenProgram(TokenType(poolState.PoolType))
+		outputProgram = helpers.GetTokenProgram(TokenType(poolState.PoolState.PoolType))
 	}
 
 	payer := payerOrOwner(params.Payer, params.Owner)
@@ -442,13 +466,13 @@ func (s *DynamicBondingCurve) Swap(ctx context.Context, params SwapParams) ([]so
 			MinimumAmountOut: params.MinimumAmountOut.Uint64(),
 		},
 		s.PoolAuthority,
-		poolState.Config,
+		poolState.PoolState.Config,
 		params.Pool,
 		ataIn,
 		ataOut,
-		poolState.BaseVault,
-		poolState.QuoteVault,
-		poolState.BaseMint,
+		poolState.PoolState.BaseVault,
+		poolState.PoolState.QuoteVault,
+		poolState.PoolState.BaseMint,
 		poolConfigState.QuoteMint,
 		params.Owner,
 		func() solanago.PublicKey {
@@ -473,8 +497,11 @@ func (s *DynamicBondingCurve) Swap(ctx context.Context, params SwapParams) ([]so
 	// rate limiter remaining account
 	rateLimiterApplied := false
 	if BaseFeeMode(poolConfigState.PoolFees.BaseFee.BaseFeeMode) == BaseFeeModeRateLimiter {
-		currentPoint := CurrentPointForActivation(ctx, s.RPC, s.Commitment, ActivationType(poolConfigState.ActivationType))
-		rateLimiterApplied = pool_fees.IsRateLimiterApplied(currentPoint, new(big.Int).SetUint64(poolState.ActivationPoint), func() TradeDirection {
+		currentPoint, pointErr := CurrentPointForActivation(ctx, s.RPC, s.Commitment, ActivationType(poolConfigState.ActivationType))
+		if pointErr != nil {
+			return nil, nil, nil, pointErr
+		}
+		rateLimiterApplied = pool_fees.IsRateLimiterApplied(currentPoint, new(big.Int).SetUint64(poolState.PoolState.ActivationPoint), func() TradeDirection {
 			if params.SwapBaseForQuote {
 				return TradeDirectionBaseToQuote
 			}
@@ -495,7 +522,7 @@ func (s *DynamicBondingCurve) Swap2(ctx context.Context, params Swap2Params) ([]
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	poolConfigState, err := s.GetPoolConfig(ctx, poolState.Config)
+	poolConfigState, err := s.GetPoolConfig(ctx, poolState.PoolState.Config)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -512,15 +539,15 @@ func (s *DynamicBondingCurve) Swap2(ctx context.Context, params Swap2Params) ([]
 		return nil, nil, nil, err
 	}
 
-	inputMint := poolState.BaseMint
+	inputMint := poolState.PoolState.BaseMint
 	outputMint := poolConfigState.QuoteMint
-	inputProgram := helpers.GetTokenProgram(TokenType(poolState.PoolType))
+	inputProgram := helpers.GetTokenProgram(TokenType(poolState.PoolState.PoolType))
 	outputProgram := helpers.GetTokenProgram(TokenType(poolConfigState.QuoteTokenFlag))
 	if !params.SwapBaseForQuote {
 		inputMint = poolConfigState.QuoteMint
-		outputMint = poolState.BaseMint
+		outputMint = poolState.PoolState.BaseMint
 		inputProgram = helpers.GetTokenProgram(TokenType(poolConfigState.QuoteTokenFlag))
-		outputProgram = helpers.GetTokenProgram(TokenType(poolState.PoolType))
+		outputProgram = helpers.GetTokenProgram(TokenType(poolState.PoolState.PoolType))
 	}
 
 	payer := payerOrOwner(params.Payer, params.Owner)
@@ -548,46 +575,18 @@ func (s *DynamicBondingCurve) Swap2(ctx context.Context, params Swap2Params) ([]
 		}
 	}
 
-	swapIx, err := dbcidl.NewSwap2Instruction(
-		dbcidl.SwapParameters2{
-			Amount0:  amount0,
-			Amount1:  amount1,
-			SwapMode: uint8(params.SwapMode),
-		},
-		s.PoolAuthority,
-		poolState.Config,
-		params.Pool,
-		ataIn,
-		ataOut,
-		poolState.BaseVault,
-		poolState.QuoteVault,
-		poolState.BaseMint,
-		poolConfigState.QuoteMint,
-		params.Owner,
-		func() solanago.PublicKey {
-			if params.SwapBaseForQuote {
-				return inputProgram
-			}
-			return outputProgram
-		}(),
-		func() solanago.PublicKey {
-			if params.SwapBaseForQuote {
-				return outputProgram
-			}
-			return inputProgram
-		}(),
-		optionalAccount(params.ReferralTokenAccount),
-		s.EventAuthority,
-		helpers.DynamicBondingCurveProgramID,
-	)
+	swapIx, err := buildSwap2Instruction(params, amount0, amount1, s.PoolAuthority, poolState.PoolState.Config, ataIn, ataOut, poolState.PoolState.BaseVault, poolState.PoolState.QuoteVault, poolState.PoolState.BaseMint, poolConfigState.QuoteMint, inputProgram, outputProgram, s.EventAuthority)
 
 	if err != nil {
 		return nil, nil, nil, err
 	}
 	rateLimiterApplied := false
 	if BaseFeeMode(poolConfigState.PoolFees.BaseFee.BaseFeeMode) == BaseFeeModeRateLimiter {
-		currentPoint := CurrentPointForActivation(ctx, s.RPC, s.Commitment, ActivationType(poolConfigState.ActivationType))
-		rateLimiterApplied = pool_fees.IsRateLimiterApplied(currentPoint, new(big.Int).SetUint64(poolState.ActivationPoint), func() TradeDirection {
+		currentPoint, pointErr := CurrentPointForActivation(ctx, s.RPC, s.Commitment, ActivationType(poolConfigState.ActivationType))
+		if pointErr != nil {
+			return nil, nil, nil, pointErr
+		}
+		rateLimiterApplied = pool_fees.IsRateLimiterApplied(currentPoint, new(big.Int).SetUint64(poolState.PoolState.ActivationPoint), func() TradeDirection {
 			if params.SwapBaseForQuote {
 				return TradeDirectionBaseToQuote
 			}
@@ -599,23 +598,27 @@ func (s *DynamicBondingCurve) Swap2(ctx context.Context, params Swap2Params) ([]
 			gi.AccountValues = append(gi.AccountValues, solanago.NewAccountMeta(solanago.SysVarInstructionsPubkey, false, false))
 		}
 	}
+	if params.TransferHook != nil {
+		appendMetas(swapIx, params.TransferHook.Base)
+		appendMetas(swapIx, params.TransferHook.Referral)
+	}
 	return pre, swapIx, post, nil
 }
 
 // SwapQuote helpers
 func (s *DynamicBondingCurve) SwapQuote(params SwapQuoteParams) (SwapQuoteResult, error) {
-	return math.SwapQuote(params.VirtualPool, params.Config, params.SwapBaseForQuote, params.AmountIn, params.SlippageBps, params.HasReferral, params.CurrentPoint, params.EligibleForFirstSwapWithMinFee)
+	return math.SwapQuote(params.VirtualPool, params.Config, params.SwapBaseForQuote, params.AmountIn, params.SlippageBps, params.HasReferral, params.CurrentPoint, params.EligibleForFirstSwapWithMinFee, params.TransferFees)
 }
 
 func (s *DynamicBondingCurve) SwapQuote2(params SwapQuote2Params) (SwapQuote2Result, error) {
 	if params.SwapMode == SwapModeExactIn {
-		return math.SwapQuoteExactIn(params.VirtualPool, params.Config, params.SwapBaseForQuote, params.AmountIn, params.SlippageBps, params.HasReferral, params.CurrentPoint, params.EligibleForFirstSwapWithMinFee)
+		return math.SwapQuoteExactIn(params.VirtualPool, params.Config, params.SwapBaseForQuote, params.AmountIn, params.SlippageBps, params.HasReferral, params.CurrentPoint, params.EligibleForFirstSwapWithMinFee, params.TransferFees)
 	}
 	if params.SwapMode == SwapModeExactOut {
-		return math.SwapQuoteExactOut(params.VirtualPool, params.Config, params.SwapBaseForQuote, params.AmountOut, params.SlippageBps, params.HasReferral, params.CurrentPoint, params.EligibleForFirstSwapWithMinFee)
+		return math.SwapQuoteExactOut(params.VirtualPool, params.Config, params.SwapBaseForQuote, params.AmountOut, params.SlippageBps, params.HasReferral, params.CurrentPoint, params.EligibleForFirstSwapWithMinFee, params.TransferFees)
 	}
 	if params.SwapMode == SwapModePartialFill {
-		return math.SwapQuotePartialFill(params.VirtualPool, params.Config, params.SwapBaseForQuote, params.AmountIn, params.SlippageBps, params.HasReferral, params.CurrentPoint, params.EligibleForFirstSwapWithMinFee)
+		return math.SwapQuotePartialFill(params.VirtualPool, params.Config, params.SwapBaseForQuote, params.AmountIn, params.SlippageBps, params.HasReferral, params.CurrentPoint, params.EligibleForFirstSwapWithMinFee, params.TransferFees)
 	}
 	return SwapQuote2Result{}, errors.New("Unsupported swap mode")
 }
@@ -628,16 +631,41 @@ func payerOrOwner(payer *solanago.PublicKey, owner solanago.PublicKey) solanago.
 	return owner
 }
 
-func CurrentPointForActivation(ctx context.Context, client *rpc.Client, commitment rpc.CommitmentType, activationType ActivationType) *big.Int {
-	slot, _ := client.GetSlot(ctx, commitment)
+// RateLimiterApplied reports whether a self-built swap must include the instructions sysvar.
+func RateLimiterApplied(ctx context.Context, client *rpc.Client, commitment rpc.CommitmentType, baseFee baseFeeLike, activationType ActivationType, activationPoint *big.Int, swapBaseForQuote bool) (bool, error) {
+	if BaseFeeMode(baseFee.BaseFeeMode) != BaseFeeModeRateLimiter {
+		return false, nil
+	}
+	direction := TradeDirectionQuoteToBase
+	if swapBaseForQuote {
+		direction = TradeDirectionBaseToQuote
+	}
+	if activationPoint == nil {
+		activationPoint = big.NewInt(0)
+	}
+	currentPoint, err := CurrentPointForActivation(ctx, client, commitment, activationType)
+	if err != nil {
+		return false, err
+	}
+	return pool_fees.IsRateLimiterApplied(currentPoint, activationPoint, direction, new(big.Int).SetUint64(baseFee.SecondFactor), new(big.Int).SetUint64(baseFee.ThirdFactor), new(big.Int).SetUint64(uint64(baseFee.FirstFactor))), nil
+}
+
+func CurrentPointForActivation(ctx context.Context, client *rpc.Client, commitment rpc.CommitmentType, activationType ActivationType) (*big.Int, error) {
+	slot, err := client.GetSlot(ctx, commitment)
+	if err != nil {
+		return nil, err
+	}
 	if activationType == ActivationTypeSlot {
-		return new(big.Int).SetUint64(slot)
+		return new(big.Int).SetUint64(slot), nil
 	}
-	bt, _ := client.GetBlockTime(ctx, slot)
-	if bt != nil {
-		return big.NewInt(int64(*bt))
+	bt, err := client.GetBlockTime(ctx, slot)
+	if err != nil {
+		return nil, err
 	}
-	return big.NewInt(0)
+	if bt == nil {
+		return nil, fmt.Errorf("block time is unavailable for slot %d", slot)
+	}
+	return big.NewInt(int64(*bt)), nil
 }
 
 func optionalAccount(pk *solanago.PublicKey) solanago.PublicKey {

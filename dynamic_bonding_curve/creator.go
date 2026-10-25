@@ -56,7 +56,7 @@ func (s *DynamicBondingCurve) TransferPoolCreator(ctx context.Context, params Tr
 
 	ix, err := dbcidl.NewTransferPoolCreatorInstruction(
 		params.VirtualPool,
-		virtualPoolState.Config,
+		virtualPoolState.PoolState.Config,
 		params.Creator,
 		params.NewCreator,
 		s.EventAuthority,
@@ -72,12 +72,12 @@ func (s *DynamicBondingCurve) TransferPoolCreator(ctx context.Context, params Tr
 }
 
 func (s *DynamicBondingCurve) CreatorWithdrawSurplus(ctx context.Context, params CreatorWithdrawSurplusParams) ([]solanago.Instruction, error) {
-	poolState, err := s.GetPool(ctx, params.VirtualPool)
+	virtualPoolState, err := s.GetPool(ctx, params.VirtualPool)
 	if err != nil {
 		return nil, err
 	}
 
-	poolConfigState, err := s.GetPoolConfig(ctx, poolState.Config)
+	poolConfigState, err := s.GetPoolConfig(ctx, virtualPoolState.PoolState.Config)
 	if err != nil {
 		return nil, err
 	}
@@ -105,10 +105,10 @@ func (s *DynamicBondingCurve) CreatorWithdrawSurplus(ctx context.Context, params
 
 	ix, err := dbcidl.NewCreatorWithdrawSurplusInstruction(
 		s.PoolAuthority,
-		poolState.Config,
+		virtualPoolState.PoolState.Config,
 		params.VirtualPool,
 		tokenQuoteAccount,
-		poolState.QuoteVault,
+		virtualPoolState.PoolState.QuoteVault,
 		poolConfigState.QuoteMint,
 		params.Creator,
 		tokenQuoteProgram,
@@ -129,7 +129,7 @@ func (s *DynamicBondingCurve) WithdrawMigrationFee(ctx context.Context, params W
 		return nil, err
 	}
 
-	configState, err := s.GetPoolConfig(ctx, virtualPoolState.Config)
+	configState, err := s.GetPoolConfig(ctx, virtualPoolState.PoolState.Config)
 	if err != nil {
 		return nil, err
 	}
@@ -158,10 +158,10 @@ func (s *DynamicBondingCurve) WithdrawMigrationFee(ctx context.Context, params W
 	ix, err := dbcidl.NewWithdrawMigrationFeeInstruction(
 		1, // 0. partner 1. creator
 		s.PoolAuthority,
-		virtualPoolState.Config,
+		virtualPoolState.PoolState.Config,
 		params.VirtualPool,
 		tokenQuoteAccount,
-		virtualPoolState.QuoteVault,
+		virtualPoolState.PoolState.QuoteVault,
 		configState.QuoteMint,
 		params.Sender,
 		tokenQuoteProgram,
@@ -181,7 +181,7 @@ func (s *DynamicBondingCurve) claimCreatorWithQuoteMintSol(ctx context.Context, 
 	pre = []solanago.Instruction{}
 	post = []solanago.Instruction{}
 
-	tokenBaseAccount, createBaseIx, err := helpers.GetOrCreateATAInstruction(ctx, s.RPC, params.PoolState.BaseMint, params.FeeReceiver, params.Payer, params.TokenBaseProgram)
+	tokenBaseAccount, createBaseIx, err := helpers.GetOrCreateATAInstruction(ctx, s.RPC, params.PoolState.PoolState.BaseMint, params.FeeReceiver, params.Payer, params.TokenBaseProgram)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -208,9 +208,9 @@ func (s *DynamicBondingCurve) claimCreatorWithQuoteMintSol(ctx context.Context, 
 		Pool:              params.Pool,
 		TokenAAccount:     tokenBaseAccount,
 		TokenBAccount:     tokenQuoteAccount,
-		BaseVault:         params.PoolState.BaseVault,
-		QuoteVault:        params.PoolState.QuoteVault,
-		BaseMint:          params.PoolState.BaseMint,
+		BaseVault:         params.PoolState.PoolState.BaseVault,
+		QuoteVault:        params.PoolState.PoolState.QuoteVault,
+		BaseMint:          params.PoolState.PoolState.BaseMint,
 		QuoteMint:         params.PoolConfigState.QuoteMint,
 		Creator:           params.Creator,
 		TokenBaseProgram:  params.TokenBaseProgram,
@@ -223,7 +223,7 @@ func (s *DynamicBondingCurve) claimCreatorWithQuoteMintSol(ctx context.Context, 
 
 // claimWithQuoteMintNotSol prepares accounts and pre-instructions for non-SOL quote mint.
 func (s *DynamicBondingCurve) claimCreatorWithQuoteMintNotSol(ctx context.Context, params ClaimCreatorTradingFeeWithQuoteMintNotSolParams) (accounts *claimCreatorTradingFeeAccounts, pre []solanago.Instruction, err error) {
-	tokenBaseAccount, tokenQuoteAccount, pre, err := s.PrepareTokenAccounts(ctx, params.FeeReceiver, params.Payer, params.PoolState.BaseMint, params.PoolConfigState.QuoteMint, params.TokenBaseProgram, params.TokenQuoteProgram)
+	tokenBaseAccount, tokenQuoteAccount, pre, err := s.PrepareTokenAccounts(ctx, params.FeeReceiver, params.Payer, params.PoolState.PoolState.BaseMint, params.PoolConfigState.QuoteMint, params.TokenBaseProgram, params.TokenQuoteProgram)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -232,9 +232,9 @@ func (s *DynamicBondingCurve) claimCreatorWithQuoteMintNotSol(ctx context.Contex
 		Pool:              params.Pool,
 		TokenAAccount:     tokenBaseAccount,
 		TokenBAccount:     tokenQuoteAccount,
-		BaseVault:         params.PoolState.BaseVault,
-		QuoteVault:        params.PoolState.QuoteVault,
-		BaseMint:          params.PoolState.BaseMint,
+		BaseVault:         params.PoolState.PoolState.BaseVault,
+		QuoteVault:        params.PoolState.PoolState.QuoteVault,
+		BaseMint:          params.PoolState.PoolState.BaseMint,
 		QuoteMint:         params.PoolConfigState.QuoteMint,
 		Creator:           params.Creator,
 		TokenBaseProgram:  params.TokenBaseProgram,
@@ -252,7 +252,7 @@ func (s *DynamicBondingCurve) ClaimCreatorTradingFee(ctx context.Context, params
 		return nil, nil, nil, err
 	}
 
-	poolConfigState, err := s.GetPoolConfig(ctx, poolState.Config)
+	poolConfigState, err := s.GetPoolConfig(ctx, poolState.PoolState.Config)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -369,7 +369,7 @@ func (s *DynamicBondingCurve) ClaimCreatorTradingFee2(ctx context.Context, param
 		return nil, nil, nil, err
 	}
 
-	poolConfigState, err := s.GetPoolConfig(ctx, poolState.Config)
+	poolConfigState, err := s.GetPoolConfig(ctx, poolState.PoolState.Config)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -390,7 +390,7 @@ func (s *DynamicBondingCurve) ClaimCreatorTradingFee2(ctx context.Context, param
 		pre = []solanago.Instruction{}
 		post = []solanago.Instruction{}
 
-		tokenBaseAccount, createBaseIx, err := helpers.GetOrCreateATAInstruction(ctx, s.RPC, poolState.BaseMint, params.Receiver, params.Payer, tokenBaseProgram)
+		tokenBaseAccount, createBaseIx, err := helpers.GetOrCreateATAInstruction(ctx, s.RPC, poolState.PoolState.BaseMint, params.Receiver, params.Payer, tokenBaseProgram)
 		if err != nil {
 			return nil, nil, nil, err
 		}
@@ -412,16 +412,17 @@ func (s *DynamicBondingCurve) ClaimCreatorTradingFee2(ctx context.Context, param
 		}
 		post = append(post, unwrapIx)
 
-		ix, err = dbcidl.NewClaimCreatorTradingFeeInstruction(
+		ix, err = claimCreatorTradingFeeInstruction(
 			maxBase,
 			maxQuote,
+			params.TransferHook,
 			s.PoolAuthority,
 			params.Pool,
 			tokenBaseAccount,
 			tokenQuoteAccount,
-			poolState.BaseVault,
-			poolState.QuoteVault,
-			poolState.BaseMint,
+			poolState.PoolState.BaseVault,
+			poolState.PoolState.QuoteVault,
+			poolState.PoolState.BaseMint,
 			poolConfigState.QuoteMint,
 			params.Creator,
 			tokenBaseProgram,
@@ -448,9 +449,10 @@ func (s *DynamicBondingCurve) ClaimCreatorTradingFee2(ctx context.Context, param
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	ix, err = dbcidl.NewClaimCreatorTradingFeeInstruction(
+	ix, err = claimCreatorTradingFeeInstruction(
 		maxBase,
 		maxQuote,
+		params.TransferHook,
 		accs.PoolAuthority,
 		accs.Pool,
 		accs.TokenAAccount,

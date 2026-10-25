@@ -3,14 +3,15 @@ package helpers
 import (
 	"context"
 	"fmt"
+	"math/big"
 
 	bin "github.com/gagliardetto/binary"
+	"github.com/krazyTry/meteora-go/dynamic_bonding_curve/shared"
 	"github.com/solana-foundation/solana-go/v2"
 	solanago "github.com/solana-foundation/solana-go/v2"
 	"github.com/solana-foundation/solana-go/v2/programs/system"
 	"github.com/solana-foundation/solana-go/v2/programs/token"
 	"github.com/solana-foundation/solana-go/v2/rpc"
-	"github.com/krazyTry/meteora-go/dynamic_bonding_curve/shared"
 )
 
 // NativeMint is the wrapped SOL mint.
@@ -97,6 +98,106 @@ func GetTokenProgram(tokenType shared.TokenType) solanago.PublicKey {
 		return token.ProgramID
 	}
 	return solanago.Token2022ProgramID
+}
+
+// PrepareSwapAccountsParams are the token accounts a caller-built swap instruction needs.
+type PrepareSwapAccountsParams struct {
+	Payer                    solanago.PublicKey
+	InputOwner               solanago.PublicKey
+	OutputOwner              solanago.PublicKey
+	UnwrapAuthority          solanago.PublicKey
+	InputMint                solanago.PublicKey
+	OutputMint               solanago.PublicKey
+	InputTokenProgram        solanago.PublicKey
+	OutputTokenProgram       solanago.PublicKey
+	WrapAmount               uint64
+	IncludeInstructionSysvar bool
+}
+
+// PrepareSwapAccountsResult holds the ATAs, wrap and unwrap instructions, and the instructions sysvar when requested.
+type PrepareSwapAccountsResult struct {
+	InputTokenAccount  solanago.PublicKey
+	OutputTokenAccount solanago.PublicKey
+	PreInstructions    []solanago.Instruction
+	PostInstructions   []solanago.Instruction
+	RemainingAccounts  []*solanago.AccountMeta
+}
+
+// PrepareSwapAccounts creates the input and output token accounts, wraps and unwraps SOL, and optionally adds the instructions sysvar.
+func PrepareSwapAccounts(ctx context.Context, client *rpc.Client, params PrepareSwapAccountsParams) (PrepareSwapAccountsResult, error) {
+	input, createIn, err := GetOrCreateATAInstruction(ctx, client, params.InputMint, params.InputOwner, params.Payer, params.InputTokenProgram)
+	if err != nil {
+		return PrepareSwapAccountsResult{}, err
+	}
+	output, createOut, err := GetOrCreateATAInstruction(ctx, client, params.OutputMint, params.OutputOwner, params.Payer, params.OutputTokenProgram)
+	if err != nil {
+		return PrepareSwapAccountsResult{}, err
+	}
+	pre := make([]solanago.Instruction, 0, 2)
+	if createIn != nil {
+		pre = append(pre, createIn)
+	}
+	if createOut != nil {
+		pre = append(pre, createOut)
+	}
+	if IsNativeSol(params.InputMint) {
+		wrap, err := WrapSOLInstruction(params.InputOwner, input, params.WrapAmount)
+		if err != nil {
+			return PrepareSwapAccountsResult{}, err
+		}
+		pre = append(pre, wrap...)
+	}
+	post := make([]solanago.Instruction, 0, 1)
+	if IsNativeSol(params.InputMint) || IsNativeSol(params.OutputMint) {
+		unwrap, err := UnwrapSOLInstruction(params.UnwrapAuthority, params.UnwrapAuthority, true)
+		if err != nil {
+			return PrepareSwapAccountsResult{}, err
+		}
+		if unwrap != nil {
+			post = append(post, unwrap)
+		}
+	}
+	var remaining []*solanago.AccountMeta
+	if params.IncludeInstructionSysvar {
+		remaining = []*solanago.AccountMeta{solanago.NewAccountMeta(solanago.SysVarInstructionsPubkey, false, false)}
+	}
+	return PrepareSwapAccountsResult{
+		InputTokenAccount:  input,
+		OutputTokenAccount: output,
+		PreInstructions:    pre,
+		PostInstructions:   post,
+		RemainingAccounts:  remaining,
+	}, nil
+}
+
+// GetOrCreateATAs returns the ATAs for several mint and owner pairs, plus create instructions for the missing ones.
+func GetOrCreateATAs(ctx context.Context, client *rpc.Client, payer solanago.PublicKey, accounts []struct {
+	Mint         solanago.PublicKey
+	Owner        solanago.PublicKey
+	TokenProgram solanago.PublicKey
+}) ([]solanago.PublicKey, []solanago.Instruction, error) {
+	addresses := make([]solanago.PublicKey, 0, len(accounts))
+	instructions := make([]solanago.Instruction, 0)
+	for _, account := range accounts {
+		ata, ix, err := GetOrCreateATAInstruction(ctx, client, account.Mint, account.Owner, payer, account.TokenProgram)
+		if err != nil {
+			return nil, nil, err
+		}
+		addresses = append(addresses, ata)
+		if ix != nil {
+			instructions = append(instructions, ix)
+		}
+	}
+	return addresses, instructions, nil
+}
+
+// PrepareSwapAmountParam converts a UI amount to lamports using the mint's on-chain decimals.
+func PrepareSwapAmountParam(ctx context.Context, client *rpc.Client, amount string, mint solanago.PublicKey) (*big.Int, error) {
+	decimals, err := GetTokenDecimals(ctx, client, mint)
+	if err != nil {
+		return nil, err
+	}
+	return ConvertToLamports(amount, int32(decimals))
 }
 
 func GetTokenType(ctx context.Context, client *rpc.Client, tokenMint solanago.PublicKey) (shared.TokenType, error) {

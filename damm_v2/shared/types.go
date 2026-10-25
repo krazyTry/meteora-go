@@ -35,8 +35,9 @@ const (
 type CollectFeeMode = uint8
 
 const (
-	CollectFeeModeBothToken CollectFeeMode = 0
-	CollectFeeModeOnlyB     CollectFeeMode = 1
+	CollectFeeModeBothToken   CollectFeeMode = 0
+	CollectFeeModeOnlyB       CollectFeeMode = 1
+	CollectFeeModeCompounding CollectFeeMode = 2
 )
 
 type TradeDirection uint8
@@ -58,6 +59,14 @@ type PoolVersion uint8
 const (
 	PoolVersionV0 PoolVersion = 0
 	PoolVersionV1 PoolVersion = 1
+)
+
+// LayoutVersion tracks whether a pool stores token reserve amounts.
+type LayoutVersion uint8
+
+const (
+	LayoutVersionV0 LayoutVersion = 0
+	LayoutVersionV1 LayoutVersion = 1
 )
 
 type PoolStatus uint8
@@ -83,20 +92,18 @@ type FeeMode struct {
 }
 
 type FeeOnAmountResult struct {
-	FeeNumerator   *big.Int
-	FeeAmount      *big.Int
-	AmountAfterFee *big.Int
-	TradingFee     *big.Int
+	Amount         *big.Int
+	ClaimingFee    *big.Int
+	CompoundingFee *big.Int
 	ProtocolFee    *big.Int
-	PartnerFee     *big.Int
 	ReferralFee    *big.Int
 }
 
 type SplitFees struct {
-	TradingFee  *big.Int
-	ProtocolFee *big.Int
-	ReferralFee *big.Int
-	PartnerFee  *big.Int
+	ClaimingFee    *big.Int
+	CompoundingFee *big.Int
+	ProtocolFee    *big.Int
+	ReferralFee    *big.Int
 }
 
 type SwapResult2 = dammv2gen.SwapResult2
@@ -145,6 +152,15 @@ const (
 
 	MinCuBuffer = 50_000
 	MaxCuBuffer = 200_000
+
+	TotalRewardScale         = 192
+	CurrentPoolVersion       = 1
+	NumRewards               = 2
+	SplitPositionDenominator = 1_000_000_000
+	PoolTokenAMintOffset     = 168
+	PoolTokenBMintOffset     = 200
+	MinRewardDuration        = 86_400
+	MaxRewardDuration        = 31_536_000
 )
 
 var (
@@ -155,6 +171,11 @@ var (
 
 	U128Max = bigIntFromString("340282366920938463463374607431768211455")
 	U64Max  = bigIntFromString("18446744073709551615")
+
+	U64Modulus  = new(big.Int).Lsh(big.NewInt(1), 64)
+	U256Modulus = new(big.Int).Lsh(big.NewInt(1), 256)
+	// DeadLiquidity is 100 << 64, matching on-chain dead liquidity for compounding pools.
+	DeadLiquidity = new(big.Int).Lsh(big.NewInt(100), ScaleOffset)
 
 	DynamicFeeScalingFactor  = big.NewInt(100000000000)
 	DynamicFeeRoundingOffset = big.NewInt(99999999999)

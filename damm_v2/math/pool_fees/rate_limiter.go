@@ -12,7 +12,7 @@ func IsZeroRateLimiter(referenceAmount *big.Int, maxLimiterDuration uint32, maxF
 }
 
 func IsNonZeroRateLimiter(referenceAmount *big.Int, maxLimiterDuration uint32, maxFeeBps uint16, feeIncrementBps uint16) bool {
-	return (referenceAmount != nil && referenceAmount.Sign() == 0) && maxLimiterDuration != 0 && maxFeeBps != 0 && feeIncrementBps != 0
+	return referenceAmount != nil && referenceAmount.Sign() != 0 && maxLimiterDuration != 0 && maxFeeBps != 0 && feeIncrementBps != 0
 }
 
 func IsRateLimiterApplied(referenceAmount *big.Int, maxLimiterDuration uint32, maxFeeBps uint16, feeIncrementBps uint16, currentPoint, activationPoint *big.Int, tradeDirection shared.TradeDirection) bool {
@@ -83,19 +83,113 @@ func GetFeeNumeratorFromIncludedFeeAmount(inputAmount, referenceAmount, cliffFee
 		tradingFeeNumerator = new(big.Int).Add(firstFee, secondFee)
 	}
 
-	feeNumerator := mulDiv(tradingFeeNumerator, big.NewInt(shared.FeeDenominator), inputAmount, shared.RoundingUp)
-	if feeNumerator.Cmp(maxFeeNumerator) > 0 {
-		return maxFeeNumerator, nil
+	denominator := big.NewInt(shared.FeeDenominator)
+	tradingFee := new(big.Int).Add(tradingFeeNumerator, denominator)
+	tradingFee.Sub(tradingFee, one)
+	tradingFee.Div(tradingFee, denominator)
+	numerator := mulDiv(tradingFee, denominator, inputAmount, shared.RoundingUp)
+	if numerator.Cmp(shared.U64Max) > 0 {
+		return nil, errors.New("math overflow")
 	}
-	return feeNumerator, nil
+	return numerator, nil
 }
 
-func GetFeeNumeratorFromExcludedFeeAmount(excludedFeeAmount, referenceAmount, cliffFeeNumerator *big.Int, maxFeeBps uint16, feeIncrementBps uint16) (*big.Int, error) {
-	includedFeeAmount, _, err := getIncludedFeeAmount(cliffFeeNumerator, excludedFeeAmount)
+func excludedFeeAmountFromIncluded(includedFeeAmount, referenceAmount, cliffFeeNumerator *big.Int, maxFeeBps, feeIncrementBps uint16) (*big.Int, error) {
+	feeNumerator, err := GetFeeNumeratorFromIncludedFeeAmount(includedFeeAmount, referenceAmount, cliffFeeNumerator, maxFeeBps, feeIncrementBps)
 	if err != nil {
 		return nil, err
 	}
-	return GetFeeNumeratorFromIncludedFeeAmount(includedFeeAmount, referenceAmount, cliffFeeNumerator, maxFeeBps, feeIncrementBps)
+	tradingFee := mulDiv(includedFeeAmount, feeNumerator, big.NewInt(shared.FeeDenominator), shared.RoundingUp)
+	return new(big.Int).Sub(includedFeeAmount, tradingFee), nil
+}
+
+func checkedRateLimiterAmounts(referenceAmount, cliffFeeNumerator *big.Int, maxFeeBps, feeIncrementBps uint16) (checkedExcluded, checkedIncluded *big.Int, overflow bool, err error) {
+	maxIndex, err := GetMaxIndex(maxFeeBps, cliffFeeNumerator, feeIncrementBps)
+	if err != nil {
+		return nil, nil, false, err
+	}
+	checkedIncluded = new(big.Int).Add(maxIndex, big.NewInt(1))
+	checkedIncluded.Mul(checkedIncluded, referenceAmount)
+	if checkedIncluded.Cmp(shared.U64Max) <= 0 {
+		checkedExcluded, err = excludedFeeAmountFromIncluded(checkedIncluded, referenceAmount, cliffFeeNumerator, maxFeeBps, feeIncrementBps)
+		return checkedExcluded, checkedIncluded, false, err
+	}
+	checkedIncluded = new(big.Int).Set(shared.U64Max)
+	checkedExcluded, err = excludedFeeAmountFromIncluded(checkedIncluded, referenceAmount, cliffFeeNumerator, maxFeeBps, feeIncrementBps)
+	return checkedExcluded, checkedIncluded, true, err
+}
+
+func GetFeeNumeratorFromExcludedFeeAmount(excludedFeeAmount, referenceAmount, cliffFeeNumerator *big.Int, maxFeeBps uint16, feeIncrementBps uint16) (*big.Int, error) {
+	excludedReference, err := excludedFeeAmountFromIncluded(referenceAmount, referenceAmount, cliffFeeNumerator, maxFeeBps, feeIncrementBps)
+	if err != nil {
+		return nil, err
+	}
+	if excludedFeeAmount.Cmp(excludedReference) <= 0 {
+		return new(big.Int).Set(cliffFeeNumerator), nil
+	}
+
+	checkedExcluded, checkedIncluded, overflow, err := checkedRateLimiterAmounts(referenceAmount, cliffFeeNumerator, maxFeeBps, feeIncrementBps)
+	if err != nil {
+		return nil, err
+	}
+	if excludedFeeAmount.Cmp(checkedExcluded) == 0 {
+		return GetFeeNumeratorFromIncludedFeeAmount(checkedIncluded, referenceAmount, cliffFeeNumerator, maxFeeBps, feeIncrementBps)
+	}
+
+	var includedFeeAmount *big.Int
+	if excludedFeeAmount.Cmp(checkedExcluded) < 0 {
+		i := toNumerator(big.NewInt(int64(feeIncrementBps)))
+		x0 := referenceAmount
+		d := big.NewInt(shared.FeeDenominator)
+		c := cliffFeeNumerator
+		two := big.NewInt(2)
+		x := i
+		y := new(big.Int).Mul(two, d)
+		y.Mul(y, x0)
+		y.Add(y, new(big.Int).Mul(i, x0))
+		y.Sub(y, new(big.Int).Mul(new(big.Int).Mul(two, c), x0))
+		z := new(big.Int).Mul(two, excludedFeeAmount)
+		z.Mul(z, d)
+		z.Mul(z, x0)
+		discriminant := new(big.Int).Mul(y, y)
+		discriminant.Sub(discriminant, new(big.Int).Mul(big.NewInt(4), new(big.Int).Mul(x, z)))
+		if discriminant.Sign() < 0 {
+			return nil, errors.New("math overflow")
+		}
+		sqrtDiscriminant := floorSqrt(discriminant)
+		numerator := new(big.Int).Sub(y, sqrtDiscriminant)
+		includedFeeAmount = numerator.Div(numerator, new(big.Int).Mul(two, x))
+		aPlusOne := new(big.Int).Div(new(big.Int).Set(includedFeeAmount), x0)
+		firstExcluded, err := excludedFeeAmountFromIncluded(includedFeeAmount, referenceAmount, cliffFeeNumerator, maxFeeBps, feeIncrementBps)
+		if err != nil {
+			return nil, err
+		}
+		remainingExcluded := new(big.Int).Sub(excludedFeeAmount, firstExcluded)
+		remainingFeeNumerator := new(big.Int).Add(new(big.Int).Set(c), new(big.Int).Mul(i, aPlusOne))
+		includedRemaining, _, err := getIncludedFeeAmount(remainingFeeNumerator, remainingExcluded)
+		if err != nil {
+			return nil, err
+		}
+		includedFeeAmount = new(big.Int).Add(includedFeeAmount, includedRemaining)
+	} else {
+		if overflow {
+			return nil, errors.New("math overflow")
+		}
+		remainingExcluded := new(big.Int).Sub(excludedFeeAmount, checkedExcluded)
+		maxFeeNumerator := toNumerator(big.NewInt(int64(maxFeeBps)))
+		includedRemaining, _, err := getIncludedFeeAmount(maxFeeNumerator, remainingExcluded)
+		if err != nil {
+			return nil, err
+		}
+		includedFeeAmount = new(big.Int).Add(includedRemaining, checkedIncluded)
+	}
+
+	tradingFee := new(big.Int).Sub(includedFeeAmount, excludedFeeAmount)
+	feeNumerator := mulDiv(tradingFee, big.NewInt(shared.FeeDenominator), includedFeeAmount, shared.RoundingUp)
+	if feeNumerator.Cmp(cliffFeeNumerator) < 0 {
+		return nil, errors.New("fee numerator is less than cliff fee numerator")
+	}
+	return feeNumerator, nil
 }
 
 func GetRateLimiterMinBaseFeeNumerator(cliffFeeNumerator *big.Int) *big.Int {

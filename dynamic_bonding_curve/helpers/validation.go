@@ -6,10 +6,11 @@ import (
 	"math"
 	"math/big"
 
-	solanago "github.com/solana-foundation/solana-go/v2"
-	"github.com/solana-foundation/solana-go/v2/rpc"
+	dbcmath "github.com/krazyTry/meteora-go/dynamic_bonding_curve/math"
 	"github.com/krazyTry/meteora-go/dynamic_bonding_curve/shared"
 	"github.com/shopspring/decimal"
+	solanago "github.com/solana-foundation/solana-go/v2"
+	"github.com/solana-foundation/solana-go/v2/rpc"
 )
 
 func ValidateFeeScheduler(numberOfPeriod uint16, periodFrequency, reductionFactor, cliffFeeNumerator *big.Int, baseFeeMode shared.BaseFeeMode) bool {
@@ -324,7 +325,86 @@ func ValidateMigrationFee(migrationFee shared.MigrationFee) error {
 	return nil
 }
 
-func ValidateConfigParameters(configParam shared.CreateConfigParams) error {
+// ConfigValidationOptions carries the checks that depend on the quote mint or a transfer hook.
+type ConfigValidationOptions struct {
+	IsTransferHook          bool
+	TransferHookProgram     *solanago.PublicKey
+	TransferFeeParameters   *shared.TransferFeeParameters
+	QuoteMintHasTransferFee bool
+	QuoteEpochTransferFee   *shared.EpochTransferFee
+	FeeClaimer              *solanago.PublicKey
+}
+
+// AssertConfigAllowsNewPool rejects deprecated rate-limiter and DAMM v1 options for new configs and pools.
+func AssertConfigAllowsNewPool(baseFeeMode, migrationOption uint8) error {
+	if shared.BaseFeeMode(baseFeeMode) == shared.BaseFeeModeRateLimiter {
+		return errors.New("BaseFeeMode.RateLimiter is deprecated. New configs and pools must use FeeSchedulerLinear or FeeSchedulerExponential. Existing rate-limiter pools are unaffected.")
+	}
+	if shared.MigrationOption(migrationOption) == shared.MigrationOptionMetDamm {
+		return errors.New("MigrationOption.MET_DAMM (DAMM v1) is deprecated. New configs and pools must use MigrationOption.MET_DAMM_V2. Existing DAMM v1 pools can still migrate.")
+	}
+	return nil
+}
+
+// HasMintAuthority reports whether the authority option can mint more base tokens.
+func HasMintAuthority(option shared.TokenUpdateAuthorityOption) bool {
+	return option == shared.TokenUpdateAuthorityCreatorUpdateAndMintAuthority || option == shared.TokenUpdateAuthorityPartnerUpdateAndMintAuthority
+}
+
+// ValidateTransferHookProgram rejects the DBC program, SPL Token, Token-2022 and the default pubkey.
+func ValidateTransferHookProgram(program solanago.PublicKey) bool {
+	if program.IsZero() {
+		return false
+	}
+	return !program.Equals(DynamicBondingCurveProgramID) && !program.Equals(solanago.TokenProgramID) && !program.Equals(solanago.Token2022ProgramID)
+}
+
+// ValidateTransferHookProgramExecutable reports whether the program is allowed and the account is executable.
+func ValidateTransferHookProgramExecutable(ctx context.Context, client *rpc.Client, program solanago.PublicKey) (bool, error) {
+	if !ValidateTransferHookProgram(program) {
+		return false, nil
+	}
+	acc, err := client.GetAccountInfo(ctx, program)
+	if err != nil {
+		return false, err
+	}
+	if acc == nil || acc.Value == nil {
+		return false, nil
+	}
+	return acc.Value.Executable, nil
+}
+
+// AssertNewPoolConfig applies the checks used before initializing a pool from an existing config.
+func AssertNewPoolConfig(config *shared.PoolConfig, transferHook bool) error {
+	if err := AssertConfigAllowsNewPool(config.PoolFees.BaseFee.BaseFeeMode, config.MigrationOption); err != nil {
+		return err
+	}
+	if !transferHook && HasMintAuthority(shared.TokenUpdateAuthorityOption(config.TokenUpdateAuthority)) {
+		return errors.New("Mint authority token update options are only supported for transfer-hook configs")
+	}
+	partnerVesting := vestingParams(config.PartnerLiquidityVestingInfo)
+	creatorVesting := vestingParams(config.CreatorLiquidityVestingInfo)
+	if !ValidateMinimumLockedLiquidity(config.PartnerPermanentLockedLiquidityPercentage, config.CreatorPermanentLockedLiquidityPercentage, &partnerVesting, &creatorVesting) {
+		return errors.New("Config must lock at least 1000 BPS of migrated liquidity at day 1")
+	}
+	minFee, err := GetFeeSchedulerMinBaseFeeNumerator(new(big.Int).SetUint64(config.PoolFees.BaseFee.CliffFeeNumerator), config.PoolFees.BaseFee.FirstFactor, new(big.Int).SetUint64(config.PoolFees.BaseFee.ThirdFactor), shared.BaseFeeMode(config.PoolFees.BaseFee.BaseFeeMode))
+	if err != nil {
+		return err
+	}
+	if minFee.Cmp(big.NewInt(shared.MinFeeNumerator)) < 0 {
+		return errors.New("Config minimum base fee numerator is below the minimum")
+	}
+	return nil
+}
+
+func ValidateConfigParameters(configParam shared.CreateConfigParams, options ...ConfigValidationOptions) error {
+	var opt ConfigValidationOptions
+	if len(options) > 0 {
+		opt = options[0]
+	}
+	if err := AssertConfigAllowsNewPool(configParam.PoolFees.BaseFee.BaseFeeMode, configParam.MigrationOption); err != nil {
+		return err
+	}
 	if !ValidatePoolFees(configParam.PoolFees, shared.CollectFeeMode(configParam.CollectFeeMode), shared.ActivationType(configParam.ActivationType)) {
 		return errors.New("Invalid pool fees")
 	}
@@ -333,6 +413,15 @@ func ValidateConfigParameters(configParam shared.CreateConfigParams) error {
 	}
 	if !ValidateTokenUpdateAuthorityOptions(shared.TokenUpdateAuthorityOption(configParam.TokenUpdateAuthority)) {
 		return errors.New("Invalid option for token update authority")
+	}
+	if !opt.IsTransferHook && HasMintAuthority(shared.TokenUpdateAuthorityOption(configParam.TokenUpdateAuthority)) {
+		return errors.New("Mint authority token update options are only supported for transfer-hook configs")
+	}
+	if opt.IsTransferHook && shared.TokenType(configParam.TokenType) != shared.TokenTypeToken2022 {
+		return errors.New("Transfer-hook configs require tokenType to be Token2022")
+	}
+	if opt.IsTransferHook && opt.TransferHookProgram != nil && !ValidateTransferHookProgram(*opt.TransferHookProgram) {
+		return errors.New("Invalid transfer hook program: cannot be the DBC program, SPL Token, SPL Token-2022, or the default pubkey")
 	}
 	if !ValidateMigrationAndTokenType(shared.MigrationOption(configParam.MigrationOption), shared.TokenType(configParam.TokenType)) {
 		return errors.New("Token type must be SPL for MeteoraDamm migration")
@@ -420,20 +509,25 @@ func ValidateConfigParameters(configParam shared.CreateConfigParams) error {
 			return errors.New("Invalid vesting parameters")
 		}
 	}
+	swapBaseAmount, err := GetBaseTokenForSwap(configParam.SqrtStartPrice.BigInt(), sqrtMigrationPrice, configParam.Curve)
+	if err != nil {
+		return err
+	}
+	if swapBaseAmount.Cmp(shared.U64Max) > 0 {
+		return errors.New(shared.ErrTypeCastFailed)
+	}
+	migrationQuoteAmount, err := MigrationQuoteAmountFromThreshold(new(big.Int).SetUint64(configParam.MigrationQuoteThreshold), configParam.MigrationFee.FeePercentage)
+	if err != nil {
+		return err
+	}
+	migrationBaseAmount, err := GetMigrationBaseTokenForCollectFee(migrationQuoteAmount, sqrtMigrationPrice, migrationOption, shared.MigratedCollectFeeMode(configParam.MigratedPoolFee.CollectFeeMode))
+	if err != nil {
+		return err
+	}
+	if swapBaseAmount.Sign() <= 0 || migrationBaseAmount.Sign() <= 0 {
+		return errors.New(shared.ErrInvalidCurve)
+	}
 	if configParam.TokenSupply != nil {
-		sqrtMigrationPrice, err := GetMigrationThresholdPrice(new(big.Int).SetUint64(configParam.MigrationQuoteThreshold), configParam.SqrtStartPrice.BigInt(), configParam.Curve)
-		if err != nil {
-			return err
-		}
-		swapBaseAmount, err := GetBaseTokenForSwap(configParam.SqrtStartPrice.BigInt(), sqrtMigrationPrice, configParam.Curve)
-		if err != nil {
-			return err
-		}
-		migrationQuoteAmount := GetMigrationQuoteAmountFromMigrationQuoteThreshold(decimal.NewFromInt(int64(configParam.MigrationQuoteThreshold)), configParam.MigrationFee.FeePercentage)
-		migrationBaseAmount, err := GetMigrationBaseToken(migrationQuoteAmount.BigInt(), sqrtMigrationPrice, migrationOption)
-		if err != nil {
-			return err
-		}
 		swapBaseAmountBuffer, err := GetSwapAmountWithBuffer(swapBaseAmount, configParam.SqrtStartPrice.BigInt(), configParam.Curve)
 		if err != nil {
 			return err
@@ -442,7 +536,119 @@ func ValidateConfigParameters(configParam shared.CreateConfigParams) error {
 			return errors.New("Invalid token supply")
 		}
 	}
+	if opt.FeeClaimer != nil && opt.FeeClaimer.IsZero() && shared.TokenType(configParam.TokenType) == shared.TokenTypeToken2022 {
+		authority := shared.TokenUpdateAuthorityOption(configParam.TokenUpdateAuthority)
+		if authority == shared.TokenUpdateAuthorityPartnerUpdateAuthority || authority == shared.TokenUpdateAuthorityPartnerUpdateAndMintAuthority {
+			return errors.New(shared.ErrInvalidFeeClaimer)
+		}
+	}
+	if opt.TransferFeeParameters != nil {
+		if err := ValidateTransferFeeParameters(*opt.TransferFeeParameters, shared.TokenType(configParam.TokenType), opt.FeeClaimer); err != nil {
+			return err
+		}
+	}
+	if opt.TransferFeeParameters != nil || opt.QuoteMintHasTransferFee {
+		if err := ValidateTransferFeeConfigMode(configParam); err != nil {
+			return err
+		}
+	}
+	if shared.MigratedCollectFeeMode(configParam.MigratedPoolFee.CollectFeeMode) == shared.MigratedCollectFeeModeCompounding {
+		if err := ValidateCompoundingMigrationDeposit(new(big.Int).SetUint64(configParam.MigrationQuoteThreshold), configParam.MigrationFee.FeePercentage, sqrtMigrationPrice, dbcmath.BaseTransferFee(transferFeeBps(opt.TransferFeeParameters)), opt.QuoteEpochTransferFee); err != nil {
+			return err
+		}
+	}
 	return nil
+}
+
+func vestingParams(info shared.LiquidityVestingInfo) shared.LiquidityVestingInfoParameters {
+	return shared.LiquidityVestingInfoParameters{
+		VestingPercentage:              info.VestingPercentage,
+		BpsPerPeriod:                   info.BpsPerPeriod,
+		NumberOfPeriods:                info.NumberOfPeriods,
+		CliffDurationFromMigrationTime: info.CliffDurationFromMigrationTime,
+		Frequency:                      info.Frequency,
+	}
+}
+
+func transferFeeBps(params *shared.TransferFeeParameters) uint16 {
+	if params == nil {
+		return 0
+	}
+	return params.TransferFeeBasisPoints
+}
+
+func ValidateTransferFeeConfigMode(configParam shared.CreateConfigParams) error {
+	supply := configParam.TokenSupply
+	if supply == nil || supply.PreMigrationTokenSupply != supply.PostMigrationTokenSupply {
+		return errors.New("Transfer fee configs require a constant token supply")
+	}
+	vesting := configParam.LockedVesting
+	if vesting.AmountPerPeriod != 0 || vesting.CliffDurationFromMigrationTime != 0 || vesting.Frequency != 0 || vesting.NumberOfPeriod != 0 || vesting.CliffUnlockAmount != 0 {
+		return errors.New("Transfer fee configs cannot include locked vesting")
+	}
+	if configParam.MigrationFeeOption != uint8(shared.MigrationFeeOptionCustomizable) {
+		return errors.New("Transfer fee configs require MigrationFeeOption.Customizable")
+	}
+	if shared.MigratedCollectFeeMode(configParam.MigratedPoolFee.CollectFeeMode) != shared.MigratedCollectFeeModeCompounding {
+		return errors.New("Transfer fee configs require MigratedCollectFeeMode.Compounding")
+	}
+	return nil
+}
+
+func ValidateCompoundingMigrationDeposit(migrationQuoteThreshold *big.Int, migrationFeePercentage uint8, migrationSqrtPrice *big.Int, baseFee, quoteFee *shared.EpochTransferFee) error {
+	quoteAmount, err := MigrationQuoteAmountFromThreshold(migrationQuoteThreshold, migrationFeePercentage)
+	if err != nil {
+		return err
+	}
+	baseAmount, err := ConstantProductBaseFromQuote(quoteAmount, migrationSqrtPrice)
+	if err != nil {
+		return err
+	}
+	protocolBase, protocolQuote, err := GetProtocolMigrationFee(baseAmount, quoteAmount, migrationSqrtPrice, shared.ProtocolLiquidityMigrationFeeBps, shared.MigrationOptionMetDammV2, shared.MigratedCollectFeeModeCompounding)
+	if err != nil {
+		return err
+	}
+	excludedBase := new(big.Int).Sub(baseAmount, protocolBase)
+	excludedQuote := new(big.Int).Sub(quoteAmount, protocolQuote)
+	baseAfter, _ := dbcmath.CalculateTransferFeeExcludedAmount(baseFee, excludedBase)
+	quoteAfter, _ := dbcmath.CalculateTransferFeeExcludedAmount(quoteFee, excludedQuote)
+	depositBase, depositQuote, err := GetMigrationDepositAmounts(excludedBase, excludedQuote, baseAfter, quoteAfter)
+	if err != nil {
+		return err
+	}
+	sqrtPrice, liquidity, err := compoundingInitialSqrtPriceAndLiquidity(depositBase, depositQuote)
+	if err != nil {
+		return err
+	}
+	if liquidity.Cmp(shared.DammV2CompoundingDeadLiquidity) <= 0 {
+		return errors.New("Insufficient liquidity for migration")
+	}
+	gap := new(big.Int).Sub(migrationSqrtPrice, sqrtPrice)
+	gap.Abs(gap)
+	larger := migrationSqrtPrice
+	if sqrtPrice.Cmp(larger) > 0 {
+		larger = sqrtPrice
+	}
+	if new(big.Int).Mul(gap, big.NewInt(100)).Cmp(larger) > 0 {
+		return errors.New("Invalid curve: the compounding migration deposit is more than 1% away from the migration price")
+	}
+	return nil
+}
+
+func compoundingInitialSqrtPriceAndLiquidity(baseAmount, quoteAmount *big.Int) (*big.Int, *big.Int, error) {
+	if baseAmount.Sign() == 0 {
+		return nil, nil, errors.New(shared.ErrMathOverflow)
+	}
+	shifted := new(big.Int).Lsh(new(big.Int).Set(quoteAmount), 128)
+	numerator := new(big.Int).Add(shifted, baseAmount)
+	numerator.Sub(numerator, big.NewInt(1))
+	numerator.Div(numerator, baseAmount)
+	sqrtPrice := dbcmath.Sqrt(numerator)
+	if sqrtPrice.Cmp(shared.MinSqrtPrice) < 0 || sqrtPrice.Cmp(shared.MaxSqrtPrice) > 0 {
+		return nil, nil, errors.New("Invalid compounding parameters: the migration deposit sqrt price is out of range")
+	}
+	liquidity := new(big.Int).Mul(dbcmath.Sqrt(new(big.Int).Div(shifted, baseAmount)), baseAmount)
+	return sqrtPrice, liquidity, nil
 }
 
 func isZeroVesting(v shared.LiquidityVestingInfoParameters) bool {
@@ -475,6 +681,66 @@ func ValidateBalance(ctx context.Context, client *rpc.Client, owner, inputMint, 
 		return errors.New("Insufficient token balance")
 	}
 	return nil
+}
+
+func ValidateCompoundingFeeBps(collectFeeMode uint8, compoundingFeeBps uint16) bool {
+	if shared.MigratedCollectFeeMode(collectFeeMode) == shared.MigratedCollectFeeModeCompounding {
+		return compoundingFeeBps <= shared.MaxBasisPoint
+	}
+	return compoundingFeeBps == 0
+}
+
+func ValidateTransferFeeParameters(params shared.TransferFeeParameters, tokenType shared.TokenType, feeClaimer *solanago.PublicKey) error {
+	if tokenType != shared.TokenTypeToken2022 {
+		return errors.New("Base transfer fee requires token type Token2022")
+	}
+	switch params.WithheldAuthority {
+	case shared.TransferFeeWithheldAuthorityPartner, shared.TransferFeeWithheldAuthorityCreator:
+	default:
+		return errors.New(shared.ErrInvalidTransferFeeParameters)
+	}
+	switch params.MigratedTransferFeeAuthorityOption {
+	case shared.MigratedTransferFeeAuthorityImmutable, shared.MigratedTransferFeeAuthorityRevokeZeroFee,
+		shared.MigratedTransferFeeAuthorityCreator, shared.MigratedTransferFeeAuthorityPartner:
+	default:
+		return errors.New(shared.ErrInvalidTransferFeeParameters)
+	}
+	if params.TransferFeeBasisPoints > shared.MaxBaseTransferFeeBps {
+		return errors.New(shared.ErrInvalidTransferFeeParameters)
+	}
+	if params.TransferFeeBasisPoints == 0 &&
+		(params.MigratedTransferFeeAuthorityOption == shared.MigratedTransferFeeAuthorityImmutable ||
+			params.MigratedTransferFeeAuthorityOption == shared.MigratedTransferFeeAuthorityRevokeZeroFee) {
+		return errors.New(shared.ErrInvalidTransferFeeParameters)
+	}
+	partnerAuthority := params.WithheldAuthority == shared.TransferFeeWithheldAuthorityPartner ||
+		params.MigratedTransferFeeAuthorityOption == shared.MigratedTransferFeeAuthorityPartner
+	if partnerAuthority && feeClaimer != nil && feeClaimer.IsZero() {
+		return errors.New(shared.ErrInvalidFeeClaimer)
+	}
+	return nil
+}
+
+func ValidateTransferFeeRestrictions(config shared.PoolConfig) error {
+	constantSupply := config.FixedTokenSupplyFlag == 1 && config.PreMigrationTokenSupply == config.PostMigrationTokenSupply
+	if !constantSupply {
+		return errors.New(shared.ErrInvalidTokenSupply)
+	}
+	vesting := config.LockedVestingConfig
+	if vesting.AmountPerPeriod != 0 || vesting.CliffDurationFromMigrationTime != 0 || vesting.Frequency != 0 || vesting.NumberOfPeriod != 0 || vesting.CliffUnlockAmount != 0 {
+		return errors.New(shared.ErrInvalidVestingParameters)
+	}
+	if config.MigrationFeeOption != uint8(shared.MigrationFeeOptionCustomizable) {
+		return errors.New(shared.ErrInvalidMigrationFeeOption)
+	}
+	switch shared.MigratedCollectFeeMode(config.MigratedCollectFeeMode) {
+	case shared.MigratedCollectFeeModeCompounding:
+		return nil
+	case shared.MigratedCollectFeeModeQuoteToken, shared.MigratedCollectFeeModeOutputToken:
+		return errors.New(shared.ErrInvalidMigratedPoolFee)
+	default:
+		return errors.New(shared.ErrInvalidCollectFeeMode)
+	}
 }
 
 func ValidateSwapAmount(amountIn *big.Int) error {

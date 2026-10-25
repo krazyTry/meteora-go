@@ -72,7 +72,7 @@ func GetNextSqrtPriceFromInput(sqrtPrice, liquidity, amountIn *big.Int, aForB bo
 	return GetNextSqrtPriceFromAmountInBRoundingDown(sqrtPrice, liquidity, amountIn), nil
 }
 
-func GetAmountBFromLiquidityDelta(lowerSqrtPrice, upperSqrtPrice, liquidity *big.Int, rounding shared.Rounding) *big.Int {
+func amountBFromLiquidityDeltaConcentrated(lowerSqrtPrice, upperSqrtPrice, liquidity *big.Int, rounding shared.Rounding) *big.Int {
 	return getDeltaAmountBUnsignedUnchecked(lowerSqrtPrice, upperSqrtPrice, liquidity, rounding)
 }
 
@@ -88,7 +88,7 @@ func getDeltaAmountBUnsignedUnchecked(lowerSqrtPrice, upperSqrtPrice, liquidity 
 	return prod.Rsh(prod, shift)
 }
 
-func GetAmountAFromLiquidityDelta(lowerSqrtPrice, upperSqrtPrice, liquidity *big.Int, rounding shared.Rounding) *big.Int {
+func amountAFromLiquidityDeltaConcentrated(lowerSqrtPrice, upperSqrtPrice, liquidity *big.Int, rounding shared.Rounding) *big.Int {
 	return getDeltaAmountAUnsignedUnchecked(lowerSqrtPrice, upperSqrtPrice, liquidity, rounding)
 }
 
@@ -102,14 +102,14 @@ func getDeltaAmountAUnsignedUnchecked(lowerSqrtPrice, upperSqrtPrice, liquidity 
 	return MulDiv(numerator1, numerator2, denominator, rounding)
 }
 
-func GetLiquidityDeltaFromAmountA(amountA, lowerSqrtPrice, upperSqrtPrice *big.Int) *big.Int {
+func liquidityDeltaFromAmountAConcentrated(amountA, lowerSqrtPrice, upperSqrtPrice *big.Int) *big.Int {
 	product := new(big.Int).Mul(amountA, lowerSqrtPrice)
 	product.Mul(product, upperSqrtPrice)
 	denominator := new(big.Int).Sub(upperSqrtPrice, lowerSqrtPrice)
 	return product.Div(product, denominator)
 }
 
-func GetLiquidityDeltaFromAmountB(amountB, lowerSqrtPrice, upperSqrtPrice *big.Int) *big.Int {
+func liquidityDeltaFromAmountBConcentrated(amountB, lowerSqrtPrice, upperSqrtPrice *big.Int) *big.Int {
 	denominator := new(big.Int).Sub(upperSqrtPrice, lowerSqrtPrice)
 	product := new(big.Int).Lsh(amountB, 128)
 	return product.Div(product, denominator)

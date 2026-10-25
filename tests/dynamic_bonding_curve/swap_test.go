@@ -6,9 +6,9 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/krazyTry/meteora-go/dynamic_bonding_curve"
 	"github.com/solana-foundation/solana-go/v2"
 	"github.com/solana-foundation/solana-go/v2/rpc"
-	"github.com/krazyTry/meteora-go/dynamic_bonding_curve"
 )
 
 func TestSwap(t *testing.T) {
@@ -42,6 +42,11 @@ func TestSwap(t *testing.T) {
 	}
 	fmt.Println("token info Pool:", poolState)
 
+	currentPoint, err := dynamic_bonding_curve.CurrentPointForActivation(ctx1, rpcClient, rpc.CommitmentFinalized, dynamic_bonding_curve.ActivationType(configState.ActivationType))
+	if err != nil {
+		t.Fatal("CurrentPointForActivation() fail", err)
+	}
+
 	swapResult, err := dbcService.SwapQuote(dynamic_bonding_curve.SwapQuoteParams{
 		VirtualPool:      poolState.Account,
 		Config:           configState,
@@ -50,7 +55,7 @@ func TestSwap(t *testing.T) {
 		SlippageBps:      10000,
 		// HasReferral                    bool
 		// EligibleForFirstSwapWithMinFee bool
-		CurrentPoint: dynamic_bonding_curve.CurrentPointForActivation(ctx1, rpcClient, rpc.CommitmentFinalized, dynamic_bonding_curve.ActivationType(configState.ActivationType)),
+		CurrentPoint: currentPoint,
 	})
 	if err != nil {
 		t.Fatal("SwapQuote() fail", err)

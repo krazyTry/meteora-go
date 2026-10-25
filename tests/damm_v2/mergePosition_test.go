@@ -98,7 +98,7 @@ func TestMergePosition(t *testing.T) {
 	}
 
 	inAmount := new(big.Int).SetUint64(0.1 * 1e9)
-	depositQuote := cpAmm.GetDepositQuote(dammv2.GetDepositQuoteParams{
+	depositQuote, err := cpAmm.GetDepositQuote(dammv2.GetDepositQuoteParams{
 		InAmount:        inAmount,
 		IsTokenA:        true,
 		MinSqrtPrice:    pools[0].Account.SqrtMinPrice.BigInt(),
@@ -107,6 +107,9 @@ func TestMergePosition(t *testing.T) {
 		InputTokenInfo:  inputTokenInfo,
 		OutputTokenInfo: outputTokenInfo,
 	})
+	if err != nil {
+		t.Fatal("cpAmm.GetDepositQuote() fail", err)
+	}
 
 	txBuilder, err = cpAmm.AddLiquidity(ctx, dammv2.AddLiquidityParams{
 		Owner:                 owner,

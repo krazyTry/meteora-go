@@ -7,6 +7,24 @@ import (
 	"github.com/krazyTry/meteora-go/damm_v2/shared"
 )
 
+func floorSqrt(value *big.Int) *big.Int {
+	if value == nil || value.Sign() == 0 {
+		return big.NewInt(0)
+	}
+	if value.Cmp(big.NewInt(1)) == 0 {
+		return big.NewInt(1)
+	}
+	x := new(big.Int).Set(value)
+	y := new(big.Int).Add(value, big.NewInt(1))
+	y.Div(y, big.NewInt(2))
+	for y.Cmp(x) < 0 {
+		x.Set(y)
+		y = new(big.Int).Add(x, new(big.Int).Div(value, x))
+		y.Div(y, big.NewInt(2))
+	}
+	return x
+}
+
 func mulDiv(x, y, denominator *big.Int, rounding shared.Rounding) *big.Int {
 	if denominator.Sign() == 0 {
 		return big.NewInt(0)

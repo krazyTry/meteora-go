@@ -8,7 +8,7 @@ require (
 	github.com/gagliardetto/binary v0.8.0
 	github.com/json-iterator/go v1.1.12
 	github.com/shopspring/decimal v1.4.0
-	github.com/solana-foundation/solana-go/v2 v2.1.0
+	github.com/solana-foundation/solana-go/v2 v2.2.0
 	github.com/tidwall/gjson v1.18.0
 )
 

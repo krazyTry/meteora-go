@@ -7,14 +7,13 @@ import (
 	"testing"
 
 	token_metadata "github.com/928799934/metaplex-go/clients/token-metadata"
-	"github.com/solana-foundation/solana-go/v2"
-	"github.com/solana-foundation/solana-go/v2/rpc"
 	jsoniter "github.com/json-iterator/go"
 	dammv2 "github.com/krazyTry/meteora-go/damm_v2"
 	"github.com/krazyTry/meteora-go/damm_v2/helpers"
 	"github.com/krazyTry/meteora-go/damm_v2/shared"
-	"github.com/krazyTry/meteora-go/gen/damm_v2"
 	"github.com/shopspring/decimal"
+	"github.com/solana-foundation/solana-go/v2"
+	"github.com/solana-foundation/solana-go/v2/rpc"
 )
 
 func TestCreateCustomPool(t *testing.T) {
@@ -118,7 +117,7 @@ func TestCreateCustomPool(t *testing.T) {
 		t.Fatal("helpers.GetFeeTimeSchedulerParams() fail", err)
 	}
 
-	var dynamicFeeParam *damm_v2.DynamicFeeParameters
+	var dynamicFeeParam *dammv2.DynamicFee
 	dynamicFeeParam, err = helpers.GetDynamicFeeParams(25, shared.MaxPriceChangeBpsDefault)
 	if err != nil {
 		t.Fatal("helpers.GetDynamicFeeParams() fail", err)
@@ -127,7 +126,7 @@ func TestCreateCustomPool(t *testing.T) {
 	poolFees := dammv2.PoolFeesParams{
 		BaseFee:    baseFeeParam,
 		DynamicFee: dynamicFeeParam,
-		Padding:    []uint8{},
+		Padding:    0,
 	}
 
 	txBuilder, _, _, _, err := cpAmm.CreateCustomPool(ctx, dammv2.InitializeCustomizeablePoolParams{

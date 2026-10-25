@@ -7,17 +7,12 @@ import (
 	"math/big"
 
 	binary "github.com/gagliardetto/binary"
-	solanago "github.com/solana-foundation/solana-go/v2"
-	"github.com/solana-foundation/solana-go/v2/rpc"
 	"github.com/shopspring/decimal"
+	"github.com/solana-foundation/solana-go/v2/rpc"
 
 	"github.com/krazyTry/meteora-go/damm_v2/shared"
 	dammv2gen "github.com/krazyTry/meteora-go/gen/damm_v2"
 )
-
-func HasPartner(poolState dammv2gen.Pool) bool {
-	return !poolState.Partner.Equals(solanago.PublicKey{})
-}
 
 func GetCurrentPoint(ctx context.Context, client *rpc.Client, activationType shared.ActivationType) (*big.Int, error) {
 	slot, err := client.GetSlot(ctx, rpc.CommitmentFinalized)
@@ -194,31 +189,65 @@ func GetFeeRateLimiterParams(startingBaseFeeBps uint16, maxFeeBps uint16, maxLim
 	return dammv2gen.BaseFeeParameters{Data: toBaseFeeData(data)}, nil
 }
 
-func GetFeeMarketCapSchedulerParams(startingBaseFeeBps, endingBaseFeeBps uint16, baseFeeMode shared.BaseFeeMode, numberOfPeriod uint16, sqrtPriceStepBps uint16, schedulerExpirationDuration uint32) (dammv2gen.BaseFeeParameters, error) {
-	if startingBaseFeeBps == endingBaseFeeBps {
-		data, err := EncodeFeeMarketCapSchedulerParams(BpsToFeeNumerator(startingBaseFeeBps), 0, 0, schedulerExpirationDuration, big.NewInt(0), baseFeeMode)
-		if err != nil {
-			return dammv2gen.BaseFeeParameters{}, err
-		}
-		return dammv2gen.BaseFeeParameters{Data: toBaseFeeData(data)}, nil
+func ComputeSqrtPriceStepBps(priceMultiple float64, numberOfPeriod uint16) (uint32, error) {
+	if priceMultiple <= 1 {
+		return 0, errors.New("priceMultiple must be greater than 1")
 	}
-	cliffFee := BpsToFeeNumerator(startingBaseFeeBps)
-	reductionFactor := BpsToFeeNumerator(startingBaseFeeBps - endingBaseFeeBps)
-	data, err := EncodeFeeMarketCapSchedulerParams(cliffFee, numberOfPeriod, sqrtPriceStepBps, schedulerExpirationDuration, reductionFactor, baseFeeMode)
+	if numberOfPeriod == 0 {
+		return 0, errors.New("numberOfPeriod must be greater than 0")
+	}
+	step := math.Floor((math.Sqrt(priceMultiple) - 1) * float64(shared.BasisPointMax) / float64(numberOfPeriod))
+	if step <= 0 {
+		return 0, errors.New("computed sqrtPriceStepBps is 0 — increase priceMultiple or decrease numberOfPeriod")
+	}
+	return uint32(step), nil
+}
+
+func GetFeeMarketCapSchedulerParams(startingBaseFeeBps, endingBaseFeeBps uint16, baseFeeMode shared.BaseFeeMode, numberOfPeriod uint16, priceMultiple float64, schedulerExpirationDuration uint32) (dammv2gen.BaseFeeParameters, error) {
+	if numberOfPeriod == 0 {
+		return dammv2gen.BaseFeeParameters{}, errors.New("total periods must be greater than zero")
+	}
+	if priceMultiple <= 1 {
+		return dammv2gen.BaseFeeParameters{}, errors.New("priceMultiple must be greater than 1")
+	}
+	poolMaxFeeBps := GetMaxFeeBps(shared.PoolVersion(shared.CurrentPoolVersion))
+	if startingBaseFeeBps <= endingBaseFeeBps {
+		return dammv2gen.BaseFeeParameters{}, errors.New("startingBaseFeeBps must be greater than endingBaseFeeBps")
+	}
+	if startingBaseFeeBps > poolMaxFeeBps {
+		return dammv2gen.BaseFeeParameters{}, errors.New("startingBaseFeeBps exceeds maximum allowed value")
+	}
+	if schedulerExpirationDuration == 0 {
+		return dammv2gen.BaseFeeParameters{}, errors.New("schedulerExpirationDuration must be greater than zero")
+	}
+	sqrtPriceStepBps, err := ComputeSqrtPriceStepBps(priceMultiple, numberOfPeriod)
+	if err != nil {
+		return dammv2gen.BaseFeeParameters{}, err
+	}
+	maxBaseFeeNumerator := BpsToFeeNumerator(startingBaseFeeBps)
+	minBaseFeeNumerator := BpsToFeeNumerator(endingBaseFeeBps)
+	var reductionFactor *big.Int
+	if baseFeeMode == shared.BaseFeeModeFeeMarketCapSchedulerLinear {
+		totalReduction := new(big.Int).Sub(maxBaseFeeNumerator, minBaseFeeNumerator)
+		reductionFactor = new(big.Int).Div(totalReduction, big.NewInt(int64(numberOfPeriod)))
+	} else {
+		reductionFactor = calculateReductionFactor(decayBase(minBaseFeeNumerator, maxBaseFeeNumerator, uint64(numberOfPeriod)), shared.BasisPointMax)
+	}
+	data, err := EncodeFeeMarketCapSchedulerParams(maxBaseFeeNumerator, numberOfPeriod, sqrtPriceStepBps, schedulerExpirationDuration, reductionFactor, baseFeeMode)
 	if err != nil {
 		return dammv2gen.BaseFeeParameters{}, err
 	}
 	return dammv2gen.BaseFeeParameters{Data: toBaseFeeData(data)}, nil
 }
 
-func GetBaseFeeParams(baseFeeMode shared.BaseFeeMode, startingBaseFeeBps uint16, endingBaseFeeBps uint16, numberOfPeriod uint16, totalDuration uint32, sqrtPriceStepBps uint16, schedulerExpirationDuration uint32, maxLimiterDuration uint32, maxFeeBps uint16, referenceAmount *big.Int) (dammv2gen.BaseFeeParameters, error) {
+func GetBaseFeeParams(baseFeeMode shared.BaseFeeMode, startingBaseFeeBps uint16, endingBaseFeeBps uint16, numberOfPeriod uint16, totalDuration uint32, priceMultiple float64, schedulerExpirationDuration uint32, _maxLimiterDuration uint32, _maxFeeBps uint16, _referenceAmount *big.Int) (dammv2gen.BaseFeeParameters, error) {
 	switch baseFeeMode {
 	case shared.BaseFeeModeFeeTimeSchedulerLinear, shared.BaseFeeModeFeeTimeSchedulerExponential:
 		return GetFeeTimeSchedulerParams(startingBaseFeeBps, endingBaseFeeBps, baseFeeMode, numberOfPeriod, totalDuration)
 	case shared.BaseFeeModeRateLimiter:
-		return GetFeeRateLimiterParams(startingBaseFeeBps, maxFeeBps, maxLimiterDuration, referenceAmount)
+		return dammv2gen.BaseFeeParameters{}, errors.New("BaseFeeMode.RateLimiter is deprecated. New configs and pools cannot use RateLimiter. Existing RateLimiter pools are still supported for swaps and quotes.")
 	case shared.BaseFeeModeFeeMarketCapSchedulerLinear, shared.BaseFeeModeFeeMarketCapSchedulerExp:
-		return GetFeeMarketCapSchedulerParams(startingBaseFeeBps, endingBaseFeeBps, baseFeeMode, numberOfPeriod, sqrtPriceStepBps, schedulerExpirationDuration)
+		return GetFeeMarketCapSchedulerParams(startingBaseFeeBps, endingBaseFeeBps, baseFeeMode, numberOfPeriod, priceMultiple, schedulerExpirationDuration)
 	default:
 		return dammv2gen.BaseFeeParameters{}, errors.New("invalid base fee mode")
 	}
@@ -300,10 +329,14 @@ func GetAmountWithSlippage(amount *big.Int, slippageBps uint16, swapMode shared.
 	return new(big.Int).Div(new(big.Int).Mul(amount, factor), big.NewInt(shared.BasisPointMax))
 }
 
+func decimalScale(tokenADecimal, tokenBDecimal uint8) decimal.Decimal {
+	return decimal.New(1, int32(tokenADecimal)-int32(tokenBDecimal))
+}
+
 func GetPriceFromSqrtPrice(sqrtPrice *big.Int, tokenADecimal, tokenBDecimal uint8) decimal.Decimal {
 	decSqrt := decimal.NewFromBigInt(sqrtPrice, 0)
 	price := decSqrt.Mul(decSqrt).
-		Mul(decimal.New(1, int32(tokenADecimal-tokenBDecimal))).
+		Mul(decimalScale(tokenADecimal, tokenBDecimal)).
 		Div(decimal.NewFromBigInt(
 			new(big.Int).Lsh(big.NewInt(1), 128),
 			0,
@@ -312,7 +345,7 @@ func GetPriceFromSqrtPrice(sqrtPrice *big.Int, tokenADecimal, tokenBDecimal uint
 }
 
 func GetSqrtPriceFromPrice(price decimal.Decimal, tokenADecimal, tokenBDecimal uint8) *big.Int {
-	adjusted := price.Div(decimal.New(1, int32(tokenADecimal-tokenBDecimal)))
+	adjusted := price.Div(decimalScale(tokenADecimal, tokenBDecimal))
 	f, _ := new(big.Float).SetPrec(256).SetString(adjusted.String())
 	if f == nil {
 		return big.NewInt(0)
@@ -339,11 +372,16 @@ func GetPriceImpact(amountIn, amountOut, currentSqrtPrice *big.Int, aToB bool, t
 		return decimal.Zero, errors.New("amount out must be greater than 0")
 	}
 	spotPrice := GetPriceFromSqrtPrice(currentSqrtPrice, tokenADecimal, tokenBDecimal)
-	executionPrice := decimal.NewFromBigInt(amountIn, 0).Div(decimal.NewFromBigInt(amountOut, 0))
+	scaleExp := int32(tokenADecimal) - int32(tokenBDecimal)
 	if aToB {
-		executionPrice = decimal.NewFromInt(1).Div(executionPrice)
+		scaleExp = int32(tokenBDecimal) - int32(tokenADecimal)
 	}
-	priceImpact := executionPrice.Sub(spotPrice).Abs().Div(spotPrice).Mul(decimal.NewFromInt(100))
+	executionPrice := decimal.NewFromBigInt(amountIn, 0).Div(decimal.NewFromBigInt(amountOut, 0)).Mul(decimal.New(1, scaleExp))
+	actualExecutionPrice := executionPrice
+	if aToB {
+		actualExecutionPrice = decimal.NewFromInt(1).Div(executionPrice)
+	}
+	priceImpact := actualExecutionPrice.Sub(spotPrice).Abs().Div(spotPrice).Mul(decimal.NewFromInt(100))
 	return priceImpact, nil
 }
 
@@ -386,8 +424,8 @@ func fromBytesLE(b []byte) *big.Int {
 	return out
 }
 
-func toBaseFeeData(data []byte) [30]uint8 {
-	var out [30]uint8
+func toBaseFeeData(data []byte) [27]uint8 {
+	var out [27]uint8
 	copy(out[:], data)
 	return out
 }

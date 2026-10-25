@@ -180,3 +180,31 @@ func pow(base, exponent *big.Int, scaling bool) (*big.Int, error) {
 	}
 	return result, nil
 }
+
+// CalculateFeeSchedulerEndingBaseFeeBps is the fee at the last period, floored to basis points.
+func CalculateFeeSchedulerEndingBaseFeeBps(cliffFeeNumerator *big.Int, numberOfPeriod, periodFrequency int, reductionFactor *big.Int, baseFeeMode shared.BaseFeeMode) (uint64, error) {
+	if numberOfPeriod == 0 || periodFrequency == 0 {
+		return numeratorToBps(cliffFeeNumerator), nil
+	}
+	var numerator *big.Int
+	var err error
+	if baseFeeMode == shared.BaseFeeModeFeeSchedulerLinear {
+		numerator, err = GetFeeNumeratorOnLinearFeeScheduler(cliffFeeNumerator, reductionFactor, numberOfPeriod)
+		if err != nil {
+			return 0, nil
+		}
+	} else {
+		numerator, err = GetFeeNumeratorOnExponentialFeeScheduler(cliffFeeNumerator, reductionFactor, numberOfPeriod)
+		if err != nil {
+			return 0, err
+		}
+	}
+	return numeratorToBps(numerator), nil
+}
+
+func numeratorToBps(numerator *big.Int) uint64 {
+	if numerator == nil || numerator.Sign() <= 0 {
+		return 0
+	}
+	return FeeNumeratorToBps(numerator)
+}

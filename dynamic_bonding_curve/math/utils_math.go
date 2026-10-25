@@ -9,7 +9,7 @@ import (
 
 func MulDiv(x, y, denominator *big.Int, rounding dbc.Rounding) (*big.Int, error) {
 	if denominator.Sign() == 0 {
-		return nil, errors.New("MulDiv: division by zero")
+		return nil, errors.New(dbc.ErrMathOverflow)
 	}
 	if denominator.Cmp(big.NewInt(1)) == 0 || x.Sign() == 0 || y.Sign() == 0 {
 		return new(big.Int).Mul(x, y), nil

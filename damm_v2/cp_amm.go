@@ -166,8 +166,8 @@ func (c *CpAmm) buildRefreshVestingInstruction(params RefreshVestingParams) (sol
 	return ix, nil
 }
 
-// buildLiquidatePositionInstruction builds claim fee + remove all liquidity + close position.
-func (c *CpAmm) buildLiquidatePositionInstruction(params BuildLiquidatePositionInstructionParams) ([]solanago.Instruction, error) {
+// buildLiquidatePositionInstruction builds claim fee, remove all liquidity, claim rewards, and close position.
+func (c *CpAmm) buildLiquidatePositionInstruction(ctx context.Context, params BuildLiquidatePositionInstructionParams) ([]solanago.Instruction, error) {
 	positionNftMint := params.PositionState.NftMint
 	pool := params.PositionState.Pool
 	poolState := params.PoolState
@@ -218,6 +218,49 @@ func (c *CpAmm) buildLiquidatePositionInstruction(params BuildLiquidatePositionI
 		return nil, err
 	}
 	instructions = append(instructions, removeIx)
+
+	skipReward := uint8(0)
+	if params.IsSkipReward {
+		skipReward = 1
+	}
+	for rewardIndex, rewardInfo := range params.PoolState.RewardInfos {
+		if rewardInfo.Initialized == 0 {
+			continue
+		}
+		positionReward := params.PositionState.RewardInfos[rewardIndex]
+		rewardFullySettled := rewardInfo.RewardDurationEnd <= rewardInfo.LastUpdateTime
+		nothingToClaim := positionReward.RewardPendings == 0 && positionReward.RewardPerTokenCheckpoint == rewardInfo.RewardPerTokenStored
+		if rewardFullySettled && nothingToClaim {
+			continue
+		}
+		rewardTokenProgram := helpers.GetTokenProgram(rewardInfo.RewardTokenFlag)
+		userRewardAccount, createRewardAtaIx, err := helpers.GetOrCreateATAInstruction(ctx, c.Client, rewardInfo.Mint, params.Owner, params.Owner, rewardTokenProgram)
+		if err != nil {
+			return nil, err
+		}
+		if createRewardAtaIx != nil {
+			instructions = append(instructions, createRewardAtaIx)
+		}
+		claimRewardIx, err := dammv2gen.NewClaimRewardInstruction(
+			uint8(rewardIndex),
+			skipReward,
+			c.PoolAuthority,
+			pool,
+			params.Position,
+			rewardInfo.Vault,
+			rewardInfo.Mint,
+			userRewardAccount,
+			params.PositionNftAccount,
+			params.Owner,
+			rewardTokenProgram,
+			c.EventAuthority,
+			dammv2gen.ProgramID,
+		)
+		if err != nil {
+			return nil, err
+		}
+		instructions = append(instructions, claimRewardIx)
+	}
 
 	closeIx, err := c.buildClosePositionInstruction(ClosePositionInstructionParams{
 		Owner:              params.Owner,
@@ -415,6 +458,54 @@ func (c *CpAmm) FetchPoolStatesByTokenAMint(ctx context.Context, tokenAMint sola
 	return out, nil
 }
 
+func (c *CpAmm) fetchPoolStatesByMintOffset(ctx context.Context, mint solanago.PublicKey, field string) ([]*AccountWithPool, error) {
+	filters := helpers.CreateProgramAccountFilter(helpers.AccountKeyPool, &helpers.Filter{
+		Owner:  mint,
+		Offset: helpers.ComputeStructOffset(new(dammv2gen.Pool), field),
+	})
+	accs, err := c.Client.GetProgramAccountsWithOpts(ctx, dammv2gen.ProgramID, &rpc.GetProgramAccountsOpts{Commitment: c.Commitment, Filters: filters})
+	if err != nil {
+		return nil, err
+	}
+	out := []*AccountWithPool{}
+	for _, acc := range accs {
+		parsed, err := dammv2gen.ParseAnyAccount(acc.Account.Data.GetBinary())
+		if err != nil {
+			continue
+		}
+		if pl, ok := parsed.(*dammv2gen.Pool); ok {
+			out = append(out, &AccountWithPool{PublicKey: acc.Pubkey, Account: pl})
+		}
+	}
+	return out, nil
+}
+
+func (c *CpAmm) FetchPoolStatesByTokenBMint(ctx context.Context, tokenBMint solanago.PublicKey) ([]*AccountWithPool, error) {
+	return c.fetchPoolStatesByMintOffset(ctx, tokenBMint, "TokenBMint")
+}
+
+func (c *CpAmm) FetchPoolStatesByTokenMint(ctx context.Context, tokenMint solanago.PublicKey) ([]*AccountWithPool, error) {
+	tokenAPools, err := c.FetchPoolStatesByTokenAMint(ctx, tokenMint)
+	if err != nil {
+		return nil, err
+	}
+	tokenBPools, err := c.FetchPoolStatesByTokenBMint(ctx, tokenMint)
+	if err != nil {
+		return nil, err
+	}
+	seen := map[string]struct{}{}
+	out := make([]*AccountWithPool, 0, len(tokenAPools)+len(tokenBPools))
+	for _, pool := range append(tokenAPools, tokenBPools...) {
+		key := pool.PublicKey.String()
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, pool)
+	}
+	return out, nil
+}
+
 func (c *CpAmm) FetchPoolFees(ctx context.Context, pool solanago.PublicKey) (DecodedPoolFees, error) {
 	poolState, err := c.FetchPoolState(ctx, pool)
 	if err != nil {
@@ -539,6 +630,21 @@ func (c *CpAmm) GetAllConfigs(ctx context.Context) ([]*AccountWithConfig, error)
 	return out, nil
 }
 
+// GetStaticConfigs returns static configs whose vault and creator authority are the default pubkey.
+func (c *CpAmm) GetStaticConfigs(ctx context.Context) ([]*AccountWithConfig, error) {
+	configs, err := c.GetAllConfigs(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := []*AccountWithConfig{}
+	for _, config := range configs {
+		if config.Account.ConfigType == 0 && config.Account.VaultConfigKey.Equals(solanago.PublicKey{}) && config.Account.PoolCreatorAuthority.Equals(solanago.PublicKey{}) {
+			out = append(out, config)
+		}
+	}
+	return out, nil
+}
+
 func (c *CpAmm) GetAllPools(ctx context.Context) ([]*AccountWithPool, error) {
 	filters := helpers.CreateProgramAccountFilter(helpers.AccountKeyPool, nil)
 	accs, err := c.Client.GetProgramAccountsWithOpts(ctx, dammv2gen.ProgramID, &rpc.GetProgramAccountsOpts{Commitment: c.Commitment, Filters: filters})
@@ -642,6 +748,150 @@ func (c *CpAmm) GetPositionsByUser(ctx context.Context, user solanago.PublicKey)
 	return positions, nil
 }
 
+type UserPositionWithPool struct {
+	UserPosition
+	Pool      solanago.PublicKey
+	PoolState *PoolState
+}
+
+func (c *CpAmm) GetPositionsByUserAndTokenMint(ctx context.Context, user, tokenMint solanago.PublicKey) ([]*UserPositionWithPool, error) {
+	userPositions, err := c.GetPositionsByUser(ctx, user)
+	if err != nil {
+		return nil, err
+	}
+	if len(userPositions) == 0 {
+		return nil, nil
+	}
+	unique := make([]solanago.PublicKey, 0)
+	seen := map[string]struct{}{}
+	for _, position := range userPositions {
+		key := position.PositionState.Pool.String()
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		unique = append(unique, position.PositionState.Pool)
+	}
+	poolStates, err := c.GetMultiplePools(ctx, unique)
+	if err != nil {
+		return nil, err
+	}
+	matched := map[string]*PoolState{}
+	for i, pool := range unique {
+		state := poolStates[i]
+		if state == nil {
+			continue
+		}
+		if state.TokenAMint.Equals(tokenMint) || state.TokenBMint.Equals(tokenMint) {
+			matched[pool.String()] = state
+		}
+	}
+	out := make([]*UserPositionWithPool, 0)
+	for _, position := range userPositions {
+		state, ok := matched[position.PositionState.Pool.String()]
+		if !ok {
+			continue
+		}
+		out = append(out, &UserPositionWithPool{
+			UserPosition: *position,
+			Pool:         position.PositionState.Pool,
+			PoolState:    state,
+		})
+	}
+	return out, nil
+}
+
+func (c *CpAmm) GetPositionsByDelegate(ctx context.Context, delegate solanago.PublicKey) ([]*UserPosition, error) {
+	accounts, err := helpers.GetAllPositionNftAccountByDelegate(ctx, c.Client, delegate)
+	if err != nil {
+		return nil, err
+	}
+	if len(accounts) == 0 {
+		return nil, nil
+	}
+	positionAddresses := make([]solanago.PublicKey, len(accounts))
+	for i, account := range accounts {
+		positionAddresses[i] = DerivePositionAddress(account.PositionNft)
+	}
+	positionStates, err := c.GetMultiplePositions(ctx, positionAddresses)
+	if err != nil {
+		return nil, err
+	}
+	positions := make([]*UserPosition, 0, len(accounts))
+	for i, account := range accounts {
+		state := positionStates[i]
+		if state == nil || state.DelegatePermission == 0 {
+			continue
+		}
+		positions = append(positions, &UserPosition{
+			PositionNftAccount: account.PositionNftAccount,
+			Position:           positionAddresses[i],
+			PositionState:      state,
+		})
+	}
+	sort.Slice(positions, func(i, j int) bool {
+		return totalPositionLiquidity(positions[j].PositionState).Cmp(totalPositionLiquidity(positions[i].PositionState)) < 0
+	})
+	return positions, nil
+}
+
+func (c *CpAmm) GetDelegatePositionByPool(ctx context.Context, pool, delegate solanago.PublicKey) ([]*UserPosition, error) {
+	positions, err := c.GetPositionsByDelegate(ctx, delegate)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*UserPosition, 0)
+	for _, position := range positions {
+		if position.PositionState.Pool.Equals(pool) {
+			out = append(out, position)
+		}
+	}
+	return out, nil
+}
+
+func (c *CpAmm) GetPositionsByDelegateAndTokenMint(ctx context.Context, delegate, tokenMint solanago.PublicKey) ([]*UserPositionWithPool, error) {
+	positions, err := c.GetPositionsByDelegate(ctx, delegate)
+	if err != nil {
+		return nil, err
+	}
+	if len(positions) == 0 {
+		return nil, nil
+	}
+	unique := make([]solanago.PublicKey, 0)
+	seen := map[string]struct{}{}
+	for _, position := range positions {
+		key := position.PositionState.Pool.String()
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		unique = append(unique, position.PositionState.Pool)
+	}
+	poolStates, err := c.GetMultiplePools(ctx, unique)
+	if err != nil {
+		return nil, err
+	}
+	matched := map[string]*PoolState{}
+	for i, pool := range unique {
+		state := poolStates[i]
+		if state == nil {
+			continue
+		}
+		if state.TokenAMint.Equals(tokenMint) || state.TokenBMint.Equals(tokenMint) {
+			matched[pool.String()] = state
+		}
+	}
+	out := make([]*UserPositionWithPool, 0)
+	for _, position := range positions {
+		state, ok := matched[position.PositionState.Pool.String()]
+		if !ok {
+			continue
+		}
+		out = append(out, &UserPositionWithPool{UserPosition: *position, Pool: position.PositionState.Pool, PoolState: state})
+	}
+	return out, nil
+}
+
 func (c *CpAmm) GetAllVestingsByPosition(ctx context.Context, position solanago.PublicKey) ([]*VestingWithAccount, error) {
 	filters := helpers.CreateProgramAccountFilter(helpers.AccountKeyVesting, &helpers.Filter{
 		Owner:  position,
@@ -664,18 +914,18 @@ func (c *CpAmm) GetAllVestingsByPosition(ctx context.Context, position solanago.
 	return out, nil
 }
 
-func (c *CpAmm) isLockedPosition(position *PositionState) bool {
+func (c *CpAmm) IsLockedPosition(position *PositionState) bool {
 	totalLocked := new(big.Int).Add(position.VestedLiquidity.BigInt(), position.PermanentLockedLiquidity.BigInt())
 	return totalLocked.Sign() > 0
 }
 
-func (c *CpAmm) isPermanentLockedPosition(position *PositionState) bool {
+func (c *CpAmm) IsPermanentLockedPosition(position *PositionState) bool {
 	return position.PermanentLockedLiquidity.BigInt().Sign() > 0
 }
 
-func (c *CpAmm) canUnlockPosition(position *PositionState, vestings []*VestingWithAccount, currentPoint *big.Int) (bool, string) {
+func (c *CpAmm) CanUnlockPosition(position *PositionState, vestings []*VestingWithAccount, currentPoint *big.Int) (bool, string) {
 	if len(vestings) > 0 {
-		if c.isPermanentLockedPosition(position) {
+		if c.IsPermanentLockedPosition(position) {
 			return false, "Position is permanently locked"
 		}
 		for _, v := range vestings {

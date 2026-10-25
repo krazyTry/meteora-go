@@ -33,8 +33,8 @@ func GetAvailableVestingLiquidity(vestingData *dammv2gen.Vesting, currentPoint *
 	if currentPoint.Cmp(cliffPoint) < 0 {
 		return big.NewInt(0)
 	}
-	if periodFrequency.Sign() == 0 {
-		return new(big.Int).Set(cliffUnlockLiquidity)
+	if periodFrequency.Sign() == 0 || liquidityPerPeriod.Sign() == 0 {
+		return new(big.Int).Sub(cliffUnlockLiquidity, totalReleasedLiquidity)
 	}
 
 	passedPeriod := new(big.Int).Sub(currentPoint, cliffPoint)

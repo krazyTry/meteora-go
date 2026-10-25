@@ -72,7 +72,7 @@ func ValidateFeeRateLimiter(cliffFeeNumerator *big.Int, feeIncrementBps uint16, 
 	if IsZeroRateLimiter(referenceAmount, maxLimiterDuration, maxFeeBps, feeIncrementBps) {
 		return true
 	}
-	if IsNonZeroRateLimiter(referenceAmount, maxLimiterDuration, maxFeeBps, feeIncrementBps) {
+	if !IsNonZeroRateLimiter(referenceAmount, maxLimiterDuration, maxFeeBps, feeIncrementBps) {
 		return false
 	}
 	maxLimiterDurationLimit := uint32(shared.MaxRateLimiterDurationInSlots)
@@ -93,7 +93,7 @@ func ValidateFeeRateLimiter(cliffFeeNumerator *big.Int, feeIncrementBps uint16, 
 	if err != nil {
 		return false
 	}
-	maxFeeNumeratorFromAmount, err := GetFeeNumeratorFromIncludedFeeAmount(big.NewInt(int64(^uint64(0)>>1)), referenceAmount, cliffFeeNumerator, maxFeeBps, feeIncrementBps)
+	maxFeeNumeratorFromAmount, err := GetFeeNumeratorFromIncludedFeeAmount(new(big.Int).Set(shared.U64Max), referenceAmount, cliffFeeNumerator, maxFeeBps, feeIncrementBps)
 	if err != nil {
 		return false
 	}

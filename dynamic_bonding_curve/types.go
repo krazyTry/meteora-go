@@ -3,8 +3,8 @@ package dynamic_bonding_curve
 import (
 	"math/big"
 
-	solanago "github.com/solana-foundation/solana-go/v2"
 	"github.com/krazyTry/meteora-go/dynamic_bonding_curve/shared"
+	solanago "github.com/solana-foundation/solana-go/v2"
 )
 
 // IDL type aliases.
@@ -198,6 +198,9 @@ type MigrationFeeWithdrawStatus = shared.MigrationFeeWithdrawStatus
 // Param/DTO structs mirroring TS types.
 
 type CreateConfigParams = shared.CreateConfigParams
+type CreateConfig2Params = shared.CreateConfig2Params
+type CreateConfigWithTransferHookParams = shared.CreateConfigWithTransferHookParams
+type TransferFeeParameters = shared.TransferFeeParameters
 
 // BaseFee equals BaseFeeConfig without padding.
 
@@ -228,6 +231,7 @@ type InitializePoolBaseParams struct {
 	QuoteVault   solanago.PublicKey
 	QuoteMint    solanago.PublicKey
 	MintMetadata *solanago.PublicKey
+	TokenBadge   *solanago.PublicKey
 }
 
 type CreatePoolParams struct {
@@ -238,6 +242,7 @@ type CreatePoolParams struct {
 	PoolCreator solanago.PublicKey
 	Config      solanago.PublicKey
 	BaseMint    solanago.PublicKey
+	TokenBadge  *solanago.PublicKey
 }
 
 type PreCreatePoolParams struct {
@@ -250,7 +255,8 @@ type PreCreatePoolParams struct {
 
 type CreateConfigAndPoolParams struct {
 	CreateConfigParams
-	PreCreatePoolParam PreCreatePoolParams
+	PreCreatePoolParam    PreCreatePoolParams
+	TransferFeeParameters *TransferFeeParameters
 }
 
 type CreateConfigAndPoolWithFirstBuyParams struct {
@@ -275,6 +281,42 @@ type FirstBuyParams struct {
 	BuyAmount            *big.Int
 	MinimumAmountOut     *big.Int
 	ReferralTokenAccount *solanago.PublicKey
+}
+
+// FirstBuyWithTransferHookParams is a first buy on a transfer-hook base mint.
+// TransferHook may be omitted when the mint already exists and its extra accounts can be read.
+type FirstBuyWithTransferHookParams struct {
+	FirstBuyParams
+	TransferHook *TransferHookAccounts
+}
+
+type CreatePoolWithFirstBuyWithTransferHookParams struct {
+	CreatePoolParam     CreatePoolParams
+	TransferHookProgram solanago.PublicKey
+	FirstBuyParam       *FirstBuyWithTransferHookParams
+}
+
+type PartnerFirstBuyWithTransferHookParams struct {
+	PartnerFirstBuyParams
+	TransferHook *TransferHookAccounts
+}
+
+type CreatorFirstBuyWithTransferHookParams struct {
+	CreatorFirstBuyParams
+	TransferHook *TransferHookAccounts
+}
+
+type CreatePoolWithPartnerAndCreatorFirstBuyWithTransferHookParams struct {
+	CreatePoolParam      CreatePoolParams
+	TransferHookProgram  solanago.PublicKey
+	PartnerFirstBuyParam *PartnerFirstBuyWithTransferHookParams
+	CreatorFirstBuyParam *CreatorFirstBuyWithTransferHookParams
+}
+
+type CreateConfigAndPoolWithFirstBuyWithTransferHookParams struct {
+	CreateConfigWithTransferHookParams
+	PreCreatePoolParam PreCreatePoolParams
+	FirstBuyParam      *FirstBuyWithTransferHookParams
 }
 
 type PartnerFirstBuyParams struct {
@@ -314,7 +356,20 @@ type Swap2Params struct {
 	MinimumAmountOut     *big.Int
 	AmountOut            *big.Int
 	MaximumAmountIn      *big.Int
+	// TransferHook supplies the extra accounts of a base-mint transfer hook.
+	// Swap2WithTransferHook sets an empty value when the caller leaves it nil.
+	TransferHook *TransferHookAccounts
 }
+
+// TransferHookAccounts are the extra accounts a Token-2022 transfer hook needs,
+// split the way the program's TransferHookAccountsInfo slices describe them.
+type TransferHookAccounts struct {
+	Base     []*solanago.AccountMeta
+	Referral []*solanago.AccountMeta
+}
+
+type EpochTransferFee = shared.EpochTransferFee
+type QuoteTransferFees = shared.QuoteTransferFees
 
 type SwapQuoteParams struct {
 	VirtualPool                    *VirtualPool
@@ -325,6 +380,7 @@ type SwapQuoteParams struct {
 	HasReferral                    bool
 	EligibleForFirstSwapWithMinFee bool
 	CurrentPoint                   *big.Int
+	TransferFees                   *QuoteTransferFees
 }
 
 type SwapQuote2Params struct {
@@ -338,6 +394,7 @@ type SwapQuote2Params struct {
 	SwapMode                       SwapMode
 	AmountIn                       *big.Int
 	AmountOut                      *big.Int
+	TransferFees                   *QuoteTransferFees
 }
 
 type MigrateToDammV1Params struct {
@@ -384,6 +441,8 @@ type ClaimTradingFee2Params struct {
 	MaxBaseAmount  *big.Int
 	MaxQuoteAmount *big.Int
 	Receiver       solanago.PublicKey
+	// TransferHook claims through claim_trading_fee2. Nil keeps claim_trading_fee.
+	TransferHook *TransferHookAccounts
 }
 
 type ClaimPartnerTradingFeeWithQuoteMintNotSolParams struct {
@@ -420,6 +479,8 @@ type ClaimCreatorTradingFee2Params struct {
 	MaxBaseAmount  *big.Int
 	MaxQuoteAmount *big.Int
 	Receiver       solanago.PublicKey
+	// TransferHook claims through claim_creator_trading_fee2. Nil keeps claim_creator_trading_fee.
+	TransferHook *TransferHookAccounts
 }
 
 type ClaimCreatorTradingFeeWithQuoteMintNotSolParams struct {

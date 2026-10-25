@@ -25,6 +25,7 @@ var seed = struct {
 	Escrow                  []byte
 	BaseLocker              []byte
 	Vault                   []byte
+	TokenBadge              []byte
 }{
 	PoolAuthority:           []byte("pool_authority"),
 	EventAuthority:          []byte("__event_authority"),
@@ -44,6 +45,20 @@ var seed = struct {
 	Escrow:                  []byte("escrow"),
 	BaseLocker:              []byte("base_locker"),
 	Vault:                   []byte("vault"),
+	TokenBadge:              []byte("token_badge"),
+}
+
+// GetTokenBadgeRemainingAccounts is the optional read-only token badge account.
+func GetTokenBadgeRemainingAccounts(tokenBadge *solanago.PublicKey) []*solanago.AccountMeta {
+	if tokenBadge == nil || tokenBadge.IsZero() {
+		return nil
+	}
+	return []*solanago.AccountMeta{solanago.NewAccountMeta(*tokenBadge, false, false)}
+}
+
+func DeriveTokenBadgeAddress(tokenMint solanago.PublicKey) solanago.PublicKey {
+	pub, _, _ := solanago.FindProgramAddress([][]byte{seed.TokenBadge, tokenMint.Bytes()}, DynamicBondingCurveProgramID)
+	return pub
 }
 
 func DeriveDbcEventAuthority() solanago.PublicKey {
@@ -216,8 +231,24 @@ func DeriveBaseLockerAddress(pool solanago.PublicKey) solanago.PublicKey {
 }
 
 func DeriveVaultAddress(mint solanago.PublicKey, baseAddress solanago.PublicKey) solanago.PublicKey {
-	pub, _, _ := solanago.FindProgramAddress([][]byte{seed.Vault, baseAddress.Bytes(), mint.Bytes()}, VaultProgramID)
+	pub, _, _ := solanago.FindProgramAddress([][]byte{seed.Vault, mint.Bytes(), baseAddress.Bytes()}, VaultProgramID)
 	return pub
+}
+
+// VaultPDAs are the dynamic vault, its token account and its LP mint.
+type VaultPDAs struct {
+	Vault      solanago.PublicKey
+	TokenVault solanago.PublicKey
+	LpMint     solanago.PublicKey
+}
+
+// DeriveVaultPDAs derives the permissionless dynamic vault of a mint. A zero base uses the shared base address.
+func DeriveVaultPDAs(mint, baseAddress solanago.PublicKey) VaultPDAs {
+	if baseAddress.IsZero() {
+		baseAddress = BaseAddress
+	}
+	vault := DeriveVaultAddress(mint, baseAddress)
+	return VaultPDAs{Vault: vault, TokenVault: DeriveTokenVaultKey(vault), LpMint: DeriveVaultLpMintAddress(vault)}
 }
 
 func DeriveTokenVaultKey(vault solanago.PublicKey) solanago.PublicKey {

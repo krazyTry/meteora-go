@@ -85,7 +85,7 @@ func (f FeeTimeScheduler) GetMaxFeeNumerator() (*big.Int, error) {
 type FeeMarketCapScheduler struct {
 	CliffFeeNumerator           *big.Int
 	NumberOfPeriod              uint16
-	SqrtPriceStepBps            uint16
+	SqrtPriceStepBps            uint32
 	SchedulerExpirationDuration uint32
 	ReductionFactor             *big.Int
 	FeeMarketCapSchedulerMode   shared.BaseFeeMode
@@ -156,7 +156,57 @@ func GetBaseFeeHandler(rawData []byte) (shared.BaseFeeHandler, error) {
 		return FeeMarketCapScheduler{
 			CliffFeeNumerator:           new(big.Int).SetUint64(poolFees.CliffFeeNumerator),
 			NumberOfPeriod:              poolFees.NumberOfPeriod,
-			SqrtPriceStepBps:            uint16(poolFees.SqrtPriceStepBps),
+			SqrtPriceStepBps:            poolFees.SqrtPriceStepBps,
+			SchedulerExpirationDuration: poolFees.SchedulerExpirationDuration,
+			ReductionFactor:             new(big.Int).SetUint64(poolFees.ReductionFactor),
+			FeeMarketCapSchedulerMode:   shared.BaseFeeMode(poolFees.BaseFeeMode),
+		}, nil
+	default:
+		return nil, errors.New("invalid base fee mode")
+	}
+}
+
+// GetBaseFeeHandlerFromBorsh selects a handler from Borsh-encoded fee parameters.
+// The mode byte is the last byte, unlike the pod-aligned account layout.
+func GetBaseFeeHandlerFromBorsh(rawData []byte) (shared.BaseFeeHandler, error) {
+	if len(rawData) == 0 {
+		return nil, errors.New("invalid base fee data")
+	}
+	baseFeeMode := shared.BaseFeeMode(rawData[len(rawData)-1])
+	switch baseFeeMode {
+	case shared.BaseFeeModeFeeTimeSchedulerLinear, shared.BaseFeeModeFeeTimeSchedulerExponential:
+		poolFees, err := helpers.DecodeFeeTimeSchedulerParams(rawData)
+		if err != nil {
+			return nil, err
+		}
+		return FeeTimeScheduler{
+			CliffFeeNumerator:    new(big.Int).SetUint64(poolFees.CliffFeeNumerator),
+			NumberOfPeriod:       poolFees.NumberOfPeriod,
+			PeriodFrequency:      new(big.Int).SetUint64(poolFees.PeriodFrequency),
+			ReductionFactor:      new(big.Int).SetUint64(poolFees.ReductionFactor),
+			FeeTimeSchedulerMode: shared.BaseFeeMode(poolFees.BaseFeeMode),
+		}, nil
+	case shared.BaseFeeModeRateLimiter:
+		poolFees, err := helpers.DecodeFeeRateLimiterParams(rawData)
+		if err != nil {
+			return nil, err
+		}
+		return FeeRateLimiter{
+			CliffFeeNumerator:  new(big.Int).SetUint64(poolFees.CliffFeeNumerator),
+			FeeIncrementBps:    poolFees.FeeIncrementBps,
+			MaxFeeBps:          uint16(poolFees.MaxFeeBps),
+			MaxLimiterDuration: poolFees.MaxLimiterDuration,
+			ReferenceAmount:    new(big.Int).SetUint64(poolFees.ReferenceAmount),
+		}, nil
+	case shared.BaseFeeModeFeeMarketCapSchedulerLinear, shared.BaseFeeModeFeeMarketCapSchedulerExp:
+		poolFees, err := helpers.DecodeFeeMarketCapSchedulerParams(rawData)
+		if err != nil {
+			return nil, err
+		}
+		return FeeMarketCapScheduler{
+			CliffFeeNumerator:           new(big.Int).SetUint64(poolFees.CliffFeeNumerator),
+			NumberOfPeriod:              poolFees.NumberOfPeriod,
+			SqrtPriceStepBps:            poolFees.SqrtPriceStepBps,
 			SchedulerExpirationDuration: poolFees.SchedulerExpirationDuration,
 			ReductionFactor:             new(big.Int).SetUint64(poolFees.ReductionFactor),
 			FeeMarketCapSchedulerMode:   shared.BaseFeeMode(poolFees.BaseFeeMode),

@@ -121,7 +121,7 @@ func GetFeeNumeratorFromExcludedAmount(cliffFeeNumerator, referenceAmount, feeIn
 		includedFeeAmount = new(big.Int).Add(includedFeeAmount, includedRemaining)
 	} else {
 		if isOverflow {
-			return nil, errors.New("Math overflow")
+			return nil, errors.New(dbc.ErrMathOverflow)
 		}
 		excludedRemaining := new(big.Int).Sub(excludedFeeAmount, checkedExcludedFeeAmount)
 		includedRemaining, err := mulDiv(excludedRemaining, big.NewInt(dbc.FeeDenominator), new(big.Int).Sub(big.NewInt(dbc.FeeDenominator), big.NewInt(dbc.MaxFeeNumerator)), dbc.RoundingUp)
@@ -137,7 +137,7 @@ func GetFeeNumeratorFromExcludedAmount(cliffFeeNumerator, referenceAmount, feeIn
 		return nil, err
 	}
 	if feeNumerator.Cmp(cliffFeeNumerator) < 0 {
-		return nil, errors.New("Undetermined error: fee numerator less than cliff fee numerator")
+		return nil, errors.New(dbc.ErrUndeterminedError)
 	}
 	return feeNumerator, nil
 }

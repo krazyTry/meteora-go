@@ -3,8 +3,8 @@ package shared
 import (
 	"math/big"
 
-	"github.com/solana-foundation/solana-go/v2"
 	dbcidl "github.com/krazyTry/meteora-go/gen/dynamic_bonding_curve"
+	"github.com/solana-foundation/solana-go/v2"
 )
 
 const (
@@ -32,7 +32,7 @@ const (
 	DynamicFeeDecayPeriodDefault     = 120
 	DynamicFeeReductionFactorDefault = 5000
 	BinStepBpsDefault                = 1
-	MaxPriceChangePercentageDefault  = 20
+	MaxPriceChangeBpsDefault         = 1500
 
 	ProtocolFeePercent = 20
 	HostFeePercent     = 20
@@ -52,6 +52,12 @@ const (
 
 	MinMigratedPoolFeeBps = 10
 	MaxMigratedPoolFeeBps = 1000
+
+	MaxDynamicFeePercent             = 20
+	PartnerAndCreatorSurplusShare    = 80
+	MaxBaseTransferFeeBps            = 1_000
+	ProtocolLiquidityMigrationFeeBps = 20
+	LegacyConfigVersion              = 0
 )
 
 var (
@@ -67,6 +73,9 @@ var (
 	DynamicFeeRoundingOffset = bigIntFromString("99999999999")
 
 	BinStepBpsU128Default = bigIntFromString("1844674407370955")
+
+	// DAMM v2 locks this liquidity in a compounding pool.
+	DammV2CompoundingDeadLiquidity = new(big.Int).Lsh(big.NewInt(100), Resolution)
 )
 
 func bigIntFromString(v string) *big.Int {
@@ -86,6 +95,7 @@ type DynamicFeeParameters = dbcidl.DynamicFeeParameters
 type LiquidityDistributionParameters = dbcidl.LiquidityDistributionParameters
 type MigratedPoolMarketCapFeeSchedulerParameters = dbcidl.MigratedPoolMarketCapFeeSchedulerParams
 type LiquidityVestingInfoParameters = dbcidl.LiquidityVestingInfoParams
+type LiquidityVestingInfo = dbcidl.LiquidityVestingInfo
 type CreatePartnerMetadataParameters = dbcidl.CreatePartnerMetadataParameters
 type CreateVirtualPoolMetadataParameters = dbcidl.CreateVirtualPoolMetadataParameters
 type PoolFeesConfig = dbcidl.PoolFeesConfig
@@ -100,6 +110,7 @@ type VolatilityTracker = dbcidl.VolatilityTracker
 // IDL accounts.
 type PoolConfig = dbcidl.PoolConfig
 type VirtualPool = dbcidl.VirtualPool
+type PoolState = dbcidl.PoolState
 type MeteoraDammMigrationMetadata = dbcidl.MeteoraDammMigrationMetadata
 type LockEscrow = dbcidl.LockEscrow
 type PartnerMetadata = dbcidl.PartnerMetadata
@@ -125,6 +136,25 @@ type CollectFeeMode uint8
 const (
 	CollectFeeModeQuoteToken  CollectFeeMode = 0
 	CollectFeeModeOutputToken CollectFeeMode = 1
+)
+
+// MigratedCollectFeeMode is the DAMM v2 fee collection mode after migration.
+type MigratedCollectFeeMode uint8
+
+const (
+	MigratedCollectFeeModeQuoteToken  MigratedCollectFeeMode = 0
+	MigratedCollectFeeModeOutputToken MigratedCollectFeeMode = 1
+	MigratedCollectFeeModeCompounding MigratedCollectFeeMode = 2
+)
+
+const (
+	TransferFeeWithheldAuthorityPartner uint8 = 0
+	TransferFeeWithheldAuthorityCreator uint8 = 1
+
+	MigratedTransferFeeAuthorityImmutable     uint8 = 0
+	MigratedTransferFeeAuthorityRevokeZeroFee uint8 = 1
+	MigratedTransferFeeAuthorityCreator       uint8 = 2
+	MigratedTransferFeeAuthorityPartner       uint8 = 3
 )
 
 type DammV2DynamicFeeMode uint8
@@ -251,6 +281,8 @@ func (m MigrationFeeWithdrawStatus) IsCreatorWithdraw() uint8 {
 }
 
 // Param/DTO structs mirroring TS types.
+type TransferFeeParameters = dbcidl.TransferFeeParameters
+
 type CreateConfigParams struct {
 	ConfigParameters
 	Config           solana.PublicKey
@@ -258,6 +290,22 @@ type CreateConfigParams struct {
 	LeftoverReceiver solana.PublicKey
 	QuoteMint        solana.PublicKey
 	Payer            solana.PublicKey
+	// TokenBadge is the DBC token badge of the quote mint. Required when the
+	// quote mint is not permissionless (a Token-2022 mint with other extensions).
+	TokenBadge *solana.PublicKey
+}
+
+type CreateConfig2Params struct {
+	CreateConfigParams
+	// Nil leaves the base mint without a transfer fee.
+	TransferFeeParameters *TransferFeeParameters
+}
+
+type CreateConfigWithTransferHookParams struct {
+	CreateConfigParams
+	TransferHookProgram solana.PublicKey
+	// QuoteTokenProgram is the token program of the quote mint. The zero key means SPL Token.
+	QuoteTokenProgram solana.PublicKey
 }
 
 type FeeSchedulerParams struct {
@@ -400,15 +448,36 @@ type FeeMode struct {
 	HasReferral     bool
 }
 
+// EpochTransferFee is one epoch of a Token-2022 transfer fee.
+// A fee is zero when the basis points are 0 or the maximum fee is 0.
+type EpochTransferFee struct {
+	TransferFeeBasisPoints uint16
+	MaximumFee             *big.Int
+}
+
+// QuoteTransferFees supplies the transfer fees a swap quote applies.
+// Base, when set, wins over BaseTransferFeeBasisPoints. When both are unset
+// the base fee is read from PoolConfig.transferFeeFlag. Quote is required
+// when the config quote mint is Token-2022.
+type QuoteTransferFees struct {
+	BaseTransferFeeBasisPoints *uint16
+	Base                       *EpochTransferFee
+	Quote                      *EpochTransferFee
+}
+
 type SwapQuoteResult struct {
 	SwapResult
-	MinimumAmountOut *big.Int
+	MinimumAmountOut             *big.Int
+	IncludedTransferFeeAmountIn  *big.Int
+	ExcludedTransferFeeAmountOut *big.Int
 }
 
 type SwapQuote2Result struct {
 	SwapResult2
-	MinimumAmountOut *big.Int
-	MaximumAmountIn  *big.Int
+	MinimumAmountOut             *big.Int
+	MaximumAmountIn              *big.Int
+	IncludedTransferFeeAmountIn  *big.Int
+	ExcludedTransferFeeAmountOut *big.Int
 }
 
 type FeeOnAmountResult struct {

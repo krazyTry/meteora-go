@@ -3,13 +3,13 @@ package helpers
 import (
 	"math/big"
 
-	"github.com/solana-foundation/solana-go/v2"
-	solanago "github.com/solana-foundation/solana-go/v2"
 	"github.com/krazyTry/meteora-go/dynamic_bonding_curve/shared"
 	dammv1gen "github.com/krazyTry/meteora-go/gen/damm_v1"
 	dammv2gen "github.com/krazyTry/meteora-go/gen/damm_v2"
 	dbcgen "github.com/krazyTry/meteora-go/gen/dynamic_bonding_curve"
 	vaultgen "github.com/krazyTry/meteora-go/gen/dynamic_vault"
+	"github.com/solana-foundation/solana-go/v2"
+	solanago "github.com/solana-foundation/solana-go/v2"
 )
 
 const (
@@ -22,6 +22,15 @@ const (
 	AccountKeyPoolConfig                   = "PoolConfig"
 	AccountKeyVirtualPool                  = "VirtualPool"
 	AccountKeyVirtualPoolMetadata          = "VirtualPoolMetadata"
+
+	// Account memcmp offsets: 8-byte discriminator, then fields in declaration order.
+	DiscriminatorSize          uint64 = 8
+	PubkeySize                 uint64 = 32
+	VolatilityTrackerSize      uint64 = 64
+	PoolConfigFeeClaimerOffset uint64 = DiscriminatorSize + PubkeySize
+	VirtualPoolConfigOffset    uint64 = DiscriminatorSize + VolatilityTrackerSize
+	VirtualPoolCreatorOffset   uint64 = VirtualPoolConfigOffset + PubkeySize
+	VirtualPoolBaseMintOffset  uint64 = VirtualPoolCreatorOffset + PubkeySize
 )
 
 var (

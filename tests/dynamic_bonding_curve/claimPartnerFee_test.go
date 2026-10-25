@@ -6,9 +6,9 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/krazyTry/meteora-go/dynamic_bonding_curve"
 	"github.com/solana-foundation/solana-go/v2"
 	"github.com/solana-foundation/solana-go/v2/rpc"
-	"github.com/krazyTry/meteora-go/dynamic_bonding_curve"
 )
 
 func TestClaimPartnerFee(t *testing.T) {
@@ -35,13 +35,13 @@ func TestClaimPartnerFee(t *testing.T) {
 	}
 	fmt.Println("token info Pool:", poolState)
 
-	if poolState.Account.PartnerQuoteFee > 0 {
+	if poolState.Account.PoolState.PartnerQuoteFee > 0 {
 		claimParams := dynamic_bonding_curve.ClaimTradingFeeParams{
 			Pool:       poolState.Pubkey,
 			FeeClaimer: partner.PublicKey(),
 			Payer:      partner.PublicKey(),
 			// MaxBaseAmount  *big.Int
-			MaxQuoteAmount: new(big.Int).SetUint64(poolState.Account.PartnerQuoteFee),
+			MaxQuoteAmount: new(big.Int).SetUint64(poolState.Account.PoolState.PartnerQuoteFee),
 			// Receiver       *solanago.PublicKey
 			// TempWSolAcc    *solanago.PublicKey
 		}

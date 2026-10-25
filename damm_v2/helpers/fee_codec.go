@@ -1,6 +1,7 @@
 package helpers
 
 import (
+	"errors"
 	"math/big"
 
 	binary "github.com/gagliardetto/binary"
@@ -36,11 +37,11 @@ func DecodePodAlignedFeeTimeScheduler(data []byte) (dammv2gen.PodAlignedFeeTimeS
 	return out, nil
 }
 
-func EncodeFeeMarketCapSchedulerParams(cliffFeeNumerator *big.Int, numberOfPeriod uint16, sqrtPriceStepBps uint16, schedulerExpirationDuration uint32, reductionFactor *big.Int, baseFeeMode shared.BaseFeeMode) ([]byte, error) {
+func EncodeFeeMarketCapSchedulerParams(cliffFeeNumerator *big.Int, numberOfPeriod uint16, sqrtPriceStepBps uint32, schedulerExpirationDuration uint32, reductionFactor *big.Int, baseFeeMode shared.BaseFeeMode) ([]byte, error) {
 	params := dammv2gen.BorshFeeMarketCapScheduler{
 		CliffFeeNumerator:           toU64(cliffFeeNumerator),
 		NumberOfPeriod:              numberOfPeriod,
-		SqrtPriceStepBps:            uint32(sqrtPriceStepBps),
+		SqrtPriceStepBps:            sqrtPriceStepBps,
 		SchedulerExpirationDuration: schedulerExpirationDuration,
 		ReductionFactor:             toU64(reductionFactor),
 		BaseFeeMode:                 uint8(baseFeeMode),
@@ -90,6 +91,20 @@ func DecodePodAlignedFeeRateLimiter(data []byte) (dammv2gen.PodAlignedFeeRateLim
 		return dammv2gen.PodAlignedFeeRateLimiter{}, err
 	}
 	return out, nil
+}
+
+func GetBaseFeeModeFromPodAlignedData(data []byte) (shared.BaseFeeMode, error) {
+	if len(data) < 9 {
+		return 0, errors.New("invalid base fee data")
+	}
+	return shared.BaseFeeMode(data[8]), nil
+}
+
+func GetBaseFeeModeFromBorshData(data []byte) (shared.BaseFeeMode, error) {
+	if len(data) == 0 {
+		return 0, errors.New("invalid base fee data")
+	}
+	return shared.BaseFeeMode(data[len(data)-1]), nil
 }
 
 func toU64(v *big.Int) uint64 {

@@ -29,27 +29,22 @@ func GetFeeInPeriod(cliffFeeNumerator, reductionFactor *big.Int, passedPeriod in
 	return fee
 }
 
-func GetFeeMode(collectFeeMode shared.CollectFeeMode, tradeDirection shared.TradeDirection, hasReferral bool) shared.FeeMode {
+func GetFeeMode(collectFeeMode shared.CollectFeeMode, tradeDirection shared.TradeDirection, hasReferral bool) (shared.FeeMode, error) {
 	feesOnInput := false
 	feesOnTokenA := false
-	if collectFeeMode == shared.CollectFeeModeBothToken {
-		if tradeDirection == shared.TradeDirectionAtoB {
-			feesOnInput = false
-			feesOnTokenA = false
-		} else {
-			feesOnInput = false
+	switch collectFeeMode {
+	case shared.CollectFeeModeBothToken:
+		if tradeDirection == shared.TradeDirectionBtoA {
 			feesOnTokenA = true
 		}
-	} else {
-		if tradeDirection == shared.TradeDirectionAtoB {
-			feesOnInput = false
-			feesOnTokenA = false
-		} else {
+	case shared.CollectFeeModeOnlyB, shared.CollectFeeModeCompounding:
+		if tradeDirection == shared.TradeDirectionBtoA {
 			feesOnInput = true
-			feesOnTokenA = false
 		}
+	default:
+		return shared.FeeMode{}, errors.New("invalid collect fee mode")
 	}
-	return shared.FeeMode{FeesOnInput: feesOnInput, FeesOnTokenA: feesOnTokenA, HasReferral: hasReferral}
+	return shared.FeeMode{FeesOnInput: feesOnInput, FeesOnTokenA: feesOnTokenA, HasReferral: hasReferral}, nil
 }
 
 func GetTotalFeeNumerator(poolFees dammv2gen.PoolFeesStruct, baseFeeNumerator, maxFeeNumerator *big.Int) *big.Int {
@@ -92,29 +87,40 @@ func GetTotalTradingFeeFromExcludedFeeAmount(poolFees dammv2gen.PoolFeesStruct, 
 	return GetTotalFeeNumerator(poolFees, baseFeeNumerator, maxFeeNumerator), nil
 }
 
-func SplitFees(poolFees dammv2gen.PoolFeesStruct, feeAmount *big.Int, hasReferral bool, hasPartner bool) shared.SplitFees {
-	protocolFee := new(big.Int).Mul(feeAmount, big.NewInt(int64(poolFees.ProtocolFeePercent)))
-	protocolFee.Div(protocolFee, big.NewInt(100))
+func SplitFees(poolFees dammv2gen.PoolFeesStruct, feeAmount *big.Int, hasReferral bool) shared.SplitFees {
+	protocolFee := MulDiv(feeAmount, big.NewInt(int64(poolFees.ProtocolFeePercent)), big.NewInt(100), shared.RoundingDown)
 	tradingFee := new(big.Int).Sub(feeAmount, protocolFee)
+
+	compoundingFee := big.NewInt(0)
+	claimingFee := new(big.Int).Set(tradingFee)
+	if poolFees.CompoundingFeeBps > 0 {
+		compoundingFee = MulDiv(tradingFee, big.NewInt(int64(poolFees.CompoundingFeeBps)), big.NewInt(shared.BasisPointMax), shared.RoundingDown)
+		claimingFee = new(big.Int).Sub(tradingFee, compoundingFee)
+	}
+
 	referralFee := big.NewInt(0)
 	if hasReferral {
-		referralFee = new(big.Int).Mul(protocolFee, big.NewInt(int64(poolFees.ReferralFeePercent)))
-		referralFee.Div(referralFee, big.NewInt(100))
+		referralFee = MulDiv(protocolFee, big.NewInt(int64(poolFees.ReferralFeePercent)), big.NewInt(100), shared.RoundingDown)
 	}
-	protocolFeeAfterReferral := new(big.Int).Sub(protocolFee, referralFee)
-	partnerFee := big.NewInt(0)
-	if hasPartner && poolFees.PartnerFeePercent > 0 {
-		partnerFee = new(big.Int).Mul(protocolFeeAfterReferral, big.NewInt(int64(poolFees.PartnerFeePercent)))
-		partnerFee.Div(partnerFee, big.NewInt(100))
+	protocolFee = new(big.Int).Sub(protocolFee, referralFee)
+	return shared.SplitFees{
+		ClaimingFee:    claimingFee,
+		CompoundingFee: compoundingFee,
+		ProtocolFee:    protocolFee,
+		ReferralFee:    referralFee,
 	}
-	finalProtocolFee := new(big.Int).Sub(protocolFeeAfterReferral, partnerFee)
-	return shared.SplitFees{TradingFee: tradingFee, ProtocolFee: finalProtocolFee, ReferralFee: referralFee, PartnerFee: partnerFee}
 }
 
-func GetFeeOnAmount(poolFees dammv2gen.PoolFeesStruct, amount, tradeFeeNumerator *big.Int, hasReferral, hasPartner bool) (shared.FeeOnAmountResult, error) {
+func GetFeeOnAmount(poolFees dammv2gen.PoolFeesStruct, amount, tradeFeeNumerator *big.Int, hasReferral bool) (shared.FeeOnAmountResult, error) {
 	excludedFeeAmount, tradingFee := GetExcludedFeeAmount(tradeFeeNumerator, amount)
-	split := SplitFees(poolFees, tradingFee, hasReferral, hasPartner)
-	return shared.FeeOnAmountResult{FeeNumerator: tradeFeeNumerator, FeeAmount: tradingFee, AmountAfterFee: excludedFeeAmount, TradingFee: split.TradingFee, ProtocolFee: split.ProtocolFee, ReferralFee: split.ReferralFee, PartnerFee: split.PartnerFee}, nil
+	split := SplitFees(poolFees, tradingFee, hasReferral)
+	return shared.FeeOnAmountResult{
+		Amount:         excludedFeeAmount,
+		ClaimingFee:    split.ClaimingFee,
+		CompoundingFee: split.CompoundingFee,
+		ProtocolFee:    split.ProtocolFee,
+		ReferralFee:    split.ReferralFee,
+	}, nil
 }
 
 func GetExcludedFeeAmount(tradeFeeNumerator, includedFeeAmount *big.Int) (*big.Int, *big.Int) {
@@ -133,24 +139,24 @@ func GetIncludedFeeAmount(tradeFeeNumerator, excludedFeeAmount *big.Int) (*big.I
 	return included, feeAmount, nil
 }
 
-func GetMaxFeeNumerator(poolVersion shared.PoolVersion) *big.Int {
-	switch poolVersion {
+func GetMaxFeeNumerator(feeVersion shared.PoolVersion) (*big.Int, error) {
+	switch feeVersion {
 	case shared.PoolVersionV0:
-		return big.NewInt(shared.MaxFeeNumeratorV0)
+		return big.NewInt(shared.MaxFeeNumeratorV0), nil
 	case shared.PoolVersionV1:
-		return big.NewInt(shared.MaxFeeNumeratorV1)
+		return big.NewInt(shared.MaxFeeNumeratorV1), nil
 	default:
-		return big.NewInt(0)
+		return nil, errors.New("invalid pool version")
 	}
 }
 
-func GetMaxFeeBps(poolVersion shared.PoolVersion) uint16 {
-	switch poolVersion {
+func GetMaxFeeBps(feeVersion shared.PoolVersion) (uint16, error) {
+	switch feeVersion {
 	case shared.PoolVersionV0:
-		return shared.MaxFeeBpsV0
+		return shared.MaxFeeBpsV0, nil
 	case shared.PoolVersionV1:
-		return shared.MaxFeeBpsV1
+		return shared.MaxFeeBpsV1, nil
 	default:
-		return 0
+		return 0, errors.New("invalid pool version")
 	}
 }

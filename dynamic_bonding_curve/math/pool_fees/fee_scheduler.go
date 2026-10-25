@@ -21,7 +21,7 @@ func GetBaseFeeNumeratorByPeriod(cliffFeeNumerator *big.Int, numberOfPeriod uint
 		periodValue = big.NewInt(int64(numberOfPeriod))
 	}
 	if periodValue.Cmp(big.NewInt(int64(dbc.U16Max))) > 0 {
-		return nil, errors.New("Math overflow")
+		return nil, errors.New(dbc.ErrMathOverflow)
 	}
 	periodNumber := int(periodValue.Uint64())
 
@@ -31,7 +31,7 @@ func GetBaseFeeNumeratorByPeriod(cliffFeeNumerator *big.Int, numberOfPeriod uint
 	case dbc.BaseFeeModeFeeSchedulerExponential:
 		return GetFeeNumeratorOnExponentialFeeScheduler(cliffFeeNumerator, reductionFactor, periodNumber)
 	default:
-		return nil, errors.New("Invalid fee scheduler mode")
+		return nil, errors.New(dbc.ErrInvalidBaseFeeMode)
 	}
 }
 
@@ -64,7 +64,10 @@ func GetBaseFeeNumerator(cliffFeeNumerator *big.Int, numberOfPeriod uint16, peri
 	if periodFrequency.Sign() == 0 {
 		return new(big.Int).Set(cliffFeeNumerator), nil
 	}
-	period := new(big.Int).Sub(currentPoint, activationPoint)
-	period = period.Div(period, periodFrequency)
+	elapsed, err := sub(currentPoint, activationPoint)
+	if err != nil {
+		return nil, err
+	}
+	period := new(big.Int).Div(elapsed, periodFrequency)
 	return GetBaseFeeNumeratorByPeriod(cliffFeeNumerator, numberOfPeriod, period, reductionFactor, feeSchedulerMode)
 }
